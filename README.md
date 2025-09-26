@@ -31,8 +31,12 @@ This is a fork of <a href="https://github.com/Tkaixiang/marktext">Tkiaxiang's</a
 
 ### Search Improvements
 - Project search augments ripgrep results with filename matches that respect case/word/regex toggles.
-- Packaged builds locate the bundled ripgrep binary automatically, removing ENOENT failures in `/Applications/marktext.app`.
 
 ### Under the Hood
 - TOC metadata and cursor state are cached per file for quick jumps and are kept in sync with watcher updates.
 - New-tab saves default to the selected tree folder when available, matching sidebar context.
+
+## Existing Problems/Work in Progress
+
+### Search
+- Still causing errors relating to ripgrep, whatever that is

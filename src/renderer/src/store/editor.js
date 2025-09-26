@@ -825,6 +825,43 @@ export const useEditorStore = defineStore('editor', {
       }
     },
 
+    RENAME_IF_NEEDED({ src, dest }) {
+      if (!src || !dest) {
+        return
+      }
+
+      const normalizedSrc = window.path.normalize(src)
+      const normalizedDest = window.path.normalize(dest)
+      const filename = window.path.basename(normalizedDest)
+      const dirname = window.path.dirname(normalizedDest)
+
+      const tab = this.tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, normalizedSrc))
+
+      if (tab) {
+        tab.filename = filename
+        tab.pathname = normalizedDest
+        tab.isSaved = true
+        if (tab.tocList && Array.isArray(tab.tocList)) {
+          const cacheKey = window.path.normalize(normalizedDest)
+          this.fileTocCache[cacheKey] = tab.tocList
+        }
+      }
+
+      if (this.currentFile && window.fileUtils.isSamePathSync(this.currentFile.pathname || '', normalizedSrc)) {
+        this.currentFile.filename = filename
+        this.currentFile.pathname = normalizedDest
+        window.DIRNAME = dirname
+      }
+
+      const cacheSrcKey = window.path.normalize(normalizedSrc)
+      if (this.fileTocCache[cacheSrcKey]) {
+        this.fileTocCache[normalizedDest] = this.fileTocCache[cacheSrcKey]
+        delete this.fileTocCache[cacheSrcKey]
+      }
+
+      this.REBUILD_COMPOSITE_TOC()
+    },
+
     UPDATE_CURRENT_FILE(currentFile) {
       const oldCurrentFile = this.currentFile
       if (!oldCurrentFile.id || oldCurrentFile.id !== currentFile.id) {
