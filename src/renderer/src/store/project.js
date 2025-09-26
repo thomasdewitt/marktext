@@ -22,6 +22,7 @@ export const useProjectStore = defineStore('project', {
   actions: {
     LISTEN_FOR_LOAD_PROJECT() {
       const layoutStore = useLayoutStore()
+      const editorStore = useEditorStore()
       window.electron.ipcRenderer.on('mt::open-directory', (e, pathname) => {
         let name = window.path.basename(pathname)
         if (!name) {
@@ -47,6 +48,8 @@ export const useProjectStore = defineStore('project', {
         }
         layoutStore.SET_LAYOUT(layout)
         layoutStore.DISPATCH_LAYOUT_MENU_ITEMS()
+        editorStore.RESET_TOC_CACHE()
+        editorStore.REBUILD_COMPOSITE_TOC()
       })
     },
 
@@ -67,14 +70,34 @@ export const useProjectStore = defineStore('project', {
           case 'unlink':
             unlinkFile(this.projectTree, change)
             editorStore.SET_SAVE_STATUS_WHEN_REMOVE(change)
+            if (change?.pathname) {
+              const normalizedPath = window.path.normalize(change.pathname)
+              delete editorStore.fileTocCache[normalizedPath]
+            }
             break
           case 'addDir':
             addDirectory(this.projectTree, change)
             break
           case 'unlinkDir':
             unlinkDirectory(this.projectTree, change)
+            if (change?.pathname) {
+              const dirPath = window.path.normalize(change.pathname)
+              const dirWithSep = dirPath.endsWith(window.path.sep)
+                ? dirPath
+                : `${dirPath}${window.path.sep}`
+              for (const key of Object.keys(editorStore.fileTocCache)) {
+                if (key === dirPath || key.startsWith(dirWithSep)) {
+                  delete editorStore.fileTocCache[key]
+                }
+              }
+            }
             break
           case 'change':
+            if (change?.pathname) {
+              const normalizedPath = window.path.normalize(change.pathname)
+              delete editorStore.fileTocCache[normalizedPath]
+              editorStore.LOAD_FILE_TOC(normalizedPath)
+            }
             break
           default:
             if (process.env.NODE_ENV === 'development') {
@@ -82,6 +105,7 @@ export const useProjectStore = defineStore('project', {
             }
             break
         }
+        editorStore.REBUILD_COMPOSITE_TOC()
       })
     },
 
@@ -191,6 +215,44 @@ export const useProjectStore = defineStore('project', {
       rename(src, dest).then(() => {
         editorStore.RENAME_IF_NEEDED({ src, dest })
       })
+    },
+
+    async MOVE_FILE_TO_DIRECTORY({ src, destDir }) {
+      if (!src || !destDir) {
+        return
+      }
+
+      const filename = window.path.basename(src)
+      const sourceDir = window.path.dirname(src)
+
+      if (window.fileUtils.isSamePathSync(sourceDir, destDir)) {
+        return
+      }
+
+      const destinationPath = window.path.join(destDir, filename)
+
+      if (window.fileUtils.isSamePathSync(src, destinationPath)) {
+        return
+      }
+
+      if (window.fileUtils.pathExistsSync(destinationPath)) {
+        notice.notify({
+          title: 'Move Forbidden',
+          type: 'warning',
+          message: `A file named "${filename}" already exists in the target folder.`
+        })
+        return
+      }
+
+      try {
+        await window.fileUtils.move(src, destinationPath)
+      } catch (err) {
+        notice.notify({
+          title: 'Error while moving file',
+          type: 'error',
+          message: err.message
+        })
+      }
     },
 
     OPEN_SETTING_WINDOW() {

@@ -23,6 +23,27 @@
 
 import { spawn } from 'child_process'
 
+const resolveExistingPath = (...candidates) => {
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue
+    }
+    try {
+      if (typeof window !== 'undefined' && window.fileUtils?.pathExistsSync) {
+        if (window.fileUtils.pathExistsSync(candidate)) {
+          return candidate
+        }
+      } else {
+        return candidate
+      }
+    } catch (error) {
+      console.error('[ripgrep] Failed to check path existence:', error)
+      return candidate
+    }
+  }
+  return ''
+}
+
 function cleanResultLine(resultLine) {
   resultLine = getText(resultLine)
 
@@ -109,7 +130,37 @@ function getText(input) {
 
 class RipgrepDirectorySearcher {
   constructor() {
-    this.rgPath = global.marktext.paths.ripgrepBinaryPath
+    const initial = global.marktext?.paths?.ripgrepBinaryPath
+    const fallback = typeof window !== 'undefined' ? window.rgPath : ''
+    this.rgPath = resolveExistingPath(initial, fallback)
+  }
+
+  ensureRgPath() {
+    const fallback = typeof window !== 'undefined' ? window.rgPath : ''
+
+    let resourcesCandidate = ''
+    try {
+      const resourcesPath = window?.electron?.process?.resourcesPath
+      const pathModule = window?.path
+      if (resourcesPath && pathModule) {
+        const binName = process.platform === 'win32' ? 'rg.exe' : 'rg'
+        resourcesCandidate = pathModule.join(
+          resourcesPath,
+          'app.asar.unpacked',
+          'node_modules',
+          '@vscode',
+          'ripgrep',
+          'bin',
+          binName
+        )
+      }
+    } catch (error) {
+      console.error('[ripgrep] Failed to resolve resources path:', error)
+    }
+
+    const resolved = resolveExistingPath(this.rgPath, fallback, resourcesCandidate)
+    this.rgPath = resolved
+    return resolved
   }
 
   // Performs a text search for files in the specified `Directory`s, subject to the
@@ -223,9 +274,14 @@ class RipgrepDirectorySearcher {
 
     args.push(directoryPath)
 
+    const executable = this.ensureRgPath()
+    if (!executable) {
+      return Promise.reject(new Error('Ripgrep binary not found.'))
+    }
+
     let child = null
     try {
-      child = spawn(this.rgPath, args, {
+      child = spawn(executable, args, {
         cwd: directoryPath,
         stdio: ['pipe', 'pipe', 'pipe']
       })

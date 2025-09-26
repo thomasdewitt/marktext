@@ -2,7 +2,7 @@ class Clipboard {
   constructor (muya) {
     this.muya = muya
     this._copyType = 'normal' // `normal` or `copyAsMarkdown` or `copyAsHtml`
-    this._pasteType = 'normal' // `normal` or `pasteAsPlainText`
+    this._pasteType = 'pasteAsPlainText' // `normal` or `pasteAsPlainText`
     this._copyInfo = null
     this.listen()
   }
@@ -31,7 +31,7 @@ class Clipboard {
     }
     const pasteHandler = event => {
       contentState.pasteHandler(event, this._pasteType)
-      this._pasteType = 'normal'
+      this._pasteType = 'pasteAsPlainText'
       this.muya.dispatchChange()
     }
 

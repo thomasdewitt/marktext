@@ -4,9 +4,13 @@
       ref="folderEl"
       class="folder-name"
       :style="{ 'padding-left': `${depth * 20 + 20}px` }"
-      :class="[{ active: folder.id === activeItem.id }]"
+      :class="[{ active: folder.id === activeItem.id }, { 'drag-over': isDragOver } ]"
       :title="folder.pathname"
       @click="folderNameClick"
+      @dragover.prevent="handleDragOver"
+      @dragenter.prevent="handleDragEnter"
+      @dragleave="handleDragLeave"
+      @drop.prevent="handleDrop"
     >
       <svg class="icon" aria-hidden="true">
         <use
@@ -77,6 +81,7 @@ const newName = ref('')
 const folderEl = ref(null)
 const renameInput = ref(null)
 const input = ref(null)
+const isDragOver = ref(false)
 
 const { renameCache } = storeToRefs(projectStore)
 const { createCache } = storeToRefs(projectStore)
@@ -122,6 +127,60 @@ const rename = () => {
   }
 }
 
+const acceptDragEvent = (event) => {
+  if (!event.dataTransfer) {
+    return false
+  }
+  const types = Array.from(event.dataTransfer.types || [])
+  return types.includes('application/marktext-file') || types.includes('text/plain')
+}
+
+const handleDragEnter = (event) => {
+  if (!acceptDragEvent(event)) {
+    return
+  }
+  event.stopPropagation()
+  // eslint-disable-next-line vue/no-mutating-props
+  props.folder.isCollapsed = false
+  isDragOver.value = true
+  event.dataTransfer.dropEffect = 'move'
+}
+
+const handleDragOver = (event) => {
+  if (!acceptDragEvent(event)) {
+    return
+  }
+  event.stopPropagation()
+  event.dataTransfer.dropEffect = 'move'
+}
+
+const handleDragLeave = (event) => {
+  if (event.currentTarget?.contains(event.relatedTarget)) {
+    return
+  }
+  event.stopPropagation()
+  isDragOver.value = false
+}
+
+const handleDrop = (event) => {
+  if (!acceptDragEvent(event)) {
+    return
+  }
+
+  event.stopPropagation()
+
+  const pathname =
+    event.dataTransfer.getData('application/marktext-file') || event.dataTransfer.getData('text/plain')
+
+  if (!pathname) {
+    isDragOver.value = false
+    return
+  }
+
+  projectStore.MOVE_FILE_TO_DIRECTORY({ src: pathname, destDir: props.folder.pathname })
+  isDragOver.value = false
+}
+
 onMounted(() => {
   if (folderEl.value) {
     folderEl.value.addEventListener('contextmenu', (event) => {
@@ -150,6 +209,9 @@ onMounted(() => {
       margin-right: 5px;
     }
     &:hover {
+      background: var(--sideBarItemHoverBgColor);
+    }
+    &.drag-over {
       background: var(--sideBarItemHoverBgColor);
     }
   }

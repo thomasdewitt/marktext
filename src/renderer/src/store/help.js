@@ -1,3 +1,4 @@
+import dayjs from 'dayjs'
 import { getUniqueId, deepClone } from '../util'
 import { i18n } from '../i18n'
 
@@ -37,7 +38,9 @@ export const defaultFileState = {
     value: ''
   },
   // Per tab notifications
-  notifications: []
+  notifications: [],
+  tocList: [],
+  muyaIndexCursor: null
 }
 
 export const getOptionsFromState = (file) => {
@@ -54,7 +57,8 @@ export const getFileStateFromData = (data) => {
     encoding,
     lineEnding,
     adjustLineEndingOnSave,
-    trimTrailingNewline
+    trimTrailingNewline,
+    muyaIndexCursor
   } = data
   const id = getUniqueId()
 
@@ -68,8 +72,27 @@ export const getFileStateFromData = (data) => {
     encoding,
     lineEnding,
     adjustLineEndingOnSave,
-    trimTrailingNewline
+    trimTrailingNewline,
+    muyaIndexCursor: muyaIndexCursor || null,
+    tocList: Array.isArray(data.tocList) ? data.tocList : []
   })
+}
+
+const buildDateFilename = (tabs) => {
+  const existing = new Set(
+    tabs.filter((tab) => tab && tab.pathname === '' && tab.filename).map((tab) => tab.filename)
+  )
+
+  const baseName = dayjs().format('M-D-YY')
+  let candidate = baseName
+  let counter = 2
+
+  while (existing.has(candidate)) {
+    candidate = `${baseName} (${counter})`
+    counter += 1
+  }
+
+  return candidate
 }
 
 export const getBlankFileState = (
@@ -79,17 +102,6 @@ export const getBlankFileState = (
   markdown = ''
 ) => {
   const fileState = deepClone(defaultFileState)
-  let untitleId = Math.max(
-    ...tabs.map((f) => {
-      if (f.pathname === '') {
-        return +f.filename.split('-')[1]
-      } else {
-        return 0
-      }
-    }),
-    0
-  )
-
   const id = getUniqueId()
 
   // We may pass markdown=null as parameter.
@@ -102,7 +114,7 @@ export const getBlankFileState = (
     lineEnding,
     adjustLineEndingOnSave: lineEnding.toLowerCase() === 'crlf',
     id,
-    filename: `Untitled-${++untitleId}`,
+    filename: buildDateFilename(tabs),
     markdown
   })
 }
@@ -150,7 +162,8 @@ export const createDocumentState = (markdownDocument, id = getUniqueId()) => {
     lineEnding,
     adjustLineEndingOnSave,
     trimTrailingNewline,
-    cursor = null
+    cursor = null,
+    muyaIndexCursor = null
   } = markdownDocument
 
   assertLineEnding(adjustLineEndingOnSave, lineEnding)
@@ -164,7 +177,9 @@ export const createDocumentState = (markdownDocument, id = getUniqueId()) => {
     lineEnding,
     cursor,
     adjustLineEndingOnSave,
-    trimTrailingNewline
+    trimTrailingNewline,
+    muyaIndexCursor,
+    tocList: Array.isArray(markdownDocument.tocList) ? markdownDocument.tocList : []
   })
 }
 

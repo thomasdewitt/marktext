@@ -2,6 +2,7 @@ import equal from 'deep-equal'
 import bus from '../bus'
 import { hasKeys, getUniqueId, deepClone } from '../util'
 import listToTree from '../util/listToTree'
+import { generateGithubSlug } from 'muya/lib/utils/url'
 import {
   createDocumentState,
   getOptionsFromState,
@@ -24,12 +25,133 @@ import { i18n } from '../i18n'
 
 const autoSaveTimers = new Map()
 
+const pendingTocLoads = new Set()
+
+const mapNodesToPlainObjects = (nodes, tab) => {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return []
+  }
+
+  return nodes.map((node) => ({
+    id: node.slug
+      ? `${tab.id}::${node.slug}`
+      : `${tab.id}::lvl${node.lvl || 0}::${node.label || 'heading'}::${
+          typeof node.line === 'number' ? node.line : 'n'
+        }`,
+    label: node.label,
+    slug: node.slug,
+    lvl: node.lvl,
+    githubSlug: node.githubSlug,
+    line: typeof node.line === 'number' ? node.line : null,
+    fileId: tab.id,
+    pathname: tab.pathname,
+    isFileRoot: false,
+    children: mapNodesToPlainObjects(node.children, tab)
+  }))
+}
+
+const createRootTocNode = (tab, currentFileId) => {
+  const label = tab.filename || (tab.pathname ? window.path.basename(tab.pathname) : 'Untitled')
+  const tocList = Array.isArray(tab.tocList) ? tab.tocList : []
+  const childNodes = mapNodesToPlainObjects(listToTree(tocList), tab)
+
+  return {
+    id: `file::${tab.id}`,
+    label,
+    slug: null,
+    lvl: 0,
+    fileId: tab.id,
+    pathname: tab.pathname,
+    isFileRoot: true,
+    isDirectory: false,
+    type: 'file',
+    isActive: tab.id === currentFileId,
+    children: childNodes
+  }
+}
+
+const extractHeadingsFromMarkdown = (markdown) => {
+  if (typeof markdown !== 'string' || markdown.length === 0) {
+    return []
+  }
+
+  const lines = markdown.split(/\r?\n/)
+  const headings = []
+
+  let index = 0
+  // Skip YAML front matter if present
+  if (lines[0] && /^---\s*$/.test(lines[0].trim())) {
+    index = 1
+    while (index < lines.length && !/^---\s*$/.test(lines[index].trim())) {
+      index += 1
+    }
+    if (index < lines.length) {
+      index += 1
+    }
+  }
+
+  let inCodeBlock = false
+  let codeBlockFence = null
+
+  for (let i = index; i < lines.length; i += 1) {
+    const line = lines[i]
+    const trimmed = line.trim()
+
+    const fenceMatch = trimmed.match(/^(~~~+|```+)(.*)$/)
+    if (fenceMatch) {
+      const fence = fenceMatch[1]
+      const fenceMarker = fence[0]
+      const fenceLength = fence.length
+      const closingSequence = fenceMarker.repeat(fenceLength)
+      const containsInlineClosing =
+        trimmed.length > fenceLength && trimmed.endsWith(closingSequence) && trimmed !== closingSequence
+      if (!inCodeBlock) {
+        inCodeBlock = !containsInlineClosing
+        codeBlockFence = containsInlineClosing ? null : fenceMarker
+      } else if (codeBlockFence && trimmed.startsWith(codeBlockFence.repeat(fenceLength))) {
+        inCodeBlock = false
+        codeBlockFence = null
+      }
+      continue
+    }
+
+    if (inCodeBlock || trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+      continue
+    }
+
+    const atxMatch = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/)
+    if (atxMatch) {
+      const level = atxMatch[1].length
+      const content = atxMatch[2].replace(/\s*#+\s*$/, '').trim()
+      headings.push({ content, lvl: level, line: i })
+      continue
+    }
+
+    if (trimmed && i + 1 < lines.length) {
+      const nextTrimmed = lines[i + 1].trim()
+      if (/^=+$/.test(nextTrimmed)) {
+        headings.push({ content: trimmed, lvl: 1, line: i })
+        i += 1
+        continue
+      }
+      if (/^-+$/.test(nextTrimmed)) {
+        headings.push({ content: trimmed, lvl: 2, line: i })
+        i += 1
+        continue
+      }
+    }
+  }
+
+  return headings
+}
+
 export const useEditorStore = defineStore('editor', {
   state: () => ({
     currentFile: {},
     tabs: [],
     listToc: [], // Used for equal check and for searching for the correct github-slug to jump to
-    toc: []
+    toc: [],
+    fileTocCache: Object.create(null)
   }),
 
   actions: {
@@ -260,6 +382,203 @@ export const useEditorStore = defineStore('editor', {
       }
     },
 
+    REBUILD_COMPOSITE_TOC() {
+      const currentId = this.currentFile && this.currentFile.id ? this.currentFile.id : null
+      const projectStore = useProjectStore()
+      const projectTree = projectStore.projectTree
+
+      const unsavedTabs = []
+      const openTabsByPath = new Map()
+
+      for (const tab of this.tabs) {
+        if (tab.pathname) {
+          const normalizedPath = window.path.normalize(tab.pathname)
+          openTabsByPath.set(normalizedPath, tab)
+        } else {
+          unsavedTabs.push(tab)
+        }
+      }
+
+      const seenPaths = new Set()
+
+      const createFileNode = (pathname, name) => {
+        if (!pathname) {
+          return null
+        }
+
+        const normalizedPath = window.path.normalize(pathname)
+        seenPaths.add(normalizedPath)
+
+        const openTab = openTabsByPath.get(normalizedPath)
+        const tocList = openTab ? openTab.tocList : this.fileTocCache[normalizedPath]
+
+        if (!openTab && !this.fileTocCache[normalizedPath]) {
+          this.LOAD_FILE_TOC(normalizedPath)
+        }
+
+        const tabLike = openTab || {
+          id: normalizedPath,
+          filename: name || window.path.basename(normalizedPath),
+          pathname: normalizedPath,
+          tocList: Array.isArray(tocList) ? tocList : []
+        }
+
+        const node = createRootTocNode(tabLike, currentId)
+        node.isDirectory = false
+        node.type = 'file'
+        return node
+      }
+
+      const buildDirectoryNode = (folder) => {
+        if (!folder) {
+          return null
+        }
+
+        const children = []
+
+        if (Array.isArray(folder.folders)) {
+          for (const subFolder of folder.folders) {
+            const childNode = buildDirectoryNode(subFolder)
+            if (childNode) {
+              children.push(childNode)
+            }
+          }
+        }
+
+        if (Array.isArray(folder.files)) {
+          for (const file of folder.files) {
+            if (!file?.isMarkdown || !file.pathname) {
+              continue
+            }
+            const fileNode = createFileNode(file.pathname, file.name)
+            if (fileNode) {
+              children.push(fileNode)
+            }
+          }
+        }
+
+        const label = folder.name || (folder.pathname ? window.path.basename(folder.pathname) : 'Folder')
+        const id = folder.id ? `dir::${folder.id}` : `dir::${folder.pathname || label}`
+        const node = {
+          id,
+          label,
+          pathname: folder.pathname || '',
+          isDirectory: true,
+          type: 'directory',
+          fileId: null,
+          children
+        }
+
+        node.isActive = children.some((child) => child?.isActive)
+        return node
+      }
+
+      const tocNodes = []
+
+      if (projectTree) {
+        const projectNode = buildDirectoryNode(projectTree)
+        if (projectNode) {
+          tocNodes.push(projectNode)
+        }
+      }
+
+      if (unsavedTabs.length > 0) {
+        const unsavedChildren = unsavedTabs.map((tab) => {
+          const node = createRootTocNode(tab, currentId)
+          node.isDirectory = false
+          node.type = 'file'
+          return node
+        })
+
+        tocNodes.push({
+          id: 'group::unsaved',
+          label: 'Unsaved Notes',
+          pathname: '',
+          isDirectory: true,
+          type: 'group',
+          fileId: null,
+          isActive: unsavedChildren.some((child) => child?.isActive),
+          children: unsavedChildren
+        })
+      }
+
+      const otherFileNodes = []
+
+      for (const tab of this.tabs) {
+        if (!tab.pathname) {
+          continue
+        }
+        const normalizedPath = window.path.normalize(tab.pathname)
+        if (seenPaths.has(normalizedPath)) {
+          continue
+        }
+        seenPaths.add(normalizedPath)
+        const node = createRootTocNode(tab, currentId)
+        node.isDirectory = false
+        node.type = 'file'
+        otherFileNodes.push(node)
+      }
+
+      for (const [pathname, tocList] of Object.entries(this.fileTocCache)) {
+        const normalizedPath = window.path.normalize(pathname)
+        if (seenPaths.has(normalizedPath)) {
+          continue
+        }
+        const node = createFileNode(normalizedPath, window.path.basename(normalizedPath))
+        if (node) {
+          otherFileNodes.push(node)
+        }
+      }
+
+      if (otherFileNodes.length > 0) {
+        tocNodes.push({
+          id: 'group::external',
+          label: 'Other Files',
+          pathname: '',
+          isDirectory: true,
+          type: 'group',
+          fileId: null,
+          isActive: otherFileNodes.some((child) => child?.isActive),
+          children: otherFileNodes
+        })
+      }
+
+      this.toc = tocNodes
+    },
+
+    async LOAD_FILE_TOC(pathname) {
+      if (!pathname || this.fileTocCache[pathname] || pendingTocLoads.has(pathname)) {
+        return
+      }
+
+      pendingTocLoads.add(pathname)
+
+      try {
+        const buffer = await window.fileUtils.readFile(pathname)
+        const markdown = Buffer.isBuffer(buffer) ? buffer.toString('utf8') : String(buffer)
+        const headings = extractHeadingsFromMarkdown(markdown).map((item) => ({
+          content: item.content,
+          lvl: item.lvl,
+          slug: null,
+          githubSlug: generateGithubSlug(item.content),
+          line: item.line
+        }))
+
+        this.fileTocCache[pathname] = headings
+      } catch (error) {
+        console.error('Failed to build TOC for file:', pathname, error)
+        this.fileTocCache[pathname] = []
+      } finally {
+        pendingTocLoads.delete(pathname)
+        this.REBUILD_COMPOSITE_TOC()
+      }
+    },
+
+    RESET_TOC_CACHE() {
+      this.fileTocCache = Object.create(null)
+      pendingTocLoads.clear()
+    },
+
     // need pass some data to main process when `save` menu item clicked
     LISTEN_FOR_SAVE() {
       const projectStore = useProjectStore()
@@ -328,7 +647,21 @@ export const useEditorStore = defineStore('editor', {
           window.DIRNAME = window.path.dirname(pathname)
         }
         if (tab) {
+          const previousPath = tab.pathname
           Object.assign(tab, { filename, pathname, isSaved: true })
+          if (previousPath) {
+            const normalizedPrevious = window.path.normalize(previousPath)
+            delete this.fileTocCache[normalizedPrevious]
+          }
+          if (pathname) {
+            const normalizedNew = window.path.normalize(pathname)
+            if (Array.isArray(tab.tocList)) {
+              this.fileTocCache[normalizedNew] = tab.tocList
+            } else {
+              delete this.fileTocCache[normalizedNew]
+            }
+          }
+          this.REBUILD_COMPOSITE_TOC()
         }
       })
 
@@ -495,7 +828,7 @@ export const useEditorStore = defineStore('editor', {
     UPDATE_CURRENT_FILE(currentFile) {
       const oldCurrentFile = this.currentFile
       if (!oldCurrentFile.id || oldCurrentFile.id !== currentFile.id) {
-        const { id, markdown, cursor, history, pathname, scrollTop, blocks } = currentFile
+        const { id, markdown, cursor, history, pathname, scrollTop, blocks, muyaIndexCursor } = currentFile
         window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
         this.currentFile = currentFile
         bus.emit('file-changed', {
@@ -505,6 +838,7 @@ export const useEditorStore = defineStore('editor', {
           renderCursor: true,
           history,
           scrollTop,
+          muyaIndexCursor,
           blocks
         })
       }
@@ -512,6 +846,9 @@ export const useEditorStore = defineStore('editor', {
       if (!this.tabs.some((file) => file.id === currentFile.id)) {
         this.tabs.push(currentFile)
       }
+
+      this.listToc = Array.isArray(currentFile.tocList) ? currentFile.tocList : []
+      this.REBUILD_COMPOSITE_TOC()
       this.UPDATE_LINE_ENDING_MENU()
     },
 
@@ -650,7 +987,7 @@ export const useEditorStore = defineStore('editor', {
         const fileState = this.tabs[index] || this.tabs[index - 1] || this.tabs[0] || {}
         this.currentFile = fileState
         if (typeof fileState.markdown === 'string') {
-          const { id, markdown, cursor, history, pathname, scrollTop, blocks } = fileState
+          const { id, markdown, cursor, history, pathname, scrollTop, blocks, muyaIndexCursor } = fileState
           window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
           bus.emit('file-changed', {
             id,
@@ -659,6 +996,7 @@ export const useEditorStore = defineStore('editor', {
             renderCursor: true,
             history,
             scrollTop,
+            muyaIndexCursor,
             blocks
           })
         } else {
@@ -668,8 +1006,9 @@ export const useEditorStore = defineStore('editor', {
 
       if (this.tabs.length === 0) {
         this.listToc = []
-        this.toc = []
       }
+
+      this.REBUILD_COMPOSITE_TOC()
 
       const { pathname } = file
       if (pathname) {
@@ -734,7 +1073,8 @@ export const useEditorStore = defineStore('editor', {
       if (!this.currentFile.id && this.tabs.length > 0) {
         this.currentFile = this.tabs[tabIndex] || this.tabs[tabIndex - 1] || this.tabs[0] || {}
         if (typeof this.currentFile.markdown === 'string') {
-          const { id, markdown, cursor, history, pathname, scrollTop, blocks } = this.currentFile
+          const { id, markdown, cursor, history, pathname, scrollTop, blocks, muyaIndexCursor } =
+            this.currentFile
           window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
           bus.emit('file-changed', {
             id,
@@ -743,6 +1083,7 @@ export const useEditorStore = defineStore('editor', {
             renderCursor: true,
             history,
             scrollTop,
+            muyaIndexCursor,
             blocks
           })
         }
@@ -861,6 +1202,7 @@ export const useEditorStore = defineStore('editor', {
         bus.emit('file-loaded', { id, markdown })
       } else {
         this.tabs.push(fileState)
+        this.REBUILD_COMPOSITE_TOC()
       }
     },
 
@@ -912,6 +1254,7 @@ export const useEditorStore = defineStore('editor', {
         bus.emit('file-loaded', { id, markdown, cursor })
       } else {
         this.tabs.push(docState)
+        this.REBUILD_COMPOSITE_TOC()
       }
 
       if (isMixedLineEndings) {
@@ -974,9 +1317,17 @@ export const useEditorStore = defineStore('editor', {
             tab.markdown = adjustTrailingNewlines(markdown, tab.trimTrailingNewline)
             if (cursor) tab.cursor = cursor
             if (history) tab.history = history
+            if (Array.isArray(toc)) {
+              tab.tocList = toc
+              if (tab.pathname) {
+                const normalizedPath = window.path.normalize(tab.pathname)
+                this.fileTocCache[normalizedPath] = toc
+              }
+            }
             break
           }
         }
+        this.REBUILD_COMPOSITE_TOC()
         return
       }
 
@@ -993,9 +1344,22 @@ export const useEditorStore = defineStore('editor', {
       if (cursor) this.currentFile.cursor = cursor
       if (muyaIndexCursor) this.currentFile.muyaIndexCursor = muyaIndexCursor
       if (history) this.currentFile.history = history
-      if (toc && !equal(toc, this.listToc)) {
-        this.listToc = toc
-        this.toc = listToTree(toc)
+      const normalizedToc = Array.isArray(toc) ? toc : []
+      if (!equal(normalizedToc, this.listToc)) {
+        this.listToc = normalizedToc
+        this.currentFile.tocList = normalizedToc
+        if (this.currentFile.pathname) {
+          const normalizedPath = window.path.normalize(this.currentFile.pathname)
+          this.fileTocCache[normalizedPath] = normalizedToc
+        }
+        this.REBUILD_COMPOSITE_TOC()
+      } else if (Array.isArray(toc)) {
+        this.currentFile.tocList = normalizedToc
+        if (this.currentFile.pathname) {
+          const normalizedPath = window.path.normalize(this.currentFile.pathname)
+          this.fileTocCache[normalizedPath] = normalizedToc
+        }
+        this.REBUILD_COMPOSITE_TOC()
       }
 
       if (markdown !== oldMarkdown) {
@@ -1279,10 +1643,21 @@ export const useEditorStore = defineStore('editor', {
  * @param {object} projectStore The project store instance.
  */
 const getRootFolderFromState = (projectStore) => {
-  const openedFolder = projectStore.projectTree
-  if (openedFolder) {
+  if (projectStore && projectStore.activeItem && projectStore.activeItem.pathname) {
+    const { activeItem } = projectStore
+    if (activeItem.isDirectory) {
+      return activeItem.pathname
+    }
+    if (activeItem.isFile) {
+      return window.path.dirname(activeItem.pathname)
+    }
+  }
+
+  const openedFolder = projectStore?.projectTree
+  if (openedFolder && openedFolder.pathname) {
     return openedFolder.pathname
   }
+
   return ''
 }
 

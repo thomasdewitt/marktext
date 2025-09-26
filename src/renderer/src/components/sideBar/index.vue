@@ -59,8 +59,17 @@ const editorStore = useEditorStore()
 const sideBar = ref(null)
 const dragBar = ref(null)
 
+const MIN_SIDEBAR_WIDTH = 220
+
 const openedFiles = ref([])
 const sideBarViewWidth = ref(280)
+
+const getDefaultSideBarWidth = () => {
+  if (typeof window === 'undefined') {
+    return MIN_SIDEBAR_WIDTH
+  }
+  return Math.max(Math.round(window.innerWidth / 3), MIN_SIDEBAR_WIDTH)
+}
 
 const { rightColumn, showSideBar, sideBarWidth } = storeToRefs(layoutStore)
 
@@ -70,8 +79,24 @@ const { tabs } = storeToRefs(editorStore)
 const finalSideBarWidth = computed(() => {
   if (!showSideBar.value) return 0
   if (rightColumn.value === '') return 45
-  return sideBarViewWidth.value < 220 ? 220 : sideBarViewWidth.value
+  return sideBarViewWidth.value < MIN_SIDEBAR_WIDTH ? MIN_SIDEBAR_WIDTH : sideBarViewWidth.value
 })
+
+watch(
+  () => [rightColumn.value, showSideBar.value],
+  ([currentColumn, isDisplayed], [previousColumn, wasDisplayed]) => {
+    const justOpened =
+      isDisplayed &&
+      currentColumn &&
+      (!wasDisplayed || !previousColumn)
+
+    if (justOpened) {
+      const targetWidth = getDefaultSideBarWidth()
+      sideBarViewWidth.value = targetWidth
+      layoutStore.CHANGE_SIDE_BAR_WIDTH(targetWidth)
+    }
+  }
+)
 
 onMounted(() => {
   nextTick(() => {
@@ -85,7 +110,9 @@ onMounted(() => {
     const mouseUpHandler = () => {
       document.removeEventListener('mousemove', mouseMoveHandler, false)
       document.removeEventListener('mouseup', mouseUpHandler, false)
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(currentSideBarWidth < 220 ? 220 : currentSideBarWidth)
+      layoutStore.CHANGE_SIDE_BAR_WIDTH(
+        currentSideBarWidth < MIN_SIDEBAR_WIDTH ? MIN_SIDEBAR_WIDTH : currentSideBarWidth
+      )
     }
 
     const mouseMoveHandler = (event) => {
@@ -112,9 +139,12 @@ const handleLeftIconClick = (name) => {
   } else {
     const needDispatch = rightColumn.value === ''
     layoutStore.SET_LAYOUT({ rightColumn: name })
-    sideBarViewWidth.value = +sideBarWidth.value
     if (needDispatch) {
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(finalSideBarWidth.value)
+      const targetWidth = getDefaultSideBarWidth()
+      sideBarViewWidth.value = targetWidth
+      layoutStore.CHANGE_SIDE_BAR_WIDTH(targetWidth)
+    } else {
+      sideBarViewWidth.value = +sideBarWidth.value
     }
   }
 }

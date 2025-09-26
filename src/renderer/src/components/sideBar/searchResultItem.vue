@@ -120,8 +120,7 @@ const handleSearchResultClick = (searchMatch) => {
   const openedTab = tabs.value.find((file) =>
     window.fileUtils.isSamePathSync(file.pathname, filePath)
   )
-  const cursor = {
-    isCollapsed: range[0][0] !== range[1][0],
+  const muyaIndexCursor = {
     anchor: {
       line: range[0][0],
       ch: range[0][1]
@@ -133,7 +132,8 @@ const handleSearchResultClick = (searchMatch) => {
   }
 
   if (openedTab) {
-    openedTab.cursor = cursor
+    openedTab.muyaIndexCursor = muyaIndexCursor
+    openedTab.cursor = null
     if (currentFile.value !== openedTab) {
       editorStore.UPDATE_CURRENT_FILE(openedTab)
     } else {
@@ -141,14 +141,15 @@ const handleSearchResultClick = (searchMatch) => {
       bus.emit('file-changed', {
         id,
         markdown,
-        cursor: currentFile.value.cursor,
+        cursor: null,
+        muyaIndexCursor,
         renderCursor: true,
         history
       })
     }
   } else {
     window.electron.ipcRenderer.send('mt::open-file', filePath, {
-      cursor
+      muyaIndexCursor
     })
   }
 }

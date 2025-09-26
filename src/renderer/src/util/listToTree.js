@@ -1,10 +1,12 @@
 class Node {
   constructor(item) {
-    const { parent, lvl, content, slug } = item
+    const { parent, lvl, content, slug, githubSlug, line } = item
     this.parent = parent
     this.lvl = lvl
     this.label = content
     this.slug = slug
+    this.githubSlug = githubSlug
+    this.line = typeof line === 'number' ? line : null
     this.children = []
   }
 
@@ -30,7 +32,7 @@ const findParent = (item, lastNode, rootNode) => {
   }
 }
 
-const listToTree = (list) => {
+const listToTree = (list, options = {}) => {
   const rootNode = new Node({ parent: null, lvl: null, content: null, slug: null })
   let lastNode = null
 
@@ -42,7 +44,20 @@ const listToTree = (list) => {
     lastNode = node
   }
 
-  return rootNode.children
+  const tree = rootNode.children
+
+  if (!options || !options.rootLabel) {
+    return tree
+  }
+
+  const root = new Node({ parent: null, lvl: 0, content: options.rootLabel, slug: options.rootSlug || null })
+
+  for (const child of tree) {
+    child.parent = root
+    root.addChild(child)
+  }
+
+  return [root]
 }
 
 export default listToTree

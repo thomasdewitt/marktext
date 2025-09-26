@@ -225,9 +225,7 @@ const handleMenuClick = () => {
 }
 
 const rename = () => {
-  if (props.platform === 'darwin') {
-    editorStore.RESPONSE_FOR_RENAME()
-  }
+  editorStore.RESPONSE_FOR_RENAME()
 }
 
 const onMaximize = () => {
@@ -297,6 +295,8 @@ img {
   transition: all 0.25s ease-in-out;
   & .filename {
     transition: all 0.25s ease-in-out;
+    -webkit-app-region: no-drag;
+    cursor: text;
   }
   &::after {
     content: '';

@@ -15,3 +15,24 @@
 
 ---
 This is a fork of <a href="https://github.com/Tkaixiang/marktext">Tkiaxiang's</a> fork of the original Marktext which is no longer maintained. The purpose of this fork is to make some changes tailored to my own personal use of Marktext. Please see Tkiaxiang's version for something more stable.
+
+## Customizations in This Fork
+
+### Sidebar & Navigation
+- New untitled notes adopt `M-D-YY` filenames (with numeric suffixes for duplicates) to keep daily journals tidy.
+- The file tree sorts Markdown notes by most-recent date, leaves “misc” names between folders and dated entries, and supports drag-and-drop moves.
+- TOC now mirrors the project tree hierarchy, loads collapsed by default, highlights the active note, and shows unsaved/external files in their own groups.
+- Clicking TOC headings or search hits jumps reliably using Muya’s line-based cursor, even for unopened files.
+
+### Editor & UI Enhancements
+- Pasting is forced to plain text to prevent rich-text HTML from leaking into documents.
+- The title-bar filename (all platforms) is non-draggable and launches the rename flow on click.
+- The sample workspace under `sample-notes/` provides quick fixtures for regressions.
+
+### Search Improvements
+- Project search augments ripgrep results with filename matches that respect case/word/regex toggles.
+- Packaged builds locate the bundled ripgrep binary automatically, removing ENOENT failures in `/Applications/marktext.app`.
+
+### Under the Hood
+- TOC metadata and cursor state are cached per file for quick jumps and are kept in sync with watcher updates.
+- New-tab saves default to the selected tree folder when available, matching sidebar context.

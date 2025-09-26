@@ -93,6 +93,127 @@ const preferencesStore = usePreferencesStore()
 let searcherCancelCallback = null
 const ripgrepDirectorySearcher = new RipgrepDirectorySearcher()
 
+const escapeRegExp = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const collectProjectFiles = (node, output = []) => {
+  if (!node) {
+    return output
+  }
+
+  if (Array.isArray(node.files)) {
+    for (const file of node.files) {
+      if (file?.isMarkdown && file.pathname) {
+        output.push(file.pathname)
+      }
+    }
+  }
+
+  if (Array.isArray(node.folders)) {
+    for (const folder of node.folders) {
+      collectProjectFiles(folder, output)
+    }
+  }
+
+  return output
+}
+
+const buildFilenameRegex = () => {
+  if (!keyword.value) {
+    return { regex: null }
+  }
+
+  const flags = isCaseSensitive.value ? 'g' : 'gi'
+
+  try {
+    if (isRegexp.value) {
+      const pattern = isWholeWord.value ? `\\b(?:${keyword.value})\\b` : keyword.value
+      return { regex: new RegExp(pattern, flags) }
+    }
+
+    const escaped = escapeRegExp(keyword.value)
+    const pattern = isWholeWord.value ? `\\b${escaped}\\b` : escaped
+    return { regex: new RegExp(pattern, flags) }
+  } catch (error) {
+    return { regex: null, error }
+  }
+}
+
+const appendFilenameMatches = (results) => {
+  if (!projectTree.value?.pathname) {
+    return results
+  }
+
+  const { regex, error } = buildFilenameRegex()
+  if (!regex) {
+    if (error && !searchErrorString.value) {
+      searchErrorString.value = error.message || String(error)
+    }
+    return results
+  }
+
+  const augmentedResults = [...results]
+  const resultMap = new Map()
+
+  for (const item of augmentedResults) {
+    if (item?.filePath) {
+      resultMap.set(window.path.normalize(item.filePath), item)
+    }
+  }
+
+  const allFiles = collectProjectFiles(projectTree.value)
+
+  for (const filePath of allFiles) {
+    regex.lastIndex = 0
+    const fileName = window.path.basename(filePath)
+    const matches = []
+    let match
+
+    while ((match = regex.exec(fileName)) !== null) {
+      const text = match[0]
+      const start = match.index
+      const end = start + text.length
+
+      matches.push({
+        matchText: text,
+        lineText: fileName,
+        range: [
+          [0, start],
+          [0, end]
+        ],
+        leadingContextLines: [],
+        trailingContextLines: []
+      })
+
+      if (text === '') {
+        regex.lastIndex += 1
+        if (regex.lastIndex > fileName.length) {
+          break
+        }
+      }
+    }
+
+    if (!matches.length) {
+      continue
+    }
+
+    const normalizedPath = window.path.normalize(filePath)
+    const existing = resultMap.get(normalizedPath)
+
+    if (existing) {
+      existing.matches = [...matches, ...existing.matches]
+    } else {
+      const entry = {
+        filePath,
+        matches
+      }
+      augmentedResults.push(entry)
+      resultMap.set(normalizedPath, entry)
+    }
+  }
+
+  return augmentedResults
+}
+
 const keyword = ref('')
 const searchResult = ref([])
 const searcherRunning = ref(false)
@@ -194,7 +315,8 @@ const search = () => {
       inclusions: window.fileUtils.MARKDOWN_INCLUSIONS
     })
     .then(() => {
-      searchResult.value = newSearchResult
+      const resultsWithFilenames = appendFilenameMatches(newSearchResult)
+      searchResult.value = resultsWithFilenames
       searcherRunning.value = false
       searcherCancelCallback = null
       stopShowSearchCancelAreaTimer()
@@ -205,7 +327,11 @@ const search = () => {
         promises.cancel()
       }
       log.error('Error while searching in directory:', err)
-      searchResult.value = []
+      if (!searchErrorString.value) {
+        searchErrorString.value = err?.message || 'Search error'
+      }
+      const fallbackResults = appendFilenameMatches([])
+      searchResult.value = fallbackResults.length ? fallbackResults : []
       searcherRunning.value = false
       searcherCancelCallback = null
       stopShowSearchCancelAreaTimer()

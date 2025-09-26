@@ -1,6 +1,63 @@
 import { getUniqueId } from '../util'
 import { PATH_SEPARATOR } from '../config'
 
+const DATE_FILENAME_REG = /^(\d{1,2})-(\d{1,2})-(\d{2})(?:\s*\((\d+)\))?(?:\.md)?$/i
+
+const parseDateFromFilename = (name) => {
+  const trimmed = name?.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  const match = trimmed.match(DATE_FILENAME_REG)
+  if (!match) {
+    return null
+  }
+
+  const month = Number.parseInt(match[1], 10)
+  const day = Number.parseInt(match[2], 10)
+  const yearPart = Number.parseInt(match[3], 10)
+
+  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31) {
+    return null
+  }
+
+  const fullYear = 2000 + yearPart
+  const candidate = new Date(Date.UTC(fullYear, month - 1, day))
+  if (
+    candidate.getUTCFullYear() !== fullYear ||
+    candidate.getUTCMonth() !== month - 1 ||
+    candidate.getUTCDate() !== day
+  ) {
+    return null
+  }
+
+  return {
+    time: candidate.getTime(),
+    suffix: match[4] ? Number.parseInt(match[4], 10) || 0 : 0
+  }
+}
+
+const compareSidebarFiles = (a, b) => {
+  const aDate = parseDateFromFilename(a.name)
+  const bDate = parseDateFromFilename(b.name)
+
+  if (aDate && bDate) {
+    if (aDate.time !== bDate.time) {
+      return bDate.time - aDate.time
+    }
+    if (aDate.suffix !== bDate.suffix) {
+      return aDate.suffix - bDate.suffix
+    }
+  } else if (aDate) {
+    return 1
+  } else if (bDate) {
+    return -1
+  }
+
+  return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+}
+
 /**
  * Return all sub-directories relative to the root directory.
  *
@@ -65,14 +122,8 @@ export const addFile = (tree, file) => {
       pathname: file.pathname
     }
 
-    const idx = currentFolder.files.findIndex((f) => {
-      return f.name.localeCompare(name) > 0
-    })
-    if (idx !== -1) {
-      currentFolder.files.splice(idx, 0, fileCopy)
-    } else {
-      currentFolder.files.push(fileCopy)
-    }
+    currentFolder.files.push(fileCopy)
+    currentFolder.files.sort(compareSidebarFiles)
   }
 }
 

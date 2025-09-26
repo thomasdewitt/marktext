@@ -8,6 +8,9 @@
       { current: currentFile.pathname === file.pathname, active: file.id === activeItem.id }
     ]"
     @click="handleFileClick"
+    :draggable="file.isMarkdown"
+    @dragstart="handleDragStart"
+    @dragend="handleDragEnd"
   >
     <file-icon :name="file.name"></file-icon>
     <input
@@ -86,6 +89,21 @@ const rename = () => {
     projectStore.RENAME_IN_SIDEBAR(newName.value)
   }
 }
+
+const handleDragStart = (event) => {
+  if (!props.file?.pathname || !event.dataTransfer) {
+    return
+  }
+
+  event.stopPropagation()
+  projectStore.CHANGE_ACTIVE_ITEM(props.file)
+  event.dataTransfer.setData('application/marktext-file', props.file.pathname)
+  event.dataTransfer.setData('text/plain', props.file.pathname)
+  event.dataTransfer.setData('text/uri-list', props.file.pathname)
+  event.dataTransfer.effectAllowed = 'move'
+}
+
+const handleDragEnd = () => {}
 
 onMounted(() => {
   if (fileEl.value) {
