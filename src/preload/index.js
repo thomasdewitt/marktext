@@ -35,6 +35,7 @@ const fileUtilsAPI = {
   stat: (path) => fs.stat(path),
   writeFile: (path, data) => fs.writeFile(path, data),
   readFile: (path) => fs.readFile(path),
+  readdir: (path) => fs.readdir(path),
   ensureDirSync: (path) => ensureDirSync(path),
   pathExistsSync: (path) => fs.pathExistsSync(path),
   isChildOfDirectory: (dir, child) => isChildOfDirectory(dir, child),

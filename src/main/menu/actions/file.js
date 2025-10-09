@@ -1,5 +1,6 @@
 import { rename as fsRename } from 'fs-extra'
 import path from 'path'
+import { exec } from 'child_process'
 import { BrowserWindow, app, dialog, shell, ipcMain } from 'electron'
 import log from 'electron-log'
 import { isDirectory, isFile, exists } from 'common/filesystem'
@@ -121,17 +122,22 @@ const handleResponseForSave = async (e, id, filename, pathname, markdown, option
   // If the file doesn't exist on disk add it to the recently used documents later
   // and execute file from filesystem watcher for a short time. The file may exists
   // on disk nevertheless but is already tracked by MarkText.
-  const alreadyExistOnDisk = !!pathname
+  const alreadyTracked = !!pathname
 
   let filePath = pathname
 
   if (!filePath) {
-    const { filePath: dialogPath, canceled } = await dialog.showSaveDialog(win, {
-      defaultPath: path.join(defaultPath || getPath('documents'), `${recommendFilename}.md`)
-    })
+    // Auto-save to defaultPath if it exists (project folder is open)
+    if (defaultPath && await exists(defaultPath)) {
+      filePath = path.join(defaultPath, `${recommendFilename}.md`)
+    } else {
+      const { filePath: dialogPath, canceled } = await dialog.showSaveDialog(win, {
+        defaultPath: path.join(defaultPath || getPath('documents'), `${recommendFilename}.md`)
+      })
 
-    if (dialogPath && !canceled) {
-      filePath = dialogPath
+      if (dialogPath && !canceled) {
+        filePath = dialogPath
+      }
     }
   }
 
@@ -143,15 +149,30 @@ const handleResponseForSave = async (e, id, filename, pathname, markdown, option
   filePath = path.resolve(filePath)
   const extension = path.extname(filePath) || '.md'
   filePath = !filePath.endsWith(extension) ? (filePath += extension) : filePath
+
+  // Check if file actually exists on disk (not just tracked)
+  const fileExistsOnDisk = await exists(filePath)
+  const isNewFile = !alreadyTracked && !fileExistsOnDisk
+
   return writeMarkdownFile(filePath, markdown, options, win)
     .then(() => {
-      if (!alreadyExistOnDisk) {
+      if (!alreadyTracked) {
+        // This tab wasn't tracking a file before
         ipcMain.emit('window-add-file-path', win.id, filePath)
         ipcMain.emit('menu-add-recently-used', filePath)
 
         const filename = path.basename(filePath)
         win.webContents.send('mt::set-pathname', { id, pathname: filePath, filename })
+
+        // Tell watcher to ignore change event
+        ipcMain.emit('window-file-saved', win.id, filePath)
+
+        // Run git backup only for truly new files (not existing files being opened)
+        if (isNewFile) {
+          runGitBackup(filePath, win)
+        }
       } else {
+        // File was already being tracked
         ipcMain.emit('window-file-saved', win.id, filePath)
         win.webContents.send('mt::tab-saved', id)
       }
@@ -214,6 +235,53 @@ const openPandocFile = async (windowId, pathname) => {
 const removePrintServiceFromWindow = (win) => {
   // remove print service content and restore GUI
   win.webContents.send('mt::print-service-clearup')
+}
+
+const runGitBackup = (filePath, win) => {
+  // Check if file is in a Journals folder
+  const dirname = path.dirname(filePath)
+  const dirBasename = path.basename(dirname)
+
+  if (dirBasename !== 'Journals') {
+    return
+  }
+
+  log.info(`Running git auto-backup in ${dirname}`)
+
+  // Run git commands in the Journals folder
+  const commands = 'git add * && git commit -m "." && git push'
+
+  exec(commands, { cwd: dirname }, (error, stdout, stderr) => {
+    if (error) {
+      log.error('Git auto-backup failed:', error.message)
+      if (win && win.webContents) {
+        win.webContents.send('mt::show-notification', {
+          title: 'Git Backup Failed',
+          type: 'error',
+          message: `Failed to backup to git: ${error.message}`,
+          time: 5000
+        })
+      }
+      return
+    }
+
+    log.info('Git auto-backup success')
+    if (stdout) {
+      log.info('Git stdout:', stdout)
+    }
+    if (stderr) {
+      log.info('Git stderr:', stderr)
+    }
+
+    if (win && win.webContents) {
+      win.webContents.send('mt::show-notification', {
+        title: 'Git Backup Success',
+        type: 'success',
+        message: 'File backed up to git successfully',
+        time: 3000
+      })
+    }
+  })
 }
 
 // --- events -----------------------------------
@@ -281,7 +349,7 @@ ipcMain.on(
     // If the file doesn't exist on disk add it to the recently used documents later
     // and execute file from filesystem watcher for a short time. The file may exists
     // on disk nevertheless but is already tracked by MarkText.
-    const alreadyExistOnDisk = !!pathname
+    const alreadyTracked = !!pathname
 
     let { filePath, canceled } = await dialog.showSaveDialog(win, {
       defaultPath:
@@ -290,20 +358,36 @@ ipcMain.on(
 
     if (filePath && !canceled) {
       filePath = path.resolve(filePath)
+
+      // Check if file actually exists on disk (not just tracked)
+      const fileExistsOnDisk = await exists(filePath)
+      const isNewFile = !alreadyTracked && !fileExistsOnDisk
+
       writeMarkdownFile(filePath, markdown, options, win)
         .then(() => {
-          if (!alreadyExistOnDisk) {
+          if (!alreadyTracked) {
             ipcMain.emit('window-add-file-path', win.id, filePath)
             ipcMain.emit('menu-add-recently-used', filePath)
 
             const filename = path.basename(filePath)
             win.webContents.send('mt::set-pathname', { id, pathname: filePath, filename })
+
+            // Tell watcher to ignore change event
+            ipcMain.emit('window-file-saved', win.id, filePath)
+
+            // Run git backup only for truly new files
+            if (isNewFile) {
+              runGitBackup(filePath, win)
+            }
           } else if (pathname !== filePath) {
             // Update window file list and watcher.
             ipcMain.emit('window-change-file-path', win.id, filePath, pathname)
 
             const filename = path.basename(filePath)
             win.webContents.send('mt::set-pathname', { id, pathname: filePath, filename })
+
+            // Tell watcher to ignore change event for the new path
+            ipcMain.emit('window-file-saved', win.id, filePath)
           } else {
             ipcMain.emit('window-file-saved', win.id, filePath)
             win.webContents.send('mt::tab-saved', id)

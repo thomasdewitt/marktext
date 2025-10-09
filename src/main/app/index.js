@@ -662,6 +662,11 @@ class App {
     ipcMain.handle('mt::fs-trash-item', async (event, fullPath) => {
       return shell.trashItem(fullPath)
     })
+
+    ipcMain.handle('mt::show-message-box', async (event, options) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      return dialog.showMessageBox(win, options)
+    })
   }
 }
 

@@ -3,7 +3,10 @@
     class="side-bar-toc"
     :class="[{ 'side-bar-toc-overflow': !wordWrapInToc, 'side-bar-toc-wordwrap': wordWrapInToc }]"
   >
-    <div class="title">{{ t('sideBar.toc.title') }}</div>
+    <div class="title-container">
+      <div class="title">{{ t('sideBar.toc.title') }}</div>
+      <button class="unfold-button" @click="handleUnfold" title="Unfold">Unfold</button>
+    </div>
     <el-tree
       v-if="toc.length"
       ref="treeRef"
@@ -46,6 +49,7 @@ const { wordWrapInToc } = storeToRefs(preferencesStore)
 
 const treeRef = ref(null)
 const userExpandedKeys = ref([])
+const unfoldDepth = ref(0) // 0 = collapsed, 1+ = depth level
 
 const findPathToNode = (nodes, targetId, path = []) => {
   if (!Array.isArray(nodes) || !targetId) {
@@ -217,6 +221,61 @@ const handleClick = (node) => {
     window.electron.ipcRenderer.send('mt::open-file', node.pathname, payload)
   }
 }
+
+const collectNodesToDepth = (nodes, currentDepth, maxDepth, collected = []) => {
+  if (!Array.isArray(nodes) || currentDepth > maxDepth) {
+    return collected
+  }
+
+  for (const node of nodes) {
+    if (!node?.id) continue
+    if (currentDepth <= maxDepth) {
+      collected.push(node.id)
+    }
+    if (node.children && currentDepth < maxDepth) {
+      collectNodesToDepth(node.children, currentDepth + 1, maxDepth, collected)
+    }
+  }
+
+  return collected
+}
+
+const getMaxDepth = (nodes, currentDepth = 0) => {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return currentDepth
+  }
+
+  let maxDepth = currentDepth
+  for (const node of nodes) {
+    if (node?.children && node.children.length > 0) {
+      const childDepth = getMaxDepth(node.children, currentDepth + 1)
+      maxDepth = Math.max(maxDepth, childDepth)
+    }
+  }
+
+  return maxDepth
+}
+
+const handleUnfold = () => {
+  const maxDepth = getMaxDepth(toc.value, 1)
+
+  // Cycle through depths: 1 -> 2 -> ... -> max -> 0 (collapsed) -> 1
+  unfoldDepth.value = unfoldDepth.value + 1
+  if (unfoldDepth.value > maxDepth) {
+    unfoldDepth.value = 0
+  }
+
+  if (unfoldDepth.value === 0) {
+    // Collapse all
+    userExpandedKeys.value = []
+  } else {
+    // Expand to depth
+    const keys = collectNodesToDepth(toc.value, 1, unfoldDepth.value, [])
+    userExpandedKeys.value = keys
+  }
+
+  syncExpandedKeys()
+}
 </script>
 
 <style>
@@ -229,12 +288,35 @@ const handleClick = (node) => {
   flex-direction: column;
 }
 
+.side-bar-toc .title-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 37px 0 10px 0;
+  padding: 0 25px;
+}
+
 .side-bar-toc .title {
   color: var(--sideBarTitleColor);
   font-weight: 600;
   font-size: 16px;
-  margin: 37px 0 10px 0;
-  padding-left: 25px;
+}
+
+.side-bar-toc .unfold-button {
+  background: transparent;
+  border: 1px solid var(--sideBarColor);
+  color: var(--sideBarColor);
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.side-bar-toc .unfold-button:hover {
+  background: var(--sideBarItemHoverBgColor);
+  border-color: var(--themeColor);
+  color: var(--themeColor);
 }
 
 .side-bar-toc .el-tree-node {

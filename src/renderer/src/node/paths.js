@@ -1,7 +1,22 @@
 import EnvPaths from 'common/envPaths'
 
+// Get ripgrep path, handling both context isolation and non-isolation modes
+const getRgPath = () => {
+  // In context-isolated mode, rgPath is exposed at window level
+  if (typeof window !== 'undefined' && window.rgPath) {
+    return window.rgPath
+  }
+  // In non-isolated mode or if not available, try global rgPath
+  if (typeof rgPath !== 'undefined') {
+    return rgPath
+  }
+  // Fallback to empty string
+  return ''
+}
+
 // // "vscode-ripgrep" is unpacked out of asar because of the binary.
-const rgDiskPath = window.rgPath.replace(/\bapp\.asar\b/, 'app.asar.unpacked')
+const rgPathValue = getRgPath()
+const rgDiskPath = rgPathValue ? rgPathValue.replace(/\bapp\.asar\b/, 'app.asar.unpacked') : ''
 
 class RendererPaths extends EnvPaths {
   /**

@@ -1,5 +1,5 @@
 appId: com.electron.app
-productName: marktext
+productName: MarkText
 directories:
   buildResources: build
 files:
@@ -52,6 +52,7 @@ electronLanguages: # Avoid packaging all chromium locales since our app has in-b
 
 asarUnpack:
   - resources/**
+  - node_modules/@vscode/ripgrep/**
 win:
   executableName: marktext
   artifactName: 'marktext-win-${arch}-${version}.${ext}'

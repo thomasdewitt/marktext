@@ -1,4 +1,5 @@
 import equal from 'deep-equal'
+import dayjs from 'dayjs'
 import bus from '../bus'
 import { hasKeys, getUniqueId, deepClone } from '../util'
 import listToTree from '../util/listToTree'
@@ -1222,7 +1223,7 @@ export const useEditorStore = defineStore('editor', {
      * @param {{markdown?: string, selected?: boolean}} obj Optional markdown string
      * and whether the tab should become the selected tab (true if not set).
      */
-    NEW_UNTITLED_TAB({ markdown: markdownString, selected }) {
+    async NEW_UNTITLED_TAB({ markdown: markdownString, selected }) {
       if (selected == null) {
         selected = true
       }
@@ -1230,8 +1231,65 @@ export const useEditorStore = defineStore('editor', {
       this.SHOW_TAB_VIEW(false)
 
       const preferencesStore = usePreferencesStore()
+      const projectStore = useProjectStore()
       const { defaultEncoding, endOfLine } = preferencesStore
-      const fileState = getBlankFileState(this.tabs, defaultEncoding, endOfLine, markdownString)
+
+      // Check if today's date file exists in project folder
+      const todayFilename = dayjs().format('M-D-YY')
+      const projectPath = projectStore.projectTree?.pathname
+
+      let shouldCreateUntitled = false
+
+      if (projectPath) {
+        try {
+          const files = await window.fileUtils.readdir?.(projectPath) || []
+          const todayFileExists = files.some(file => {
+            const basename = window.path.basename(file, '.md')
+            return basename === todayFilename || basename.startsWith(todayFilename + ' ')
+          })
+
+          if (todayFileExists) {
+            // Find the actual file
+            const existingFile = files.find(file => {
+              const basename = window.path.basename(file, '.md')
+              return basename === todayFilename || basename.startsWith(todayFilename + ' ')
+            })
+
+            if (existingFile) {
+              const fullPath = window.path.join(projectPath, existingFile)
+
+              // Show dialog
+              const result = await window.electron.ipcRenderer.invoke('mt::show-message-box', {
+                type: 'question',
+                buttons: ['Open Today\'s File', 'Create New Untitled'],
+                defaultId: 0,
+                message: `A file for today (${todayFilename}) already exists.`,
+                detail: 'Would you like to open the existing file or create a new untitled file?'
+              })
+
+              if (result.response === 0) {
+                // Open existing file
+                window.electron.ipcRenderer.send('mt::open-file', fullPath, {})
+                return
+              } else {
+                // Create untitled
+                shouldCreateUntitled = true
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Error checking for today\'s file:', err)
+        }
+      }
+
+      let fileState
+      if (shouldCreateUntitled) {
+        // Create Untitled file
+        fileState = deepClone(getBlankFileState(this.tabs, defaultEncoding, endOfLine, markdownString))
+        fileState.filename = 'Untitled'
+      } else {
+        fileState = getBlankFileState(this.tabs, defaultEncoding, endOfLine, markdownString)
+      }
 
       if (selected) {
         const { id, markdown } = fileState

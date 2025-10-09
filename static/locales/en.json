@@ -220,7 +220,8 @@
     "replaceSingle": "Replace Single",
     "invalidRegex": "Invalid regular expression",
     "regexMatchEmpty": "Regular expression matches empty string",
-    "searchResultCount": "Search results"
+    "searchResultCount": "Search results",
+    "searchResultInfo": "{matchCount} matches in {fileCount} files"
   },
   "sideBar": {
     "search": {

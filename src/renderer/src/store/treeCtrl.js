@@ -1,7 +1,7 @@
 import { getUniqueId } from '../util'
 import { PATH_SEPARATOR } from '../config'
 
-const DATE_FILENAME_REG = /^(\d{1,2})-(\d{1,2})-(\d{2})(?:\s*\((\d+)\))?(?:\.md)?$/i
+const DATE_FILENAME_REG = /^(\d{1,2})-(\d{1,2})-(\d{2})(?:\s+([^.]+))?(?:\.md)?$/i
 
 const parseDateFromFilename = (name) => {
   const trimmed = name?.trim()
@@ -33,8 +33,7 @@ const parseDateFromFilename = (name) => {
   }
 
   return {
-    time: candidate.getTime(),
-    suffix: match[4] ? Number.parseInt(match[4], 10) || 0 : 0
+    time: candidate.getTime()
   }
 }
 
@@ -43,18 +42,21 @@ const compareSidebarFiles = (a, b) => {
   const bDate = parseDateFromFilename(b.name)
 
   if (aDate && bDate) {
+    // Both have dates: sort by date, most recent first
     if (aDate.time !== bDate.time) {
       return bDate.time - aDate.time
     }
-    if (aDate.suffix !== bDate.suffix) {
-      return aDate.suffix - bDate.suffix
-    }
+    // If dates are equal, sort alphabetically by full filename
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
   } else if (aDate) {
+    // Only a has date: b (no date) goes first
     return 1
   } else if (bDate) {
+    // Only b has date: a (no date) goes first
     return -1
   }
 
+  // Neither has dates: sort alphabetically
   return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
 }
 
