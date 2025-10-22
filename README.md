@@ -15,7 +15,7 @@
 
 ---
 
-**Note:** This is Thomas's pure vibecoding project - a personal playground for experimenting with features and customizations!
+**Note:** This is Thomas's pure vibecoding project - no promises!
 
 This is a fork of <a href="https://github.com/Tkaixiang/marktext">Tkiaxiang's</a> fork of the original Marktext which is no longer maintained. The purpose of this fork is to make some changes tailored to my own personal use of Marktext. Please see Tkiaxiang's version for something more stable.
 
