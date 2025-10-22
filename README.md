@@ -14,6 +14,9 @@
 </div>
 
 ---
+
+**Note:** This is Thomas's pure vibecoding project - a personal playground for experimenting with features and customizations!
+
 This is a fork of <a href="https://github.com/Tkaixiang/marktext">Tkiaxiang's</a> fork of the original Marktext which is no longer maintained. The purpose of this fork is to make some changes tailored to my own personal use of Marktext. Please see Tkiaxiang's version for something more stable.
 
 ## Customizations in This Fork
@@ -38,5 +41,4 @@ This is a fork of <a href="https://github.com/Tkaixiang/marktext">Tkiaxiang's</a
 
 ## Existing Problems/Work in Progress
 
-### Search
-- Still causing errors relating to ripgrep, whatever that is
+- None currently! (Previous ripgrep search issues have been resolved)

@@ -1508,7 +1508,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     SELECTION_CHANGE(changes) {
-      const { start, end } = changes
+      const { start, end, selectionWordCount } = changes
       if (start.key === end.key && start.block.text) {
         const value = start.block.text.substring(start.offset, end.offset)
         this.currentFile.searchMatches = {
@@ -1516,6 +1516,13 @@ export const useEditorStore = defineStore('editor', {
           index: -1,
           value
         }
+      }
+
+      // Update wordCount with selection count
+      if (this.currentFile.wordCount && selectionWordCount) {
+        this.currentFile.wordCount.selection = selectionWordCount
+      } else if (this.currentFile.wordCount) {
+        this.currentFile.wordCount.selection = null
       }
 
       const { windowId } = global.marktext.env

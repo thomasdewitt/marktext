@@ -59,7 +59,7 @@ export default function () {
       {
         label: t('menu.help.reportBug'),
         click() {
-          shell.openExternal('https://github.com/Tkaixiang/marktext/issues')
+          shell.openExternal('https://github.com/thomasdewitt/marktext/issues')
         }
       },
       {

@@ -42,14 +42,15 @@
           <template #content>
             <div class="title-item">
               <span class="front">Words:</span><span class="text">{{ wordCount['word'] }}</span>
+              <span v-if="wordCount.selection" class="text selection-count">{{ ` (${wordCount.selection['word']})` }}</span>
             </div>
             <div class="title-item">
-              <span class="front">Characters:</span
-              ><span class="text">{{ wordCount['character'] }}</span>
+              <span class="front">Characters:</span><span class="text">{{ wordCount['character'] }}</span>
+              <span v-if="wordCount.selection" class="text selection-count">{{ ` (${wordCount.selection['character']})` }}</span>
             </div>
             <div class="title-item">
-              <span class="front">Paragraphs:</span
-              ><span class="text">{{ wordCount['paragraph'] }}</span>
+              <span class="front">Paragraphs:</span><span class="text">{{ wordCount['paragraph'] }}</span>
+              <span v-if="wordCount.selection" class="text selection-count">{{ ` (${wordCount.selection['paragraph']})` }}</span>
             </div>
           </template>
           <div
@@ -58,7 +59,10 @@
             :class="[{ 'title-no-drag': platform !== 'darwin' }]"
             @click.stop="handleWordClick"
           >
-            <span class="text-center-vertical">{{ `${HASH[show].short} ${wordCount[show]}` }}</span>
+            <span class="text-center-vertical">
+              {{ `${HASH[show].short} ${wordCount[show]}` }}
+              <span v-if="wordCount.selection" class="selection-count">{{ ` (${wordCount.selection[show]})` }}</span>
+            </span>
           </div>
         </el-tooltip>
       </div>
