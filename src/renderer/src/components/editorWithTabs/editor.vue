@@ -914,6 +914,15 @@ const handleFileChange = ({
       container.style.pointerEvents = 'auto'
       scrollToCursor(0)
     }
+
+    // Focus editor after tab switch to ensure keyboard events work
+    if (renderCursor && container.style.visibility !== 'hidden') {
+      setTimeout(() => {
+        if (editor.value && !editor.value.hasFocus()) {
+          editor.value.focus()
+        }
+      }, 50)
+    }
   }
 }
 

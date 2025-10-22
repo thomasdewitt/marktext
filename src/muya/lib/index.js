@@ -6,6 +6,7 @@ import Keyboard from './eventHandler/keyboard'
 import DragDrop from './eventHandler/dragDrop'
 import Resize from './eventHandler/resize'
 import ClickEvent from './eventHandler/clickEvent'
+import selection from './selection'
 import { CLASS_OR_ID, MUYA_DEFAULT_OPTION } from './config'
 import { wordCount } from './utils'
 import ExportMarkdown from './utils/exportMarkdown'
@@ -136,8 +137,9 @@ class Muya {
 
   dispatchSelectionChange = () => {
     const selectionChanges = this.contentState.selectionChange()
+    const selectionWordCount = this.getSelectionWordCount()
 
-    this.eventCenter.dispatch('selectionChange', selectionChanges)
+    this.eventCenter.dispatch('selectionChange', { ...selectionChanges, selectionWordCount })
     this.eventCenter.dispatch('scroll', { scrollTop: this.container.scrollTop })
   }
 
@@ -181,6 +183,34 @@ class Muya {
 
   getWordCount(markdown) {
     return wordCount(markdown)
+  }
+
+  getSelectionWordCount() {
+    try {
+      const { start, end } = selection.getCursorRange() || {}
+      if (!start || !end || (start.key === end.key && start.offset === end.offset)) {
+        return null
+      }
+
+      // Get selected text
+      let selectedText = ''
+      if (start.key === end.key) {
+        const block = this.contentState.getBlock(start.key)
+        selectedText = block.text.substring(start.offset, end.offset)
+      } else {
+        // For multi-block selections, use the clipboard data extraction logic
+        const clipboardData = this.contentState.getClipBoardData()
+        selectedText = clipboardData.text || ''
+      }
+
+      if (!selectedText) {
+        return null
+      }
+
+      return wordCount(selectedText)
+    } catch (error) {
+      return null
+    }
   }
 
   getCursor() {

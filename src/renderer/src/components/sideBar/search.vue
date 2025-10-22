@@ -95,6 +95,68 @@ const ripgrepDirectorySearcher = new RipgrepDirectorySearcher()
 
 const escapeRegExp = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+const DATE_FILENAME_REG = /^(\d{1,2})-(\d{1,2})-(\d{2})(?:\s+([^.]+))?(?:\.md)?$/i
+
+const parseDateFromFilename = (name) => {
+  const trimmed = name?.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  const match = trimmed.match(DATE_FILENAME_REG)
+  if (!match) {
+    return null
+  }
+
+  const month = Number.parseInt(match[1], 10)
+  const day = Number.parseInt(match[2], 10)
+  const yearPart = Number.parseInt(match[3], 10)
+
+  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31) {
+    return null
+  }
+
+  const fullYear = 2000 + yearPart
+  const candidate = new Date(Date.UTC(fullYear, month - 1, day))
+  if (
+    candidate.getUTCFullYear() !== fullYear ||
+    candidate.getUTCMonth() !== month - 1 ||
+    candidate.getUTCDate() !== day
+  ) {
+    return null
+  }
+
+  return {
+    time: candidate.getTime()
+  }
+}
+
+const compareSearchResults = (a, b) => {
+  const aName = window.path.basename(a.filePath)
+  const bName = window.path.basename(b.filePath)
+
+  const aDate = parseDateFromFilename(aName)
+  const bDate = parseDateFromFilename(bName)
+
+  if (aDate && bDate) {
+    // Both have dates: sort by date, most recent first
+    if (aDate.time !== bDate.time) {
+      return bDate.time - aDate.time
+    }
+    // If dates are equal, sort alphabetically by full filename
+    return aName.localeCompare(bName, undefined, { sensitivity: 'base', numeric: true })
+  } else if (aDate) {
+    // Only a has date: b (no date) goes first
+    return 1
+  } else if (bDate) {
+    // Only b has date: a (no date) goes first
+    return -1
+  }
+
+  // Neither has dates: sort alphabetically
+  return aName.localeCompare(bName, undefined, { sensitivity: 'base', numeric: true })
+}
+
 const collectProjectFiles = (node, output = []) => {
   if (!node) {
     return output
@@ -316,6 +378,7 @@ const search = () => {
     })
     .then(() => {
       const resultsWithFilenames = appendFilenameMatches(newSearchResult)
+      resultsWithFilenames.sort(compareSearchResults)
       searchResult.value = resultsWithFilenames
       searcherRunning.value = false
       searcherCancelCallback = null
@@ -331,6 +394,7 @@ const search = () => {
         searchErrorString.value = err?.message || 'Search error'
       }
       const fallbackResults = appendFilenameMatches([])
+      fallbackResults.sort(compareSearchResults)
       searchResult.value = fallbackResults.length ? fallbackResults : []
       searcherRunning.value = false
       searcherCancelCallback = null

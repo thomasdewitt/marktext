@@ -266,15 +266,20 @@ const handleUnfold = () => {
   }
 
   if (unfoldDepth.value === 0) {
-    // Collapse all
+    // Collapse all - directly set expanded keys to empty without syncing ancestor keys
     userExpandedKeys.value = []
+    nextTick(() => {
+      if (treeRef.value) {
+        treeRef.value.setExpandedKeys([])
+        treeRef.value.setCurrentKey(currentNodeKey.value || null)
+      }
+    })
   } else {
     // Expand to depth
     const keys = collectNodesToDepth(toc.value, 1, unfoldDepth.value, [])
     userExpandedKeys.value = keys
+    syncExpandedKeys()
   }
-
-  syncExpandedKeys()
 }
 </script>
 
@@ -340,6 +345,10 @@ const handleUnfold = () => {
 .side-bar-toc .el-tree-node.is-current > .el-tree-node__content,
 .side-bar-toc .el-tree-node.is-current > .el-tree-node__content .el-tree-node__label {
   color: var(--themeColor);
+}
+
+.side-bar-toc .el-tree-node.is-current > .el-tree-node__content {
+  background-color: rgba(64, 158, 255, 0.12);
 }
 
 .side-bar-toc .el-tree-node:focus > .el-tree-node__content {

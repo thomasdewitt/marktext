@@ -215,6 +215,7 @@ const handleSearchResultClick = (searchMatch) => {
 }
 .search-result-item.active {
   font-weight: 600;
+  background-color: rgba(64, 158, 255, 0.12);
 }
 .search-result-item.active .title {
   color: var(--themeColor);

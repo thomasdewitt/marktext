@@ -133,7 +133,36 @@ export const useProjectStore = defineStore('project', {
         bus.emit('SIDEBAR::show-new-input')
       })
       bus.on('SIDEBAR::remove', () => {
-        const { pathname } = this.activeItem
+        const { pathname, isDirectory } = this.activeItem
+        const editorStore = useEditorStore()
+
+        // Close any open tabs for the file or files in the directory being deleted
+        if (isDirectory) {
+          // If deleting a directory, close all tabs for files within it
+          const normalizedPath = window.path.normalize(pathname)
+          const dirWithSep = normalizedPath.endsWith(window.path.sep)
+            ? normalizedPath
+            : `${normalizedPath}${window.path.sep}`
+
+          editorStore.tabs
+            .filter((tab) => {
+              if (!tab.pathname) return false
+              const tabPath = window.path.normalize(tab.pathname)
+              return tabPath === normalizedPath || tabPath.startsWith(dirWithSep)
+            })
+            .forEach((tab) => {
+              editorStore.FORCE_CLOSE_TAB(tab)
+            })
+        } else {
+          // If deleting a file, close its tab if it's open
+          const openTab = editorStore.tabs.find((tab) =>
+            tab.pathname && window.fileUtils.isSamePathSync(tab.pathname, pathname)
+          )
+          if (openTab) {
+            editorStore.FORCE_CLOSE_TAB(openTab)
+          }
+        }
+
         window.electron.ipcRenderer.invoke('mt::fs-trash-item', pathname).catch((err) => {
           notice.notify({
             title: 'Error while deleting',
