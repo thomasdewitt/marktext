@@ -70,6 +70,23 @@ const getMarkdownAndCursor = (cm) => {
   return { cursor: { focus, anchor }, markdown }
 }
 
+const updateSelectionWordCount = (cm) => {
+  if (!cm) {
+    editorStore.UPDATE_SELECTION_WORD_COUNT(null)
+    return
+  }
+
+  const selections = typeof cm.getSelections === 'function' ? cm.getSelections() : []
+  const hasSelection = selections.some((text) => text && text.length > 0)
+  if (!hasSelection) {
+    editorStore.UPDATE_SELECTION_WORD_COUNT(null)
+    return
+  }
+
+  const selectionText = selections.join('\n')
+  editorStore.UPDATE_SELECTION_WORD_COUNT(getWordCount(selectionText))
+}
+
 const prepareTabSwitch = () => {
   if (commitTimer.value) clearTimeout(commitTimer.value)
   if (tabId.value) {
@@ -81,6 +98,7 @@ const prepareTabSwitch = () => {
     })
     tabId.value = null // invalidate tab id
   }
+  editorStore.UPDATE_SELECTION_WORD_COUNT(null)
 }
 
 const scrollToCords = (y) => {
@@ -106,6 +124,8 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
   } else {
     setCursorAtFirstLine(editor.value)
   }
+
+  updateSelectionWordCount(editor.value)
 
   if (typeof scrollTop === 'number') {
     scrollToCords(scrollTop)
@@ -188,6 +208,8 @@ const handleImageAction = ({ id, result, alt }) => {
 
 const listenChange = () => {
   editor.value.on('cursorActivity', (cm) => {
+    updateSelectionWordCount(cm)
+
     const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(cm)
     // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
     const wordCount = getWordCount(newMarkdown)
@@ -272,6 +294,7 @@ onMounted(() => {
   tabId.value = id
 
   listenChange()
+  updateSelectionWordCount(editor.value)
 })
 
 onBeforeUnmount(() => {
@@ -292,6 +315,7 @@ onBeforeUnmount(() => {
     renderCursor: true
   })
 
+  editorStore.UPDATE_SELECTION_WORD_COUNT(null)
   sourceCodeContainer.value.removeEventListener('scroll', handleScroll)
 })
 

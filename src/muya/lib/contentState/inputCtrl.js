@@ -9,8 +9,7 @@ const BRACKET_HASH = {
   '[': ']',
   '(': ')',
   _: '_',
-  $: '$',
-  '~': '~'
+  $: '$'
 }
 
 const BACK_HASH = {
@@ -18,8 +17,7 @@ const BACK_HASH = {
   ']': '[',
   ')': '(',
   _: '_',
-  $: '$',
-  '~': '~'
+  $: '$'
 }
 
 // TODO: refactor later.
@@ -205,7 +203,7 @@ const inputCtrl = ContentState => {
             (autoPairQuote && /["]{1}/.test(inputChar)) ||
             (autoPairBracket && /[\}\]\)]{1}/.test(inputChar)) ||
             (autoPairMarkdownSyntax && /[$]{1}/.test(inputChar)) ||
-            (autoPairMarkdownSyntax && /[*$`~_]{1}/.test(inputChar)) && /[_*~]{1}/.test(prePreInputChar)
+            (autoPairMarkdownSyntax && /[*$`_]{1}/.test(inputChar)) && /[_*]{1}/.test(prePreInputChar)
           )
         ) {
           needRender = true
@@ -222,7 +220,7 @@ const inputCtrl = ContentState => {
             ((autoPairQuote && /[']{1}/.test(inputChar) && !(/[\S]{1}/.test(postInputChar)) && !(/[a-zA-Z\d]{1}/.test(preInputChar))) ||
               (autoPairQuote && /["]{1}/.test(inputChar) && !(/[\S]{1}/.test(postInputChar))) ||
               (autoPairBracket && /[\{\[\(]{1}/.test(inputChar) && !(/[\S]{1}/.test(postInputChar))) ||
-              (block.functionType !== 'codeContent' && !isInInlineMath && !isInInlineCode && autoPairMarkdownSyntax && !/[a-z0-9]{1}/i.test(preInputChar) && /[*$`~_]{1}/.test(inputChar)))
+              (block.functionType !== 'codeContent' && !isInInlineMath && !isInInlineCode && autoPairMarkdownSyntax && !/[a-z0-9]{1}/i.test(preInputChar) && /[*$`_]{1}/.test(inputChar)))
           ) {
             needRender = true
             text = BRACKET_HASH[event.data]

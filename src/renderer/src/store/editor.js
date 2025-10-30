@@ -1295,6 +1295,25 @@ export const useEditorStore = defineStore('editor', {
         const { id, markdown } = fileState
         this.UPDATE_CURRENT_FILE(fileState)
         bus.emit('file-loaded', { id, markdown })
+
+        // Auto-save daily files immediately if we have a project path
+        if (!shouldCreateUntitled && projectPath) {
+          // Defer save to ensure the file and editor are fully initialized
+          setTimeout(() => {
+            const { id, filename, pathname, markdown } = fileState
+            const options = getOptionsFromState(fileState)
+            const defaultPath = projectPath
+            window.electron.ipcRenderer.send(
+              'mt::response-file-save',
+              id,
+              filename,
+              pathname,
+              markdown,
+              deepClone(options),
+              defaultPath
+            )
+          }, 500)
+        }
       } else {
         this.tabs.push(fileState)
         this.REBUILD_COMPOSITE_TOC()
@@ -1531,6 +1550,16 @@ export const useEditorStore = defineStore('editor', {
         windowId,
         createApplicationMenuState(changes)
       )
+    },
+
+    UPDATE_SELECTION_WORD_COUNT(selectionWordCount) {
+      if (!this.currentFile?.wordCount) {
+        return
+      }
+
+      this.currentFile.wordCount.selection = selectionWordCount
+        ? { ...selectionWordCount }
+        : null
     },
 
     SELECTION_FORMATS(formats) {

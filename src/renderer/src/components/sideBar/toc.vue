@@ -259,9 +259,12 @@ const getMaxDepth = (nodes, currentDepth = 0) => {
 const handleUnfold = () => {
   const maxDepth = getMaxDepth(toc.value, 1)
 
+  // Ensure maxDepth is at least 1 if we have any items
+  const actualMaxDepth = toc.value && toc.value.length > 0 ? Math.max(1, maxDepth) : 0
+
   // Cycle through depths: 1 -> 2 -> ... -> max -> 0 (collapsed) -> 1
   unfoldDepth.value = unfoldDepth.value + 1
-  if (unfoldDepth.value > maxDepth) {
+  if (unfoldDepth.value > actualMaxDepth) {
     unfoldDepth.value = 0
   }
 
@@ -275,7 +278,7 @@ const handleUnfold = () => {
       }
     })
   } else {
-    // Expand to depth
+    // Expand to depth while preserving the active branch state
     const keys = collectNodesToDepth(toc.value, 1, unfoldDepth.value, [])
     userExpandedKeys.value = keys
     syncExpandedKeys()
