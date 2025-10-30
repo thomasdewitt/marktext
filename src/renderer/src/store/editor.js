@@ -1454,7 +1454,17 @@ export const useEditorStore = defineStore('editor', {
         return
       }
 
-      if (wordCount) this.currentFile.wordCount = wordCount
+      if (wordCount) {
+        const previousSelection = this.currentFile.wordCount?.selection
+        const incomingSelection = wordCount.selection
+          ? normalizeSelectionWordCount(wordCount.selection)
+          : normalizeSelectionWordCount(previousSelection)
+
+        this.currentFile.wordCount = {
+          ...wordCount,
+          selection: incomingSelection
+        }
+      }
       if (cursor) this.currentFile.cursor = cursor
       if (muyaIndexCursor) this.currentFile.muyaIndexCursor = muyaIndexCursor
       if (history) this.currentFile.history = history
@@ -1538,11 +1548,7 @@ export const useEditorStore = defineStore('editor', {
       }
 
       // Update wordCount with selection count
-      if (this.currentFile.wordCount && selectionWordCount) {
-        this.currentFile.wordCount.selection = selectionWordCount
-      } else if (this.currentFile.wordCount) {
-        this.currentFile.wordCount.selection = null
-      }
+      this.UPDATE_SELECTION_WORD_COUNT(selectionWordCount || null)
 
       const { windowId } = global.marktext.env
       window.electron.ipcRenderer.send(
@@ -1553,13 +1559,21 @@ export const useEditorStore = defineStore('editor', {
     },
 
     UPDATE_SELECTION_WORD_COUNT(selectionWordCount) {
-      if (!this.currentFile?.wordCount) {
+      if (!this.currentFile) {
         return
       }
 
-      this.currentFile.wordCount.selection = selectionWordCount
-        ? { ...selectionWordCount }
-        : null
+      if (!this.currentFile.wordCount) {
+        this.currentFile.wordCount = {
+          paragraph: 0,
+          word: 0,
+          character: 0,
+          all: 0,
+          selection: createEmptySelectionWordCount()
+        }
+      }
+
+      this.currentFile.wordCount.selection = normalizeSelectionWordCount(selectionWordCount)
     },
 
     SELECTION_FORMATS(formats) {
@@ -1843,6 +1857,27 @@ const adjustTrailingNewlines = (markdown, trimTrailingNewlineOption) => {
  */
 const trimTrailingNewlines = (text) => {
   return text.replace(/[\r?\n]+$/, '')
+}
+
+const createEmptySelectionWordCount = () => ({
+  paragraph: 0,
+  word: 0,
+  character: 0,
+  all: 0
+})
+
+const normalizeSelectionWordCount = (selection) => {
+  const empty = createEmptySelectionWordCount()
+  if (!selection || typeof selection !== 'object') {
+    return empty
+  }
+
+  return {
+    paragraph: typeof selection.paragraph === 'number' ? selection.paragraph : empty.paragraph,
+    word: typeof selection.word === 'number' ? selection.word : empty.word,
+    character: typeof selection.character === 'number' ? selection.character : empty.character,
+    all: typeof selection.all === 'number' ? selection.all : empty.all
+  }
 }
 
 /**

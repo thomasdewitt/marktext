@@ -30,7 +30,13 @@ export const defaultFileState = {
     paragraph: 0,
     word: 0,
     character: 0,
-    all: 0
+    all: 0,
+    selection: {
+      paragraph: 0,
+      word: 0,
+      character: 0,
+      all: 0
+    }
   },
   searchMatches: {
     index: -1,
