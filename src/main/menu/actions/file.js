@@ -1,6 +1,5 @@
 import { rename as fsRename } from 'fs-extra'
 import path from 'path'
-import { exec } from 'child_process'
 import { BrowserWindow, app, dialog, shell, ipcMain } from 'electron'
 import log from 'electron-log'
 import { isDirectory, isFile, exists } from 'common/filesystem'
@@ -166,11 +165,6 @@ const handleResponseForSave = async (e, id, filename, pathname, markdown, option
 
         // Tell watcher to ignore change event
         ipcMain.emit('window-file-saved', win.id, filePath)
-
-        // Run git backup only for truly new files (not existing files being opened)
-        if (isNewFile) {
-          runGitBackup(filePath, win)
-        }
       } else {
         // File was already being tracked
         ipcMain.emit('window-file-saved', win.id, filePath)
@@ -235,53 +229,6 @@ const openPandocFile = async (windowId, pathname) => {
 const removePrintServiceFromWindow = (win) => {
   // remove print service content and restore GUI
   win.webContents.send('mt::print-service-clearup')
-}
-
-const runGitBackup = (filePath, win) => {
-  // Check if file is in a Journals folder
-  const dirname = path.dirname(filePath)
-  const dirBasename = path.basename(dirname)
-
-  if (dirBasename !== 'Journals') {
-    return
-  }
-
-  log.info(`Running git auto-backup in ${dirname}`)
-
-  // Run git commands in the Journals folder
-  const commands = 'git add * && git commit -m "." && git push'
-
-  exec(commands, { cwd: dirname }, (error, stdout, stderr) => {
-    if (error) {
-      log.error('Git auto-backup failed:', error.message)
-      if (win && win.webContents) {
-        win.webContents.send('mt::show-notification', {
-          title: 'Git Backup Failed',
-          type: 'error',
-          message: `Failed to backup to git: ${error.message}`,
-          time: 5000
-        })
-      }
-      return
-    }
-
-    log.info('Git auto-backup success')
-    if (stdout) {
-      log.info('Git stdout:', stdout)
-    }
-    if (stderr) {
-      log.info('Git stderr:', stderr)
-    }
-
-    if (win && win.webContents) {
-      win.webContents.send('mt::show-notification', {
-        title: 'Git Backup Success',
-        type: 'success',
-        message: 'File backed up to git successfully',
-        time: 3000
-      })
-    }
-  })
 }
 
 // --- events -----------------------------------
@@ -374,11 +321,6 @@ ipcMain.on(
 
             // Tell watcher to ignore change event
             ipcMain.emit('window-file-saved', win.id, filePath)
-
-            // Run git backup only for truly new files
-            if (isNewFile) {
-              runGitBackup(filePath, win)
-            }
           } else if (pathname !== filePath) {
             // Update window file list and watcher.
             ipcMain.emit('window-change-file-path', win.id, filePath, pathname)
