@@ -30,6 +30,7 @@
 import { nextTick, ref, computed, watch } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
+import { useLayoutStore } from '@/store/layout'
 import bus from '../../bus'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -38,6 +39,7 @@ const { t } = useI18n()
 
 const editorStore = useEditorStore()
 const preferencesStore = usePreferencesStore()
+const layoutStore = useLayoutStore()
 
 const defaultProps = {
   children: 'children',
@@ -50,6 +52,7 @@ const { wordWrapInToc } = storeToRefs(preferencesStore)
 const treeRef = ref(null)
 const userExpandedKeys = ref([])
 const unfoldDepth = ref(0) // 0 = collapsed, 1+ = depth level
+const isUnfoldOperation = ref(false) // Flag to prevent watcher interference during unfold
 
 const findPathToNode = (nodes, targetId, path = []) => {
   if (!Array.isArray(nodes) || !targetId) {
@@ -103,10 +106,35 @@ const syncExpandedKeys = () => {
   })
 }
 
-watch([toc, currentNodeKey], syncExpandedKeys, { immediate: true, deep: true })
+const syncExpandedKeysForUnfold = (keys) => {
+  const availableKeys = new Set()
+  const collectKeys = (nodes) => {
+    if (!Array.isArray(nodes)) return
+    for (const node of nodes) {
+      if (!node?.id) continue
+      availableKeys.add(node.id)
+      collectKeys(node.children)
+    }
+  }
+  collectKeys(toc.value)
+  const validKeys = keys.filter((key) => availableKeys.has(key))
+  nextTick(() => {
+    if (treeRef.value) {
+      treeRef.value.setExpandedKeys(validKeys)
+      treeRef.value.setCurrentKey(currentNodeKey.value || null)
+    }
+  })
+}
+
+watch([toc, currentNodeKey], () => {
+  if (!isUnfoldOperation.value) {
+    syncExpandedKeys()
+  }
+}, { immediate: true, deep: true })
 
 const handleNodeExpand = (node) => {
   if (!node?.id) return
+  unfoldDepth.value = 0
   if (!userExpandedKeys.value.includes(node.id)) {
     userExpandedKeys.value = [...userExpandedKeys.value, node.id]
   }
@@ -115,6 +143,7 @@ const handleNodeExpand = (node) => {
 
 const handleNodeCollapse = (node) => {
   if (!node?.id) return
+  unfoldDepth.value = 0
   userExpandedKeys.value = userExpandedKeys.value.filter((key) => key !== node.id)
   syncExpandedKeys()
 }
@@ -175,6 +204,7 @@ const handleClick = (node) => {
     }
 
     if (node.pathname) {
+      layoutStore.SET_LAYOUT({ rightColumn: '' })
       window.electron.ipcRenderer.send('mt::open-file', node.pathname, {})
     }
     return
@@ -217,6 +247,7 @@ const handleClick = (node) => {
   }
 
   if (node.pathname) {
+    layoutStore.SET_LAYOUT({ rightColumn: '' })
     const payload = muyaIndexCursor ? { muyaIndexCursor } : {}
     window.electron.ipcRenderer.send('mt::open-file', node.pathname, payload)
   }
@@ -240,9 +271,9 @@ const collectNodesToDepth = (nodes, currentDepth, maxDepth, collected = []) => {
   return collected
 }
 
-const getMaxDepth = (nodes, currentDepth = 0) => {
+const getMaxDepth = (nodes, currentDepth = 1) => {
   if (!Array.isArray(nodes) || nodes.length === 0) {
-    return currentDepth
+    return currentDepth - 1
   }
 
   let maxDepth = currentDepth
@@ -257,31 +288,29 @@ const getMaxDepth = (nodes, currentDepth = 0) => {
 }
 
 const handleUnfold = () => {
+  isUnfoldOperation.value = true
   const maxDepth = getMaxDepth(toc.value, 1)
-
-  // Ensure maxDepth is at least 1 if we have any items
   const actualMaxDepth = toc.value && toc.value.length > 0 ? Math.max(1, maxDepth) : 0
 
-  // Cycle through depths: 1 -> 2 -> ... -> max -> 0 (collapsed) -> 1
   unfoldDepth.value = unfoldDepth.value + 1
   if (unfoldDepth.value > actualMaxDepth) {
     unfoldDepth.value = 0
   }
 
   if (unfoldDepth.value === 0) {
-    // Collapse all - directly set expanded keys to empty without syncing ancestor keys
     userExpandedKeys.value = []
     nextTick(() => {
       if (treeRef.value) {
         treeRef.value.setExpandedKeys([])
         treeRef.value.setCurrentKey(currentNodeKey.value || null)
       }
+      nextTick(() => { isUnfoldOperation.value = false })
     })
   } else {
-    // Expand to depth while preserving the active branch state
     const keys = collectNodesToDepth(toc.value, 1, unfoldDepth.value, [])
     userExpandedKeys.value = keys
-    syncExpandedKeys()
+    syncExpandedKeysForUnfold(keys)
+    nextTick(() => { isUnfoldOperation.value = false })
   }
 }
 </script>

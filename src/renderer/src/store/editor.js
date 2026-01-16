@@ -1268,7 +1268,9 @@ export const useEditorStore = defineStore('editor', {
               })
 
               if (result.response === 0) {
-                // Open existing file
+                // Open existing file and collapse side panel
+                const layoutStore = useLayoutStore()
+                layoutStore.SET_LAYOUT({ rightColumn: '' })
                 window.electron.ipcRenderer.send('mt::open-file', fullPath, {})
                 return
               } else {
