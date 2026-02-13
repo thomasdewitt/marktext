@@ -13,6 +13,8 @@
     "rebuild-native": "npx @electron/rebuild -f",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build:unpack": "npm run minify-locales && npm run build && electron-builder --dir",
     "build:win": "npm run minify-locales && npx @electron/rebuild && npm run build && electron-builder --win --publish never",
     "build:mac": "npm run minify-locales && npx @electron/rebuild && npm run build && electron-builder --mac --publish never",
@@ -97,6 +99,7 @@
     "vite": "^7.1.3",
     "vite-plugin-electron-renderer": "^0.14.6",
     "vite-svg-loader": "^5.1.0",
+    "vitest": "^4.0.18",
     "vue": "^3.5.18",
     "vue-eslint-parser": "^10.1.3"
   }

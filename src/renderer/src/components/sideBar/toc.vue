@@ -33,6 +33,7 @@ import { usePreferencesStore } from '@/store/preferences'
 import { useLayoutStore } from '@/store/layout'
 import bus from '../../bus'
 import { storeToRefs } from 'pinia'
+import { collectNodeKeys, collectNodesToDepth, findPathToNode, getMaxDepth } from './tocUtils'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -54,41 +55,11 @@ const userExpandedKeys = ref([])
 const unfoldDepth = ref(0) // 0 = collapsed, 1+ = depth level
 const isUnfoldOperation = ref(false) // Flag to prevent watcher interference during unfold
 
-const findPathToNode = (nodes, targetId, path = []) => {
-  if (!Array.isArray(nodes) || !targetId) {
-    return []
-  }
-
-  for (const node of nodes) {
-    if (!node) continue
-    const currentPath = [...path, node.id]
-    if (node.fileId && node.fileId === targetId) {
-      return currentPath
-    }
-    const childPath = findPathToNode(node.children, targetId, currentPath)
-    if (childPath.length) {
-      return childPath
-    }
-  }
-
-  return []
-}
-
 const activePath = computed(() => findPathToNode(toc.value, currentFile.value?.id || '', []))
 const currentNodeKey = computed(() => (activePath.value.length ? activePath.value[activePath.value.length - 1] : ''))
 
 const syncExpandedKeys = () => {
-  const availableKeys = new Set()
-  const collectKeys = (nodes) => {
-    if (!Array.isArray(nodes)) return
-    for (const node of nodes) {
-      if (!node?.id) continue
-      availableKeys.add(node.id)
-      collectKeys(node.children)
-    }
-  }
-
-  collectKeys(toc.value)
+  const availableKeys = new Set(collectNodeKeys(toc.value, []))
   userExpandedKeys.value = userExpandedKeys.value.filter((key) => availableKeys.has(key))
 
   const ancestorKeys = activePath.value.slice(0, -1)
@@ -107,16 +78,7 @@ const syncExpandedKeys = () => {
 }
 
 const syncExpandedKeysForUnfold = (keys) => {
-  const availableKeys = new Set()
-  const collectKeys = (nodes) => {
-    if (!Array.isArray(nodes)) return
-    for (const node of nodes) {
-      if (!node?.id) continue
-      availableKeys.add(node.id)
-      collectKeys(node.children)
-    }
-  }
-  collectKeys(toc.value)
+  const availableKeys = new Set(collectNodeKeys(toc.value, []))
   const validKeys = keys.filter((key) => availableKeys.has(key))
   nextTick(() => {
     if (treeRef.value) {
@@ -251,40 +213,6 @@ const handleClick = (node) => {
     const payload = muyaIndexCursor ? { muyaIndexCursor } : {}
     window.electron.ipcRenderer.send('mt::open-file', node.pathname, payload)
   }
-}
-
-const collectNodesToDepth = (nodes, currentDepth, maxDepth, collected = []) => {
-  if (!Array.isArray(nodes) || currentDepth > maxDepth) {
-    return collected
-  }
-
-  for (const node of nodes) {
-    if (!node?.id) continue
-    if (currentDepth <= maxDepth) {
-      collected.push(node.id)
-    }
-    if (node.children && currentDepth < maxDepth) {
-      collectNodesToDepth(node.children, currentDepth + 1, maxDepth, collected)
-    }
-  }
-
-  return collected
-}
-
-const getMaxDepth = (nodes, currentDepth = 1) => {
-  if (!Array.isArray(nodes) || nodes.length === 0) {
-    return currentDepth - 1
-  }
-
-  let maxDepth = currentDepth
-  for (const node of nodes) {
-    if (node?.children && node.children.length > 0) {
-      const childDepth = getMaxDepth(node.children, currentDepth + 1)
-      maxDepth = Math.max(maxDepth, childDepth)
-    }
-  }
-
-  return maxDepth
 }
 
 const handleUnfold = () => {

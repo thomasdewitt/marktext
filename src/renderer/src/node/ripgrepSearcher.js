@@ -373,8 +373,14 @@ class RipgrepDirectorySearcher {
   // This helper function takes care of that.
   prepareGlobs(globs, projectRootPath) {
     const output = []
+    if (!Array.isArray(globs) || globs.length === 0 || !window?.path) {
+      return output
+    }
 
     for (let pattern of globs) {
+      if (typeof pattern !== 'string') {
+        continue
+      }
       // we need to replace path separators by slashes since globs should
       // always use always slashes as path separators.
       pattern = pattern.replace(new RegExp(`\\${window.path.sep}`, 'g'), '/')

@@ -22,6 +22,7 @@ import { usePreferencesStore } from './preferences'
 import { useProjectStore } from './project'
 import { useLayoutStore } from './layout'
 import { useMainStore } from '.'
+import { extractHeadingsFromMarkdown } from './markdownHeading'
 import { i18n } from '../i18n'
 
 const autoSaveTimers = new Map()
@@ -69,81 +70,6 @@ const createRootTocNode = (tab, currentFileId) => {
     isActive: tab.id === currentFileId,
     children: childNodes
   }
-}
-
-const extractHeadingsFromMarkdown = (markdown) => {
-  if (typeof markdown !== 'string' || markdown.length === 0) {
-    return []
-  }
-
-  const lines = markdown.split(/\r?\n/)
-  const headings = []
-
-  let index = 0
-  // Skip YAML front matter if present
-  if (lines[0] && /^---\s*$/.test(lines[0].trim())) {
-    index = 1
-    while (index < lines.length && !/^---\s*$/.test(lines[index].trim())) {
-      index += 1
-    }
-    if (index < lines.length) {
-      index += 1
-    }
-  }
-
-  let inCodeBlock = false
-  let codeBlockFence = null
-
-  for (let i = index; i < lines.length; i += 1) {
-    const line = lines[i]
-    const trimmed = line.trim()
-
-    const fenceMatch = trimmed.match(/^(~~~+|```+)(.*)$/)
-    if (fenceMatch) {
-      const fence = fenceMatch[1]
-      const fenceMarker = fence[0]
-      const fenceLength = fence.length
-      const closingSequence = fenceMarker.repeat(fenceLength)
-      const containsInlineClosing =
-        trimmed.length > fenceLength && trimmed.endsWith(closingSequence) && trimmed !== closingSequence
-      if (!inCodeBlock) {
-        inCodeBlock = !containsInlineClosing
-        codeBlockFence = containsInlineClosing ? null : fenceMarker
-      } else if (codeBlockFence && trimmed.startsWith(codeBlockFence.repeat(fenceLength))) {
-        inCodeBlock = false
-        codeBlockFence = null
-      }
-      continue
-    }
-
-    if (inCodeBlock || trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
-      continue
-    }
-
-    const atxMatch = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/)
-    if (atxMatch) {
-      const level = atxMatch[1].length
-      const content = atxMatch[2].replace(/\s*#+\s*$/, '').trim()
-      headings.push({ content, lvl: level, line: i })
-      continue
-    }
-
-    if (trimmed && i + 1 < lines.length) {
-      const nextTrimmed = lines[i + 1].trim()
-      if (/^=+$/.test(nextTrimmed)) {
-        headings.push({ content: trimmed, lvl: 1, line: i })
-        i += 1
-        continue
-      }
-      if (/^-+$/.test(nextTrimmed)) {
-        headings.push({ content: trimmed, lvl: 2, line: i })
-        i += 1
-        continue
-      }
-    }
-  }
-
-  return headings
 }
 
 export const useEditorStore = defineStore('editor', {

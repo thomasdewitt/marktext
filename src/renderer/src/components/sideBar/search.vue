@@ -78,6 +78,7 @@ import bus from '../../bus'
 import log from 'electron-log'
 import SearchResultItem from './searchResultItem.vue'
 import RipgrepDirectorySearcher from '../../node/ripgrepSearcher'
+import { appendFilenameMatches, compareSearchResults } from './searchUtils'
 import FindCaseIcon from '@/assets/icons/searchIcons/iconCase.svg'
 import FindWordIcon from '@/assets/icons/searchIcons/iconWord.svg'
 import FindRegexIcon from '@/assets/icons/searchIcons/iconRegex.svg'
@@ -92,189 +93,6 @@ const preferencesStore = usePreferencesStore()
 
 let searcherCancelCallback = null
 const ripgrepDirectorySearcher = new RipgrepDirectorySearcher()
-
-const escapeRegExp = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-const DATE_FILENAME_REG = /^(\d{1,2})-(\d{1,2})-(\d{2})(?:\s+([^.]+))?(?:\.md)?$/i
-
-const parseDateFromFilename = (name) => {
-  const trimmed = name?.trim()
-  if (!trimmed) {
-    return null
-  }
-
-  const match = trimmed.match(DATE_FILENAME_REG)
-  if (!match) {
-    return null
-  }
-
-  const month = Number.parseInt(match[1], 10)
-  const day = Number.parseInt(match[2], 10)
-  const yearPart = Number.parseInt(match[3], 10)
-
-  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31) {
-    return null
-  }
-
-  const fullYear = 2000 + yearPart
-  const candidate = new Date(Date.UTC(fullYear, month - 1, day))
-  if (
-    candidate.getUTCFullYear() !== fullYear ||
-    candidate.getUTCMonth() !== month - 1 ||
-    candidate.getUTCDate() !== day
-  ) {
-    return null
-  }
-
-  return {
-    time: candidate.getTime()
-  }
-}
-
-const compareSearchResults = (a, b) => {
-  const aName = window.path.basename(a.filePath)
-  const bName = window.path.basename(b.filePath)
-
-  const aDate = parseDateFromFilename(aName)
-  const bDate = parseDateFromFilename(bName)
-
-  if (aDate && bDate) {
-    // Both have dates: sort by date, most recent first
-    if (aDate.time !== bDate.time) {
-      return bDate.time - aDate.time
-    }
-    // If dates are equal, sort alphabetically by full filename
-    return aName.localeCompare(bName, undefined, { sensitivity: 'base', numeric: true })
-  } else if (aDate) {
-    // Only a has date: b (no date) goes first
-    return 1
-  } else if (bDate) {
-    // Only b has date: a (no date) goes first
-    return -1
-  }
-
-  // Neither has dates: sort alphabetically
-  return aName.localeCompare(bName, undefined, { sensitivity: 'base', numeric: true })
-}
-
-const collectProjectFiles = (node, output = []) => {
-  if (!node) {
-    return output
-  }
-
-  if (Array.isArray(node.files)) {
-    for (const file of node.files) {
-      if (file?.isMarkdown && file.pathname) {
-        output.push(file.pathname)
-      }
-    }
-  }
-
-  if (Array.isArray(node.folders)) {
-    for (const folder of node.folders) {
-      collectProjectFiles(folder, output)
-    }
-  }
-
-  return output
-}
-
-const buildFilenameRegex = () => {
-  if (!keyword.value) {
-    return { regex: null }
-  }
-
-  const flags = isCaseSensitive.value ? 'g' : 'gi'
-
-  try {
-    if (isRegexp.value) {
-      const pattern = isWholeWord.value ? `\\b(?:${keyword.value})\\b` : keyword.value
-      return { regex: new RegExp(pattern, flags) }
-    }
-
-    const escaped = escapeRegExp(keyword.value)
-    const pattern = isWholeWord.value ? `\\b${escaped}\\b` : escaped
-    return { regex: new RegExp(pattern, flags) }
-  } catch (error) {
-    return { regex: null, error }
-  }
-}
-
-const appendFilenameMatches = (results) => {
-  if (!projectTree.value?.pathname) {
-    return results
-  }
-
-  const { regex, error } = buildFilenameRegex()
-  if (!regex) {
-    if (error && !searchErrorString.value) {
-      searchErrorString.value = error.message || String(error)
-    }
-    return results
-  }
-
-  const augmentedResults = [...results]
-  const resultMap = new Map()
-
-  for (const item of augmentedResults) {
-    if (item?.filePath) {
-      resultMap.set(window.path.normalize(item.filePath), item)
-    }
-  }
-
-  const allFiles = collectProjectFiles(projectTree.value)
-
-  for (const filePath of allFiles) {
-    regex.lastIndex = 0
-    const fileName = window.path.basename(filePath)
-    const matches = []
-    let match
-
-    while ((match = regex.exec(fileName)) !== null) {
-      const text = match[0]
-      const start = match.index
-      const end = start + text.length
-
-      matches.push({
-        matchText: text,
-        lineText: fileName,
-        range: [
-          [0, start],
-          [0, end]
-        ],
-        leadingContextLines: [],
-        trailingContextLines: []
-      })
-
-      if (text === '') {
-        regex.lastIndex += 1
-        if (regex.lastIndex > fileName.length) {
-          break
-        }
-      }
-    }
-
-    if (!matches.length) {
-      continue
-    }
-
-    const normalizedPath = window.path.normalize(filePath)
-    const existing = resultMap.get(normalizedPath)
-
-    if (existing) {
-      existing.matches = [...matches, ...existing.matches]
-    } else {
-      const entry = {
-        filePath,
-        matches
-      }
-      augmentedResults.push(entry)
-      resultMap.set(normalizedPath, entry)
-    }
-  }
-
-  return augmentedResults
-}
 
 const keyword = ref('')
 const searchResult = ref([])
@@ -377,8 +195,22 @@ const search = () => {
       inclusions: window.fileUtils.MARKDOWN_INCLUSIONS
     })
     .then(() => {
-      const resultsWithFilenames = appendFilenameMatches(newSearchResult)
-      resultsWithFilenames.sort(compareSearchResults)
+      const {
+        results: resultsWithFilenames,
+        error
+      } = appendFilenameMatches({
+        results: newSearchResult,
+        projectTree: projectTree.value,
+        keyword: keyword.value,
+        isCaseSensitive: isCaseSensitive.value,
+        isWholeWord: isWholeWord.value,
+        isRegexp: isRegexp.value,
+        pathApi: window.path
+      })
+      if (error && !searchErrorString.value) {
+        searchErrorString.value = error.message || String(error)
+      }
+      resultsWithFilenames.sort((a, b) => compareSearchResults(a, b, window.path))
       searchResult.value = resultsWithFilenames
       searcherRunning.value = false
       searcherCancelCallback = null
@@ -393,8 +225,16 @@ const search = () => {
       if (!searchErrorString.value) {
         searchErrorString.value = err?.message || 'Search error'
       }
-      const fallbackResults = appendFilenameMatches([])
-      fallbackResults.sort(compareSearchResults)
+      const { results: fallbackResults } = appendFilenameMatches({
+        results: [],
+        projectTree: projectTree.value,
+        keyword: keyword.value,
+        isCaseSensitive: isCaseSensitive.value,
+        isWholeWord: isWholeWord.value,
+        isRegexp: isRegexp.value,
+        pathApi: window.path
+      })
+      fallbackResults.sort((a, b) => compareSearchResults(a, b, window.path))
       searchResult.value = fallbackResults.length ? fallbackResults : []
       searcherRunning.value = false
       searcherCancelCallback = null
