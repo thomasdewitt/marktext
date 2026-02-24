@@ -1,23 +1,3 @@
-import ced from 'ced'
-
-const CED_ICONV_ENCODINGS = {
-  'BIG5-CP950': 'big5',
-  KSC: 'euckr',
-  'ISO-2022-KR': 'euckr',
-  GB: 'gb2312',
-  ISO_2022_CN: 'gb2312',
-
-  Unicode: 'utf8',
-
-  // Map ASCII, subsets of utf-8 to UTF-8,
-  JIS: 'utf8',
-  SJS: 'utf8',
-  shiftjis: 'utf8',
-  'ASCII-7-bit': 'utf8',
-  ASCII: 'utf8',
-  MACINTOSH: 'utf8'
-}
-
 // Byte Order Mark's to detect endianness and encoding.
 const BOM_ENCODINGS = {
   utf8: [0xef, 0xbb, 0xbf],
@@ -63,14 +43,10 @@ export const guessEncoding = (buffer, autoGuessEncoding) => {
   //   }
   // }
 
-  // Auto guess encoding, otherwise use UTF8.
+  // Native auto-guessing is disabled to avoid loading a native module at startup.
+  // Keep UTF-8 unless BOM indicates another Unicode encoding.
   if (autoGuessEncoding) {
-    encoding = ced(buffer)
-    if (CED_ICONV_ENCODINGS[encoding]) {
-      encoding = CED_ICONV_ENCODINGS[encoding]
-    } else {
-      encoding = encoding.toLowerCase().replace(/-_/g, '')
-    }
+    encoding = 'utf8'
   }
   return { encoding, isBom }
 }

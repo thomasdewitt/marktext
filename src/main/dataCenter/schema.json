@@ -19,6 +19,10 @@
     "description": "The current image uploader",
     "type": "string"
   },
+  "githubToken": {
+    "description": "GitHub token for image upload service.",
+    "type": "string"
+  },
   "imageBed": {
     "description": "The image bed configration",
     "type": "object"

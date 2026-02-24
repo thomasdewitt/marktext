@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import EventEmitter from 'events'
 import { BrowserWindow, dialog, ipcMain } from 'electron'
-import keytar from 'keytar'
 import schema from './schema'
 import Store from 'electron-store'
 import log from 'electron-log'
@@ -18,8 +17,6 @@ class DataCenter extends EventEmitter {
     const { dataCenterPath, userDataPath } = paths
     this.dataCenterPath = dataCenterPath
     this.userDataPath = userDataPath
-    this.serviceName = 'marktext'
-    this.encryptKeys = ['githubToken']
     this.hasDataCenterFile = fs.existsSync(
       path.join(this.dataCenterPath, `./${DATA_CENTER_NAME}.json`)
     )
@@ -38,6 +35,7 @@ class DataCenter extends EventEmitter {
       webImages: [],
       cloudImages: [],
       currentUploader: 'none',
+      githubToken: '',
       imageBed: {
         github: {
           owner: '',
@@ -55,26 +53,7 @@ class DataCenter extends EventEmitter {
   }
 
   async getAll() {
-    const { serviceName, encryptKeys } = this
-    const data = this.store.store
-    try {
-      const encryptData = await Promise.all(
-        encryptKeys.map((key) => {
-          return keytar.getPassword(serviceName, key)
-        })
-      )
-      const encryptObj = encryptKeys.reduce((acc, k, i) => {
-        return {
-          ...acc,
-          [k]: encryptData[i]
-        }
-      }, {})
-
-      return Object.assign(data, encryptObj)
-    } catch (err) {
-      log.error('Failed to decrypt secure keys:', err)
-      return data
-    }
+    return this.store.store
   }
 
   addImage(key, url) {
@@ -112,30 +91,16 @@ class DataCenter extends EventEmitter {
    * return a promise
    */
   getItem(key) {
-    const { encryptKeys, serviceName } = this
-    if (encryptKeys.includes(key)) {
-      return keytar.getPassword(serviceName, key)
-    } else {
-      const value = this.store.get(key)
-      return Promise.resolve(value)
-    }
+    const value = this.store.get(key)
+    return Promise.resolve(value)
   }
 
   async setItem(key, value) {
-    const { encryptKeys, serviceName } = this
     if (key === 'screenshotFolderPath') {
       ensureDirSync(value)
     }
     ipcMain.emit('broadcast-user-data-changed', { [key]: value })
-    if (encryptKeys.includes(key)) {
-      try {
-        return await keytar.setPassword(serviceName, key, value)
-      } catch (err) {
-        log.error('Keytar error:', err)
-      }
-    } else {
-      return this.store.set(key, value)
-    }
+    return this.store.set(key, value)
   }
 
   /**
