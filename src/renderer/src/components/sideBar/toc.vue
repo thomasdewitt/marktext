@@ -33,7 +33,7 @@ import { usePreferencesStore } from '@/store/preferences'
 import { useLayoutStore } from '@/store/layout'
 import bus from '../../bus'
 import { storeToRefs } from 'pinia'
-import { collectNodeKeys, collectNodesToDepth, findPathToNode, getMaxDepth } from './tocUtils'
+import { collectNodeKeys, findPathToNode, getNextUnfoldState } from './tocUtils'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -217,13 +217,8 @@ const handleClick = (node) => {
 
 const handleUnfold = () => {
   isUnfoldOperation.value = true
-  const maxDepth = getMaxDepth(toc.value, 1)
-  const actualMaxDepth = toc.value && toc.value.length > 0 ? Math.max(1, maxDepth) : 0
-
-  unfoldDepth.value = unfoldDepth.value + 1
-  if (unfoldDepth.value > actualMaxDepth) {
-    unfoldDepth.value = 0
-  }
+  const { depth, keys } = getNextUnfoldState(toc.value, unfoldDepth.value)
+  unfoldDepth.value = depth
 
   if (unfoldDepth.value === 0) {
     userExpandedKeys.value = []
@@ -235,7 +230,6 @@ const handleUnfold = () => {
       nextTick(() => { isUnfoldOperation.value = false })
     })
   } else {
-    const keys = collectNodesToDepth(toc.value, 1, unfoldDepth.value, [])
     userExpandedKeys.value = keys
     syncExpandedKeysForUnfold(keys)
     nextTick(() => { isUnfoldOperation.value = false })

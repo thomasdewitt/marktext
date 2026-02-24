@@ -24,20 +24,15 @@ describe('RipgrepDirectorySearcher process integration', () => {
     spawnMock.mockReset()
     global.window = {
       path,
-      rgPath: '/usr/bin/rg',
+      grepPath: '/usr/bin/grep',
       fileUtils: {
         pathExistsSync: () => true
-      },
-      electron: {
-        process: {
-          resourcesPath: '/resources'
-        }
       }
     }
-    global.marktext = { paths: { ripgrepBinaryPath: '/usr/bin/rg' } }
+    global.marktext = { paths: { grepBinaryPath: '/usr/bin/grep' } }
   })
 
-  it('parses ripgrep JSON events and converts unicode byte offsets', async () => {
+  it('parses grep line output and computes unicode match ranges', async () => {
     const child = createMockChild()
     spawnMock.mockReturnValue(child)
 
@@ -59,36 +54,45 @@ describe('RipgrepDirectorySearcher process integration', () => {
       exclusions: []
     }, { num: 0 })
 
-    const begin = JSON.stringify({ type: 'begin', data: { path: { text: '/tmp/project/a.md' } } })
-    const match = JSON.stringify({
-      type: 'match',
-      data: {
-        path: { text: '/tmp/project/a.md' },
-        lines: { text: 'héllo world\n' },
-        line_number: 1,
-        submatches: [
-          {
-            match: { text: 'héllo' },
-            start: 0,
-            end: 6
-          }
-        ]
-      }
-    })
-    const end = JSON.stringify({ type: 'end', data: {} })
-
-    child.stdout.emit('data', `${begin}\n${match}\n${end}\n`)
+    child.stdout.emit('data', '/tmp/project/a.md:1:héllo world héllo\n')
     child.emit('close', 0, null)
     await promise
 
     expect(matches).toHaveLength(1)
     expect(matches[0].filePath).toBe('/tmp/project/a.md')
-    expect(matches[0].matches[0].range).toEqual([[0, 0], [0, 5]])
-    expect(matches[0].matches[0].matchText).toBe('héllo')
+    expect(matches[0].matches.map((m) => m.range)).toEqual([
+      [[0, 0], [0, 5]],
+      [[0, 12], [0, 17]]
+    ])
+    expect(matches[0].matches.map((m) => m.matchText)).toEqual(['héllo', 'héllo'])
     expect(searchedCounts).toEqual([1])
   })
 
-  it('cancels running ripgrep processes', async () => {
+  it('resolves cleanly when grep exits with code 1 and no results', async () => {
+    const child = createMockChild()
+    spawnMock.mockReturnValue(child)
+
+    const { default: RipgrepDirectorySearcher } = await import('../../src/renderer/src/node/ripgrepSearcher')
+    const searcher = new RipgrepDirectorySearcher()
+
+    const promise = searcher.searchInDirectory('/tmp/project', 'abc', {
+      didMatch: () => {},
+      didSearchPaths: () => {},
+      isRegexp: false,
+      isCaseSensitive: false,
+      isWholeWord: false,
+      followSymlinks: false,
+      includeHidden: false,
+      noIgnore: false,
+      inclusions: [],
+      exclusions: []
+    }, { num: 0 })
+
+    child.emit('close', 1, null)
+    await expect(promise).resolves.toBeUndefined()
+  })
+
+  it('cancels running grep processes', async () => {
     const child = createMockChild()
     spawnMock.mockReturnValue(child)
 
@@ -114,31 +118,7 @@ describe('RipgrepDirectorySearcher process integration', () => {
     expect(child.kill).toHaveBeenCalledTimes(1)
   })
 
-  it('returns a clear error when no ripgrep binary is available', async () => {
-    global.window.fileUtils.pathExistsSync = () => false
-    global.window.rgPath = ''
-    global.marktext = { paths: { ripgrepBinaryPath: '' } }
-
-    const { default: RipgrepDirectorySearcher } = await import('../../src/renderer/src/node/ripgrepSearcher')
-    const searcher = new RipgrepDirectorySearcher()
-
-    await expect(
-      searcher.searchInDirectory('/tmp/project', 'abc', {
-        didMatch: () => {},
-        didSearchPaths: () => {},
-        isRegexp: false,
-        isCaseSensitive: false,
-        isWholeWord: false,
-        followSymlinks: false,
-        includeHidden: false,
-        noIgnore: false,
-        inclusions: [],
-        exclusions: []
-      }, { num: 0 })
-    ).rejects.toThrow('Ripgrep binary not found.')
-  })
-
-  it('rejects when ripgrep exits with an error code and stderr output', async () => {
+  it('rejects when grep exits with an error code and stderr output', async () => {
     const child = createMockChild()
     spawnMock.mockReturnValue(child)
 
@@ -158,13 +138,13 @@ describe('RipgrepDirectorySearcher process integration', () => {
       exclusions: []
     }, { num: 0 })
 
-    child.stderr.emit('data', 'rg failed')
+    child.stderr.emit('data', 'grep failed')
     child.emit('close', 2, null)
 
-    await expect(promise).rejects.toThrow('rg failed')
+    await expect(promise).rejects.toThrow('grep failed')
   })
 
-  it('passes expected argument flags to ripgrep', async () => {
+  it('passes expected argument flags to grep', async () => {
     const child = createMockChild()
     spawnMock.mockReturnValue(child)
 
@@ -186,20 +166,15 @@ describe('RipgrepDirectorySearcher process integration', () => {
     }, { num: 0 })
 
     const [, args] = spawnMock.mock.calls[0]
-    expect(args).toContain('--json')
-    expect(args).toContain('--regexp')
-    expect(args).toContain('--case-sensitive')
-    expect(args).toContain('--word-regexp')
-    expect(args).toContain('--follow')
-    expect(args).toContain('--hidden')
-    expect(args).toContain('--no-ignore')
-    expect(args).toContain('--max-filesize')
-    expect(args).toContain('10')
-    expect(args).toContain('--iglob')
-    expect(args).toContain('**/*.md')
-    expect(args).toContain('!**/node_modules')
+    expect(args).toContain('-R')
+    expect(args).toContain('-n')
+    expect(args).toContain('-H')
+    expect(args).toContain('-E')
+    expect(args).toContain('-w')
+    expect(args).toContain('--include=**/*.md')
+    expect(args).toContain('--exclude=**/node_modules')
 
-    child.emit('close', 0, null)
+    child.emit('close', 1, null)
     await promise
   })
 })

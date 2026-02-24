@@ -9,10 +9,11 @@ import {
   isSamePathSync,
   isImageFile
 } from 'common/filesystem/paths'
-import { rgPath } from '@vscode/ripgrep'
 import path from 'path'
 import commandExists from 'command-exists'
 import { loadTranslations } from '../common/i18n'
+
+const grepPath = process.env.MARKTEXT_GREP_PATH || 'grep'
 
 const i18nUtils = {
   loadTranslations
@@ -88,7 +89,7 @@ if (process.contextIsolated) {
       ...electronAPI,
       ...customElectronAPI
     })
-    contextBridge.exposeInMainWorld('rgPath', rgPath)
+    contextBridge.exposeInMainWorld('grepPath', grepPath)
     contextBridge.exposeInMainWorld('fileUtils', fileUtilsAPI)
     contextBridge.exposeInMainWorld('path', path)
     contextBridge.exposeInMainWorld('commandExists', commandAPI)
@@ -98,7 +99,7 @@ if (process.contextIsolated) {
   }
 } else {
   window.electron = { ...electronAPI, ...customElectronAPI }
-  window.rgPath = rgPath
+  window.grepPath = grepPath
   window.fileUtils = fileUtilsAPI
   window.path = path
   window.commandExists = commandAPI

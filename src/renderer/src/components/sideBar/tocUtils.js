@@ -67,3 +67,23 @@ export const getMaxDepth = (nodes, currentDepth = 1) => {
 
   return maxDepth
 }
+
+export const getActualMaxUnfoldDepth = (nodes) => {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return 0
+  }
+
+  return Math.max(1, getMaxDepth(nodes, 1))
+}
+
+export const getNextUnfoldState = (nodes, currentDepth = 0) => {
+  const maxDepth = getActualMaxUnfoldDepth(nodes)
+  let depth = currentDepth + 1
+
+  if (depth > maxDepth) {
+    depth = 0
+  }
+
+  const keys = depth === 0 ? [] : collectNodesToDepth(nodes, 1, depth, [])
+  return { depth, keys, maxDepth }
+}

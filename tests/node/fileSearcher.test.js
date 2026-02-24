@@ -30,13 +30,13 @@ describe('FileSearcher', () => {
     }
   })
 
-  it('searches file paths with ripgrep --files and emits matches', async () => {
+  it('searches file paths with grep and emits matches', async () => {
     const child = createMockChild()
     spawnMock.mockReturnValue(child)
 
     const { default: FileSearcher } = await import('../../src/renderer/src/node/fileSearcher')
     const searcher = new FileSearcher()
-    searcher.rgPath = '/usr/bin/rg'
+    searcher.grepPath = '/usr/bin/grep'
 
     const matches = []
     const searchedPaths = []
@@ -49,19 +49,20 @@ describe('FileSearcher', () => {
       inclusions: ['*.md']
     }, { num: 0 })
 
-    child.stdout.emit('data', 'a.md\nnested/b.md\n')
-    child.emit('close', 0, null)
+    child.stdout.emit('data', '/tmp/project/a.md\n/tmp/project/nested/b.md\n')
+    child.emit('close', 1, null)
 
     await promise
 
     expect(spawnMock).toHaveBeenCalledTimes(1)
     const [cmd, args] = spawnMock.mock.calls[0]
-    expect(cmd).toBe('/usr/bin/rg')
-    expect(args).toContain('--files')
-    expect(args).toContain('--follow')
-    expect(args).toContain('--hidden')
-    expect(args).toContain('--no-ignore')
-    expect(matches).toEqual(['a.md', 'nested/b.md'])
+    expect(cmd).toBe('/usr/bin/grep')
+    expect(args).toContain('-R')
+    expect(args).toContain('-L')
+    expect(args).toContain('-e')
+    expect(args).toContain('a^')
+    expect(args).toContain('--include=**/*.md')
+    expect(matches).toEqual(['/tmp/project/a.md', '/tmp/project/nested/b.md'])
     expect(searchedPaths).toEqual([1, 2])
   })
 
@@ -71,7 +72,7 @@ describe('FileSearcher', () => {
 
     const { default: FileSearcher } = await import('../../src/renderer/src/node/fileSearcher')
     const searcher = new FileSearcher()
-    searcher.rgPath = '/usr/bin/rg'
+    searcher.grepPath = '/usr/bin/grep'
 
     const promise = searcher.searchInDirectory('/tmp/project', '', {
       didMatch: () => {},
@@ -83,18 +84,18 @@ describe('FileSearcher', () => {
     }, { num: 0 })
 
     promise.cancel()
-    child.emit('close', 0, null)
+    child.emit('close', 1, null)
     await promise
     expect(child.kill).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects when rg --files exits with a non-success status', async () => {
+  it('rejects when grep exits with a non-success status', async () => {
     const child = createMockChild()
     spawnMock.mockReturnValue(child)
 
     const { default: FileSearcher } = await import('../../src/renderer/src/node/fileSearcher')
     const searcher = new FileSearcher()
-    searcher.rgPath = '/usr/bin/rg'
+    searcher.grepPath = '/usr/bin/grep'
 
     const promise = searcher.searchInDirectory('/tmp/project', '', {
       didMatch: () => {},
