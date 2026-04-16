@@ -148,6 +148,15 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
+    clearTabNotifications(tabId, exclusiveType) {
+      const tab = this.tabs.find((t) => t.id === tabId)
+      if (!tab || !Array.isArray(tab.notifications) || !exclusiveType) {
+        return
+      }
+
+      tab.notifications = tab.notifications.filter((n) => n.exclusiveType !== exclusiveType)
+    },
+
     loadChange(change) {
       const { tabs, currentFile } = this
       const { data, pathname } = change
@@ -1604,7 +1613,7 @@ export const useEditorStore = defineStore('editor', {
     LISTEN_FOR_FILE_CHANGE() {
       const preferencesStore = usePreferencesStore()
       window.electron.ipcRenderer.on('mt::update-file', (_, { type, change }) => {
-        const { tabs } = this
+        const { tabs, currentFile } = this
         const { pathname } = change
         const tab = tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, pathname))
         if (tab) {
@@ -1624,6 +1633,16 @@ export const useEditorStore = defineStore('editor', {
             case 'add':
             case 'change': {
               const { autoSave } = preferencesStore
+              const isCurrentTab =
+                currentFile.id === id ||
+                window.fileUtils.isSamePathSync(currentFile.pathname || '', pathname)
+
+              if (isCurrentTab && isSaved) {
+                this.clearTabNotifications(id, 'file_changed')
+                this.loadChange(change)
+                return
+              }
+
               if (autoSave) {
                 if (autoSaveTimers.has(id)) {
                   const timer = autoSaveTimers.get(id)
@@ -1632,6 +1651,7 @@ export const useEditorStore = defineStore('editor', {
                 }
 
                 if (isSaved) {
+                  this.clearTabNotifications(id, 'file_changed')
                   this.loadChange(change)
                   return
                 }
