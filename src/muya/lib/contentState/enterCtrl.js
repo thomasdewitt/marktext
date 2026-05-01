@@ -128,7 +128,7 @@ const enterCtrl = (ContentState) => {
       const greatGrandParent = this.getParent(grandParent)
       if (greatGrandParent && greatGrandParent.type === 'ul') {
         if (block.listItemType === 'task') {
-          const { checked } = parent.children[0]
+          const checked = parent.children?.[0]?.checked || false
           newBlock = this.createTaskItemBlock(null, checked)
         } else {
           newBlock = this.createBlockLi()
@@ -230,8 +230,10 @@ const enterCtrl = (ContentState) => {
       return event.preventDefault()
     }
     let block = this.getBlock(start.key)
+    if (!block) return
     const { text } = block
     const endBlock = this.getBlock(end.key)
+    if (!endBlock) return
     let parent = this.getParent(block)
 
     event.preventDefault()
@@ -278,7 +280,7 @@ const enterCtrl = (ContentState) => {
     if (
       block.type === 'span' &&
       block.functionType === 'paragraphContent' &&
-      !this.getParent(block).parent &&
+      parent && !parent.parent &&
       start.offset === text.length &&
       FOOTNOTE_REG.test(text)
     ) {
@@ -550,8 +552,9 @@ const enterCtrl = (ContentState) => {
     }
 
     const getParagraphBlock = (block) => {
-      if (block.type === 'li') {
-        return block.listItemType === 'task' ? block.children[1] : block.children[0]
+      if (block.type === 'li' && block.children && block.children.length > 0) {
+        const idx = block.listItemType === 'task' ? 1 : 0
+        return idx < block.children.length ? block.children[idx] : block.children[0]
       } else {
         return block
       }
@@ -574,7 +577,7 @@ const enterCtrl = (ContentState) => {
         cursorBlock = tableNeedFocus
         break
       case !!htmlNeedFocus:
-        cursorBlock = htmlNeedFocus.children[0].children[0] // the second line
+        cursorBlock = htmlNeedFocus.children?.[0]?.children?.[0] || htmlNeedFocus // the second line
         break
       case !!mathNeedFocus:
         cursorBlock = mathNeedFocus
@@ -586,7 +589,7 @@ const enterCtrl = (ContentState) => {
 
     cursorBlock = getParagraphBlock(cursorBlock)
     const key =
-      cursorBlock.type === 'p' || cursorBlock.type === 'pre'
+      (cursorBlock.type === 'p' || cursorBlock.type === 'pre') && cursorBlock.children?.[0]
         ? cursorBlock.children[0].key
         : cursorBlock.key
     let offset = 0
@@ -603,7 +606,7 @@ const enterCtrl = (ContentState) => {
 
     let needRenderAll = false
 
-    if (this.isCollapse() && cursorBlock.type === 'p') {
+    if (this.isCollapse() && cursorBlock.type === 'p' && cursorBlock.children?.[0]) {
       this.checkInlineUpdate(cursorBlock.children[0])
       needRenderAll = true
     }

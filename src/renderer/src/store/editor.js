@@ -28,6 +28,7 @@ import { i18n } from '../i18n'
 const autoSaveTimers = new Map()
 
 const pendingTocLoads = new Set()
+let pendingTocRebuildTimer = null
 
 const mapNodesToPlainObjects = (nodes, tab) => {
   if (!Array.isArray(nodes) || nodes.length === 0) {
@@ -506,7 +507,10 @@ export const useEditorStore = defineStore('editor', {
         this.fileTocCache[pathname] = []
       } finally {
         pendingTocLoads.delete(pathname)
-        this.REBUILD_COMPOSITE_TOC()
+        // Debounce rebuild so that batch-loading many files doesn't trigger
+        // a full tree rebuild per file.
+        clearTimeout(pendingTocRebuildTimer)
+        pendingTocRebuildTimer = setTimeout(() => this.REBUILD_COMPOSITE_TOC(), 100)
       }
     },
 
@@ -1203,9 +1207,7 @@ export const useEditorStore = defineStore('editor', {
               })
 
               if (result.response === 0) {
-                // Open existing file and collapse side panel
-                const layoutStore = useLayoutStore()
-                layoutStore.SET_LAYOUT({ rightColumn: '' })
+                // Open existing file
                 window.electron.ipcRenderer.send('mt::open-file', fullPath, {})
                 return
               } else {
@@ -1298,6 +1300,9 @@ export const useEditorStore = defineStore('editor', {
 
       const { markdown, isMixedLineEndings } = markdownDocument
       const docState = createDocumentState(Object.assign(markdownDocument, options))
+      // Normalize stored markdown so it matches what muya will emit on first change,
+      // preventing the false "unsaved" indicator on file open.
+      docState.markdown = adjustTrailingNewlines(docState.markdown, docState.trimTrailingNewline)
       const { id, cursor } = docState
 
       if (selected) {

@@ -10,10 +10,11 @@
     <el-tree
       v-if="toc.length"
       ref="treeRef"
+      :key="treeKey"
       :data="toc"
       node-key="id"
       :default-expand-all="false"
-      :default-expanded-keys="[]"
+      :default-expanded-keys="expandedKeys"
       :props="defaultProps"
       :expand-on-click-node="false"
       :highlight-current="true"
@@ -53,46 +54,36 @@ const { wordWrapInToc } = storeToRefs(preferencesStore)
 const treeRef = ref(null)
 const userExpandedKeys = ref([])
 const unfoldDepth = ref(0) // 0 = collapsed, 1+ = depth level
-const isUnfoldOperation = ref(false) // Flag to prevent watcher interference during unfold
+const treeKey = ref(0) // Incrementing key to force el-tree re-render when expanded keys change
 
 const activePath = computed(() => findPathToNode(toc.value, currentFile.value?.id || '', []))
 const currentNodeKey = computed(() => (activePath.value.length ? activePath.value[activePath.value.length - 1] : ''))
 
-const syncExpandedKeys = () => {
+// Computed expanded keys: merges user-expanded keys with ancestor keys of active node
+const expandedKeys = computed(() => {
   const availableKeys = new Set(collectNodeKeys(toc.value, []))
-  userExpandedKeys.value = userExpandedKeys.value.filter((key) => availableKeys.has(key))
+  const filtered = userExpandedKeys.value.filter((key) => availableKeys.has(key))
 
   const ancestorKeys = activePath.value.slice(0, -1)
-  const merged = new Set(userExpandedKeys.value)
+  const merged = new Set(filtered)
   for (const key of ancestorKeys) {
     merged.add(key)
   }
-  const expanded = Array.from(merged)
+  return Array.from(merged)
+})
 
-  nextTick(() => {
-    if (treeRef.value) {
-      treeRef.value.setExpandedKeys(expanded)
-      treeRef.value.setCurrentKey(currentNodeKey.value || null)
-    }
-  })
-}
-
-const syncExpandedKeysForUnfold = (keys) => {
-  const availableKeys = new Set(collectNodeKeys(toc.value, []))
-  const validKeys = keys.filter((key) => availableKeys.has(key))
-  nextTick(() => {
-    if (treeRef.value) {
-      treeRef.value.setExpandedKeys(validKeys)
-      treeRef.value.setCurrentKey(currentNodeKey.value || null)
-    }
-  })
+// Force tree re-render when expanded keys change, since el-tree only reads
+// default-expanded-keys on mount
+const forceTreeRerender = () => {
+  treeKey.value++
 }
 
 watch([toc, currentNodeKey], () => {
-  if (!isUnfoldOperation.value) {
-    syncExpandedKeys()
-  }
-}, { immediate: true, deep: true })
+  // Prune user expanded keys to only valid ones
+  const availableKeys = new Set(collectNodeKeys(toc.value, []))
+  userExpandedKeys.value = userExpandedKeys.value.filter((key) => availableKeys.has(key))
+  forceTreeRerender()
+}, { deep: true })
 
 const handleNodeExpand = (node) => {
   if (!node?.id) return
@@ -100,14 +91,12 @@ const handleNodeExpand = (node) => {
   if (!userExpandedKeys.value.includes(node.id)) {
     userExpandedKeys.value = [...userExpandedKeys.value, node.id]
   }
-  syncExpandedKeys()
 }
 
 const handleNodeCollapse = (node) => {
   if (!node?.id) return
   unfoldDepth.value = 0
   userExpandedKeys.value = userExpandedKeys.value.filter((key) => key !== node.id)
-  syncExpandedKeys()
 }
 
 const isSamePath = (left, right) => {
@@ -166,7 +155,6 @@ const handleClick = (node) => {
     }
 
     if (node.pathname) {
-      layoutStore.SET_LAYOUT({ rightColumn: '' })
       window.electron.ipcRenderer.send('mt::open-file', node.pathname, {})
     }
     return
@@ -209,31 +197,16 @@ const handleClick = (node) => {
   }
 
   if (node.pathname) {
-    layoutStore.SET_LAYOUT({ rightColumn: '' })
     const payload = muyaIndexCursor ? { muyaIndexCursor } : {}
     window.electron.ipcRenderer.send('mt::open-file', node.pathname, payload)
   }
 }
 
 const handleUnfold = () => {
-  isUnfoldOperation.value = true
   const { depth, keys } = getNextUnfoldState(toc.value, unfoldDepth.value)
   unfoldDepth.value = depth
-
-  if (unfoldDepth.value === 0) {
-    userExpandedKeys.value = []
-    nextTick(() => {
-      if (treeRef.value) {
-        treeRef.value.setExpandedKeys([])
-        treeRef.value.setCurrentKey(currentNodeKey.value || null)
-      }
-      nextTick(() => { isUnfoldOperation.value = false })
-    })
-  } else {
-    userExpandedKeys.value = keys
-    syncExpandedKeysForUnfold(keys)
-    nextTick(() => { isUnfoldOperation.value = false })
-  }
+  userExpandedKeys.value = keys
+  forceTreeRerender()
 }
 </script>
 

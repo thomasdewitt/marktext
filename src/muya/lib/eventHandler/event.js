@@ -42,7 +42,12 @@ class EventCenter {
    * [detachAllDomEvents remove all the DOM events handler]
    */
   detachAllDomEvents () {
-    this.events.forEach(event => this.detachDOMEvent(event.eventId))
+    // Remove all listeners and clear the array.
+    // We iterate our own copy because detachDOMEvent splices this.events.
+    for (const { target, event, listener, capture } of [...this.events]) {
+      target.removeEventListener(event, listener, capture)
+    }
+    this.events.length = 0
   }
 
   /**

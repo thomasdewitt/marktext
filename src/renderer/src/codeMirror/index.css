@@ -3,5 +3,14 @@
   height: auto;
 }
 .CodeMirror-line::selection, .CodeMirror-line > span::selection, .CodeMirror-line > span > span::selection {
-  background: rgb(178, 215, 254);
+  background: var(--selectionColor, rgb(178, 215, 254));
+}
+.CodeMirror-line::-moz-selection, .CodeMirror-line > span::-moz-selection, .CodeMirror-line > span > span::-moz-selection {
+  background: var(--selectionColor, rgb(178, 215, 254));
+}
+.CodeMirror-selected {
+  background: var(--selectionColor, rgb(178, 215, 254)) !important;
+}
+.CodeMirror-focused .CodeMirror-selected {
+  background: var(--selectionColor, rgb(178, 215, 254)) !important;
 }

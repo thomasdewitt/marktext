@@ -10,23 +10,15 @@ const i18n = createI18n({
   locale: 'en', // default is en
   fallbackLocale: 'en',
   messages: { en: enTranslations }, // Load en by default only
-  // 禁用链接功能以避免@符号被误解析
   modifiers: {
     '@': () => '@'
   },
-  // 禁用复数解析功能
   pluralRules: {},
-  // 自定义消息编译器来处理|字符
-  messageCompiler: {
-    compile: (message) => {
-      // 如果消息包含|字符，直接返回原始字符串，不进行复数解析
-      if (typeof message === 'string' && message.includes('|')) {
-        return () => message
-      }
-      // 对于其他消息，使用默认编译
-      return null
-    }
-  }
+  missingWarn: false,
+  fallbackWarn: false,
+  // Return key as-is when vue-i18n encounters content it can't compile
+  // (e.g. math expressions with curly braces like {x+1})
+  missing: (locale, key) => key
 })
 
 // 导出翻译函数 - 修复：正确处理Vue i18n v9+的global getter

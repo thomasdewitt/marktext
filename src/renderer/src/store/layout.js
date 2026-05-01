@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import bus from '../bus'
 
 const width = localStorage.getItem('side-bar-width')
-const sideBarWidth = typeof +width === 'number' ? Math.max(+width, 220) : 280
+const parsedWidth = Number(width)
+const sideBarWidth = Number.isFinite(parsedWidth) ? Math.max(parsedWidth, 220) : 280
 
 export const useLayoutStore = defineStore('layout', {
   state: () => ({
@@ -24,8 +25,9 @@ export const useLayoutStore = defineStore('layout', {
     },
     SET_SIDE_BAR_WIDTH(width) {
       // TODO: Add side bar to session (GH#732).
-      localStorage.setItem('side-bar-width', Math.max(+width, 220))
-      this.sideBarWidth = width
+      const clamped = Math.max(+width || 220, 220)
+      localStorage.setItem('side-bar-width', clamped)
+      this.sideBarWidth = clamped
     },
     LISTEN_FOR_LAYOUT() {
       window.electron.ipcRenderer.on('mt::set-view-layout', (e, layout) => {

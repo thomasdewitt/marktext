@@ -228,6 +228,8 @@ class App {
     }
 
     let isDarkMode = nativeTheme.shouldUseDarkColors
+    // Guard against registering duplicate listeners on macOS reactivation
+    ipcMain.removeAllListeners('broadcast-preferences-changed')
     ipcMain.on('broadcast-preferences-changed', (change) => {
       // Set Chromium's color for native elements after theme change.
       if (change.theme) {

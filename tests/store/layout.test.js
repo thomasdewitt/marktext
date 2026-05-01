@@ -65,7 +65,7 @@ describe('layout store', () => {
     store.SET_SIDE_BAR_WIDTH(100)
 
     expect(global.localStorage.setItem).toHaveBeenCalledWith('side-bar-width', 220)
-    expect(store.sideBarWidth).toBe(100)
+    expect(store.sideBarWidth).toBe(220)
   })
 
   it('LISTEN_FOR_LAYOUT handles ipc layout updates and menu dispatches', () => {

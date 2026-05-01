@@ -18,8 +18,21 @@ const EVENT_NAME = {
   file: 'mt::update-file'
 }
 
+// Guard against sending IPC to a destroyed window (race with async watcher callbacks)
+const safeSend = (win, ...args) => {
+  if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+    win.webContents.send(...args)
+  }
+}
+
 const add = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTrailingNewline) => {
-  const stats = await fsPromises.stat(pathname)
+  let stats
+  try {
+    stats = await fsPromises.stat(pathname)
+  } catch (err) {
+    // File was deleted between the watcher event and stat call
+    return
+  }
   const birthTime = stats.birthtime
   const isMarkdown = hasMarkdownExtension(pathname)
   const file = {
@@ -43,7 +56,7 @@ const add = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTraili
     } catch (err) {
       // Only notify user about opened files.
       if (type === 'file') {
-        win.webContents.send('mt::show-notification', {
+        safeSend(win, 'mt::show-notification', {
           title: 'Watcher I/O error',
           type: 'error',
           message: err.message
@@ -51,7 +64,7 @@ const add = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTraili
         return
       }
     }
-    win.webContents.send(EVENT_NAME[type], {
+    safeSend(win, EVENT_NAME[type], {
       type: 'add',
       change: file
     })
@@ -60,7 +73,7 @@ const add = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTraili
 
 const unlink = (win, pathname, type) => {
   const file = { pathname }
-  win.webContents.send(EVENT_NAME[type], {
+  safeSend(win, EVENT_NAME[type], {
     type: 'unlink',
     change: file
   })
@@ -85,14 +98,14 @@ const change = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTra
         pathname,
         data
       }
-      win.webContents.send('mt::update-file', {
+      safeSend(win, 'mt::update-file', {
         type: 'change',
         change: file
       })
     } catch (err) {
       // Only notify user about opened files.
       if (type === 'file') {
-        win.webContents.send('mt::show-notification', {
+        safeSend(win, 'mt::show-notification', {
           title: 'Watcher I/O error',
           type: 'error',
           message: err.message
@@ -116,7 +129,7 @@ const addDir = (win, pathname, type) => {
     files: []
   }
 
-  win.webContents.send('mt::update-object-tree', {
+  safeSend(win, 'mt::update-object-tree', {
     type: 'addDir',
     change: directory
   })
@@ -126,7 +139,7 @@ const unlinkDir = (win, pathname, type) => {
   if (type === 'file') return
 
   const directory = { pathname }
-  win.webContents.send('mt::update-object-tree', {
+  safeSend(win, 'mt::update-object-tree', {
     type: 'unlinkDir',
     change: directory
   })
@@ -243,7 +256,7 @@ class Watcher {
             enospcReached = true
             log.warn('inotify limit reached: Too many file descriptors are opened.')
 
-            win.webContents.send('mt::show-notification', {
+            safeSend(win, 'mt::show-notification', {
               title: 'inotify limit reached',
               type: 'warning',
               message: 'Cannot watch all files and file changes because too many file descriptors are opened.'

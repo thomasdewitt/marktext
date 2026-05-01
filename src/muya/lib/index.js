@@ -121,6 +121,7 @@ class Muya {
 
     // Start observing the target node for configured mutations
     observer.observe(container, config)
+    this._mutationObserver = observer
   }
 
   dispatchChange = () => {
@@ -226,9 +227,15 @@ class Muya {
   ) {
     let finalCursor = null
     if (cursor) {
-      // We have a cursor (pointing to the exact block key) defined, we can use the saved this.blocks instead of re-parsing the markdown
+      // We have a cursor defined. If blocks are also provided we can restore them
+      // directly; otherwise we must re-parse the markdown so the block tree matches
+      // the new document (not a stale previous document).
       finalCursor = cursor
-      if (blocks) this.contentState.setBlocks(blocks)
+      if (blocks) {
+        this.contentState.setBlocks(blocks)
+      } else {
+        this.contentState.importMarkdown(markdown)
+      }
     } else if (muyaIndexCursor && muyaIndexCursor.anchor && muyaIndexCursor.focus) {
       // We do not have a cursor, but we have a muyaIndexCursor, which is not based on a block key.
       // We need to convert the muyaIndexCursor to a cursor, so we can set it in the contentState.
@@ -525,6 +532,10 @@ class Muya {
   }
 
   destroy() {
+    if (this._mutationObserver) {
+      this._mutationObserver.disconnect()
+      this._mutationObserver = null
+    }
     this.contentState.clear()
     this.quickInsert.destroy()
     this.codePicker.destroy()
