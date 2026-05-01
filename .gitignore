@@ -11,3 +11,5 @@ doc/
 # Ignore temp artifacts
 temp/
 logs/
+
+.codex
