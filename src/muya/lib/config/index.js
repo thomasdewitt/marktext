@@ -433,6 +433,10 @@ export const MUYA_DEFAULT_OPTION = Object.freeze({
   // Call Electron open dialog or input element type is file.
   imagePathPicker: null,
   clipboardFilePath: () => {},
+  // Returns the absolute path of the markdown file currently open in the editor,
+  // or a falsy value if the document is unsaved. Used to compute relative paths
+  // for dropped image files so that `![](path)` references stay portable.
+  currentFilePath: () => null,
   // image path auto completed when you input in image selector.
   imagePathAutoComplete: () => [],
 

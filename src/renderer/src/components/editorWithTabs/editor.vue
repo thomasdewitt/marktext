@@ -468,83 +468,41 @@ const imagePathAutoComplete = async (src) => {
 }
 
 const imageAction = async (image, id, alt = '') => {
-  // TODO(Refactor): Refactor this method.
-  const { filename, pathname: currentPathname } = currentFile.value
+  // Path-only behavior: never copy, never upload, never encode. If the input
+  // is (or has) a filesystem path, return it relative to the open document
+  // when possible; otherwise return the absolute path. Clipboard images that
+  // exist only as in-memory bytes (no path) get rejected with a notice — the
+  // .md file is the source of truth for prose, and the user does not want
+  // images materialized into asset folders implicitly.
+  const { pathname: currentPathname } = currentFile.value
 
-  // Save an image relative to the file if the relative image directory include the filename variable.
-  // The image is save relative to the root folder without a variable.
-  const saveRelativeToFile = () => {
-    return /\${filename}/.test(imageRelativeDirectoryName.value)
+  let absolutePath = null
+  if (typeof image === 'string') {
+    absolutePath = image
+  } else if (image && typeof image.path === 'string' && image.path) {
+    absolutePath = image.path
   }
 
-  // Figure out the current working directory.
-  const isTabSavedOnDisk = !!currentPathname
-  let relativeBasePath = isTabSavedOnDisk ? window.path.dirname(currentPathname) : null
-  if (isTabSavedOnDisk && !saveRelativeToFile() && projectTree.value) {
-    const { pathname: rootPath } = projectTree.value
-    if (rootPath && window.fileUtils.isChildOfDirectory(rootPath, currentPathname)) {
-      // Save assets relative to root directory.
-      relativeBasePath = rootPath
-    }
+  if (!absolutePath) {
+    notice.notify({
+      title: 'Paste image',
+      type: 'warning',
+      message:
+        'No source file path available — drag a saved image from Finder, or paste a path. ' +
+        'Pasting raw clipboard image data is disabled (would require copying to disk).'
+    })
+    return null
   }
 
-  const getResolvedImagePath = (imagePath) => {
-    const replacement = isTabSavedOnDisk
-      ? // Filename w/o extension
-        filename.replace(/\.[^/.]+$/, '')
-      : ''
-    return imagePath.replace(/\${filename}/g, replacement)
-  }
-
-  const resolvedImageFolderPath = getResolvedImagePath(imageFolderPath.value)
-  const resolvedImageRelativeDirectoryName = getResolvedImagePath(imageRelativeDirectoryName.value)
-  let destImagePath = ''
-  switch (imageInsertAction.value) {
-    case 'upload': {
-      try {
-        // 传入完整的首选项状态对象，避免对不存在的 .value 解引用
-        destImagePath = await uploadImage(currentPathname, image, preferencesStore.$state)
-      } catch (err) {
-        notice.notify({
-          title: 'Upload Image',
-          type: 'warning',
-          message: err
-        })
-        destImagePath = await moveImageToFolder(currentPathname, image, resolvedImageFolderPath)
+  let destImagePath = absolutePath
+  if (currentPathname && window.path) {
+    try {
+      const rel = window.path.relative(window.path.dirname(currentPathname), absolutePath)
+      if (rel && !window.path.isAbsolute(rel)) {
+        destImagePath = rel.split(window.path.sep).join('/')
       }
-      break
-    }
-    case 'folder': {
-      destImagePath = await moveImageToFolder(currentPathname, image, resolvedImageFolderPath)
-      if (isTabSavedOnDisk && imagePreferRelativeDirectory.value) {
-        destImagePath = await moveToRelativeFolder(
-          relativeBasePath,
-          resolvedImageRelativeDirectoryName,
-          currentPathname,
-          destImagePath
-        )
-      }
-      break
-    }
-    case 'path': {
-      if (typeof image === 'string') {
-        // Input is a local path.
-        destImagePath = image
-      } else {
-        // Save and move image to image folder if input is binary.
-        destImagePath = await moveImageToFolder(currentPathname, image, resolvedImageFolderPath)
-
-        // Respect user preferences if tab exists on disk.
-        if (isTabSavedOnDisk && imagePreferRelativeDirectory.value) {
-          destImagePath = await moveToRelativeFolder(
-            relativeBasePath,
-            resolvedImageRelativeDirectoryName,
-            currentPathname,
-            destImagePath
-          )
-        }
-      }
-      break
+    } catch (_) {
+      // Fall through with absolute path.
     }
   }
 
@@ -1010,6 +968,7 @@ onMounted(() => {
     imageAction,
     imagePathPicker,
     clipboardFilePath: guessClipboardFilePath,
+    currentFilePath: () => currentFile.value && currentFile.value.pathname,
     imagePathAutoComplete,
     t // 添加翻译函数
   }

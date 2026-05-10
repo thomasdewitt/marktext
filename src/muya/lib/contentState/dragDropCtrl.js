@@ -1,10 +1,31 @@
 import { findNearestParagraph, findOutMostParagraph } from '../selection/dom'
-import { verticalPositionInRect, getUniqueId, getImageInfo as getImageSrc, checkImageContentType } from '../utils'
-import { getImageInfo } from '../utils/getImageInfo'
+import { verticalPositionInRect, checkImageContentType } from '../utils'
 import { URL_REG, IMAGE_EXT_REG } from '../config'
 
 const GHOST_ID = 'mu-dragover-ghost'
 const GHOST_HEIGHT = 3
+
+// Compute the markdown path to use when inserting a dropped image as
+// `![alt](path)`. Prefer a path relative to the currently-open document so the
+// .md file remains portable; fall back to the absolute path if a relative path
+// can't be computed (different volumes, no current file, etc.).
+//
+// Always emits POSIX-style separators in markdown.
+const computeMarkdownPath = (filepath, currentDocPath) => {
+  if (!currentDocPath || !window.path) {
+    return filepath
+  }
+  try {
+    const rel = window.path.relative(window.path.dirname(currentDocPath), filepath)
+    // If `rel` is empty or absolute (cross-volume on Windows), fall back.
+    if (!rel || window.path.isAbsolute(rel)) {
+      return filepath
+    }
+    return rel.split(window.path.sep).join('/')
+  } catch (_) {
+    return filepath
+  }
+}
 
 const dragDropCtrl = ContentState => {
   ContentState.prototype.hideGhost = function () {
@@ -137,11 +158,31 @@ const dragDropCtrl = ContentState => {
       for (const file of event.dataTransfer.files) {
         fileList.push(file)
       }
+      // Drop an image file: insert a markdown reference using the file's
+      // existing on-disk path. Never copy, never base64-encode, never convert
+      // formats. Path is relative to the open .md file when possible.
       const image = fileList.find(file => /image/.test(file.type))
       if (image && dropAnchor) {
-        const { name, path } = image
-        const id = `loading-${getUniqueId()}`
-        const text = `![${id}](${path})`
+        // Electron 32+ no longer exposes `File.path` on dropped files; use
+        // `webUtils.getPathForFile` from the preload bridge instead.
+        const { name } = image
+        const filepath = (window.electron &&
+          window.electron.webUtils &&
+          typeof window.electron.webUtils.getPathForFile === 'function')
+          ? window.electron.webUtils.getPathForFile(image)
+          : (image.path || '')
+        if (!filepath) {
+          this.hideGhost()
+          return
+        }
+        const currentDocPath = typeof this.muya.options.currentFilePath === 'function'
+          ? this.muya.options.currentFilePath()
+          : null
+        const mdPath = computeMarkdownPath(filepath, currentDocPath)
+        // Use the filename without extension as the alt text so the rendered
+        // image has a sensible default; users can edit it after insertion.
+        const alt = name ? name.replace(/\.[^/.]+$/, '') : ''
+        const text = `![${alt}](${mdPath})`
         const imageBlock = this.createBlockP(text)
         const { anchor, position } = dropAnchor
         if (position === 'up') {
@@ -157,26 +198,6 @@ const dragDropCtrl = ContentState => {
           end: { key, offset }
         }
         this.render()
-
-        try {
-          const newSrc = await this.muya.options.imageAction(path, id, name)
-          const { src } = getImageSrc(path)
-          if (src) {
-            this.stateRender.urlMap.set(newSrc, src)
-          }
-          const imageWrapper = this.muya.container.querySelector(`span[data-id=${id}]`)
-
-          if (imageWrapper) {
-            const imageInfo = getImageInfo(imageWrapper)
-            this.replaceImage(imageInfo, {
-              alt: name,
-              src: newSrc
-            })
-          }
-        } catch (error) {
-          // TODO: Notify user about an error.
-          console.error('Unexpected error on image action:', error)
-        }
       }
       this.muya.eventCenter.dispatch('stateChange')
     }
