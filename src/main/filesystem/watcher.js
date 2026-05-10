@@ -204,19 +204,27 @@ class Watcher {
 
     watcher
       .on('add', async pathname => {
-        if (!await this._shouldIgnoreEvent(win.id, pathname, type, usePolling)) {
-          const { _preferences } = this
-          const eol = _preferences.getPreferredEol()
-          const { autoGuessEncoding, trimTrailingNewline } = _preferences.getAll()
-          add(win, pathname, type, eol, autoGuessEncoding, trimTrailingNewline)
+        try {
+          if (!await this._shouldIgnoreEvent(win.id, pathname, type, usePolling)) {
+            const { _preferences } = this
+            const eol = _preferences.getPreferredEol()
+            const { autoGuessEncoding, trimTrailingNewline } = _preferences.getAll()
+            await add(win, pathname, type, eol, autoGuessEncoding, trimTrailingNewline)
+          }
+        } catch (err) {
+          log.error('Watcher add handler failed:', err)
         }
       })
       .on('change', async pathname => {
-        if (!await this._shouldIgnoreEvent(win.id, pathname, type, usePolling)) {
-          const { _preferences } = this
-          const eol = _preferences.getPreferredEol()
-          const { autoGuessEncoding, trimTrailingNewline } = _preferences.getAll()
-          change(win, pathname, type, eol, autoGuessEncoding, trimTrailingNewline)
+        try {
+          if (!await this._shouldIgnoreEvent(win.id, pathname, type, usePolling)) {
+            const { _preferences } = this
+            const eol = _preferences.getPreferredEol()
+            const { autoGuessEncoding, trimTrailingNewline } = _preferences.getAll()
+            await change(win, pathname, type, eol, autoGuessEncoding, trimTrailingNewline)
+          }
+        } catch (err) {
+          log.error('Watcher change handler failed:', err)
         }
       })
       .on('unlink', pathname => unlink(win, pathname, type))

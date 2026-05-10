@@ -226,21 +226,27 @@ class App {
     }
 
     let isDarkMode = nativeTheme.shouldUseDarkColors
-    // Guard against registering duplicate listeners on macOS reactivation
-    ipcMain.removeAllListeners('broadcast-preferences-changed')
-    ipcMain.on('broadcast-preferences-changed', (change) => {
-      // Set Chromium's color for native elements after theme change.
-      if (change.theme) {
-        const isDarkTheme = /dark/i.test(change.theme)
-        if (isDarkMode !== isDarkTheme) {
-          isDarkMode = isDarkTheme
-          nativeTheme.themeSource = isDarkTheme ? 'dark' : 'light'
-        } else if (nativeTheme.themeSource === 'system') {
-          // Need to set dark or light theme because we set `system` to get the current system theme.
-          nativeTheme.themeSource = isDarkMode ? 'dark' : 'light'
+    // Register a single native-theme listener for the lifetime of the app.
+    // We can be re-entered on macOS dock-reactivate; guard against installing
+    // a duplicate listener instead of nuking every other module's listener
+    // on the same channel (menu/index.js and windowManager.js both register
+    // here too).
+    if (!this._broadcastListenerAttached) {
+      this._broadcastListenerAttached = true
+      ipcMain.on('broadcast-preferences-changed', (change) => {
+        // Set Chromium's color for native elements after theme change.
+        if (change.theme) {
+          const isDarkTheme = /dark/i.test(change.theme)
+          if (isDarkMode !== isDarkTheme) {
+            isDarkMode = isDarkTheme
+            nativeTheme.themeSource = isDarkTheme ? 'dark' : 'light'
+          } else if (nativeTheme.themeSource === 'system') {
+            // Need to set dark or light theme because we set `system` to get the current system theme.
+            nativeTheme.themeSource = isDarkMode ? 'dark' : 'light'
+          }
         }
-      }
-    })
+      })
+    }
 
     if (isOsx) {
       app.dock.setMenu(dockMenu)

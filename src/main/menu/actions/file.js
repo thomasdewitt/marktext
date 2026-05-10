@@ -18,6 +18,15 @@ import { t } from '../../i18n'
 // the renderer should communicate only with the editor window for file relevant stuff.
 // E.g. "mt::save-tabs" --> "mt::window-save-tabs$wid:<windowId>"
 
+// IPC sends from save handlers can land after the user has already closed
+// the window; guard webContents.send to avoid throwing on a destroyed
+// BrowserWindow.
+const safeSend = (win, ...args) => {
+  if (win && !win.isDestroyed() && win.webContents && !win.webContents.isDestroyed()) {
+    win.webContents.send(...args)
+  }
+}
+
 const getExportExtensionFilter = (type) => {
   if (type === 'pdf') {
     return [
@@ -157,20 +166,20 @@ const handleResponseForSave = async (e, id, filename, pathname, markdown, option
         ipcMain.emit('menu-add-recently-used', filePath)
 
         const filename = path.basename(filePath)
-        win.webContents.send('mt::set-pathname', { id, pathname: filePath, filename })
+        safeSend(win, 'mt::set-pathname', { id, pathname: filePath, filename })
 
         // Tell watcher to ignore change event
         ipcMain.emit('window-file-saved', win.id, filePath)
       } else {
         // File was already being tracked
         ipcMain.emit('window-file-saved', win.id, filePath)
-        win.webContents.send('mt::tab-saved', id)
+        safeSend(win, 'mt::tab-saved', id)
       }
       return id
     })
     .catch((err) => {
       log.error('Error while saving:', err)
-      win.webContents.send('mt::tab-save-failure', id, err.message)
+      safeSend(win, 'mt::tab-save-failure', id, err.message)
     })
 }
 
@@ -225,32 +234,9 @@ const removePrintServiceFromWindow = (win) => {
 
 // --- events -----------------------------------
 
-ipcMain.on('mt::save-tabs', (e, unsavedFiles) => {
-  Promise.all(
-    unsavedFiles.map((file) =>
-      handleResponseForSave(
-        e,
-        file.id,
-        file.filename,
-        file.pathname,
-        file.markdown,
-        file.options,
-        file.defaultPath
-      )
-    )
-  ).catch(log.error)
-})
-
-ipcMain.on('mt::save-and-close-tabs', async (e, unsavedFiles) => {
-  const win = BrowserWindow.fromWebContents(e.sender)
-  const userResult = await showUnsavedFilesMessage(win, unsavedFiles)
-  if (!userResult) {
-    return
-  }
-
-  const { needSave } = userResult
-  if (needSave) {
-    Promise.all(
+ipcMain.on('mt::save-tabs', async (e, unsavedFiles) => {
+  try {
+    await Promise.all(
       unsavedFiles.map((file) =>
         handleResponseForSave(
           e,
@@ -263,16 +249,42 @@ ipcMain.on('mt::save-and-close-tabs', async (e, unsavedFiles) => {
         )
       )
     )
-      .then((arr) => {
-        const tabIds = arr.filter((id) => id != null)
-        win.webContents.send('mt::force-close-tabs-by-id', tabIds)
-      })
-      .catch((err) => {
-        log.error('Error while save all:', err)
-      })
+  } catch (err) {
+    log.error(err)
+  }
+})
+
+ipcMain.on('mt::save-and-close-tabs', async (e, unsavedFiles) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  const userResult = await showUnsavedFilesMessage(win, unsavedFiles)
+  if (!userResult) {
+    return
+  }
+
+  const { needSave } = userResult
+  if (needSave) {
+    try {
+      const arr = await Promise.all(
+        unsavedFiles.map((file) =>
+          handleResponseForSave(
+            e,
+            file.id,
+            file.filename,
+            file.pathname,
+            file.markdown,
+            file.options,
+            file.defaultPath
+          )
+        )
+      )
+      const tabIds = arr.filter((id) => id != null)
+      safeSend(win, 'mt::force-close-tabs-by-id', tabIds)
+    } catch (err) {
+      log.error('Error while save all:', err)
+    }
   } else {
     const tabIds = unsavedFiles.map((f) => f.id)
-    win.webContents.send('mt::force-close-tabs-by-id', tabIds)
+    safeSend(win, 'mt::force-close-tabs-by-id', tabIds)
   }
 })
 
@@ -305,7 +317,7 @@ ipcMain.on(
             ipcMain.emit('menu-add-recently-used', filePath)
 
             const filename = path.basename(filePath)
-            win.webContents.send('mt::set-pathname', { id, pathname: filePath, filename })
+            safeSend(win, 'mt::set-pathname', { id, pathname: filePath, filename })
 
             // Tell watcher to ignore change event
             ipcMain.emit('window-file-saved', win.id, filePath)
@@ -314,18 +326,18 @@ ipcMain.on(
             ipcMain.emit('window-change-file-path', win.id, filePath, pathname)
 
             const filename = path.basename(filePath)
-            win.webContents.send('mt::set-pathname', { id, pathname: filePath, filename })
+            safeSend(win, 'mt::set-pathname', { id, pathname: filePath, filename })
 
             // Tell watcher to ignore change event for the new path
             ipcMain.emit('window-file-saved', win.id, filePath)
           } else {
             ipcMain.emit('window-file-saved', win.id, filePath)
-            win.webContents.send('mt::tab-saved', id)
+            safeSend(win, 'mt::tab-saved', id)
           }
         })
         .catch((err) => {
           log.error('Error while save as:', err)
-          win.webContents.send('mt::tab-save-failure', id, err.message)
+          safeSend(win, 'mt::tab-save-failure', id, err.message)
         })
     }
   }
@@ -340,39 +352,37 @@ ipcMain.on('mt::close-window-confirm', async (e, unsavedFiles) => {
 
   const { needSave } = userResult
   if (needSave) {
-    Promise.all(
-      unsavedFiles.map((file) =>
-        handleResponseForSave(
-          e,
-          file.id,
-          file.filename,
-          file.pathname,
-          file.markdown,
-          file.options,
-          file.defaultPath
+    try {
+      await Promise.all(
+        unsavedFiles.map((file) =>
+          handleResponseForSave(
+            e,
+            file.id,
+            file.filename,
+            file.pathname,
+            file.markdown,
+            file.options,
+            file.defaultPath
+          )
         )
       )
-    )
-      .then(() => {
-        ipcMain.emit('window-close-by-id', win.id)
-      })
-      .catch((err) => {
-        log.error('Error while saving before quit:', err)
+      ipcMain.emit('window-close-by-id', win.id)
+    } catch (err) {
+      log.error('Error while saving before quit:', err)
 
-        // Notify user about the problem.
-        dialog
-          .showMessageBox(win, {
-            type: 'error',
-            buttons: [t('dialog.close'), t('dialog.keepOpen')],
-            message: t('dialog.saveFailure'),
-            detail: err.message
-          })
-          .then(({ response }) => {
-            if (win.id && response === 0) {
-              ipcMain.emit('window-close-by-id', win.id)
-            }
-          })
+      if (win.isDestroyed()) {
+        return
+      }
+      const { response } = await dialog.showMessageBox(win, {
+        type: 'error',
+        buttons: [t('dialog.close'), t('dialog.keepOpen')],
+        message: t('dialog.saveFailure'),
+        detail: err.message
       })
+      if (win.id && response === 0) {
+        ipcMain.emit('window-close-by-id', win.id)
+      }
+    }
   } else {
     ipcMain.emit('window-close-by-id', win.id)
   }

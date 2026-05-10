@@ -144,6 +144,42 @@ describe('RipgrepDirectorySearcher process integration', () => {
     await expect(promise).rejects.toThrow('grep failed')
   })
 
+  it('decodes multi-byte UTF-8 characters split across chunks', async () => {
+    const child = createMockChild()
+    spawnMock.mockReturnValue(child)
+
+    const { default: RipgrepDirectorySearcher } = await import('../../src/renderer/src/node/ripgrepSearcher')
+    const searcher = new RipgrepDirectorySearcher()
+
+    const matches = []
+    const promise = searcher.searchInDirectory('/tmp/project', 'héllo', {
+      didMatch: (event) => matches.push(event),
+      didSearchPaths: () => {},
+      isRegexp: false,
+      isCaseSensitive: false,
+      isWholeWord: false,
+      followSymlinks: false,
+      includeHidden: false,
+      noIgnore: false,
+      inclusions: [],
+      exclusions: []
+    }, { num: 0 })
+
+    // Build the line as raw UTF-8 bytes and split it inside the multi-byte
+    // 'é' (0xC3 0xA9) so chunk 1 ends with the leading byte and chunk 2
+    // starts with the trailing byte. Pre-fix this caused U+FFFDs and the
+    // matcher saw "h��llo".
+    const fullLine = Buffer.from('/tmp/project/a.md:1:héllo world\n', 'utf8')
+    const splitAt = fullLine.indexOf(0xC3) + 1
+    child.stdout.emit('data', fullLine.subarray(0, splitAt))
+    child.stdout.emit('data', fullLine.subarray(splitAt))
+    child.emit('close', 0, null)
+    await promise
+
+    expect(matches).toHaveLength(1)
+    expect(matches[0].matches[0].matchText).toBe('héllo')
+  })
+
   it('passes expected argument flags to grep', async () => {
     const child = createMockChild()
     spawnMock.mockReturnValue(child)

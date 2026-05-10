@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 
 import { statSync, constants } from 'fs'
-import { exec, execFile } from 'child_process'
+import { execFile } from 'child_process'
 import { tmpdir } from 'os'
 import dayjs from 'dayjs'
 import { Octokit } from '@octokit/rest'
@@ -207,7 +207,9 @@ export const uploadImage = async (pathname, image, preferences) => {
     if (uploader === 'picgo') {
       const cmd = resolvePicgoBinary()
       if (!cmd) return rejectPromise('PicGo command not found in PATH')
-      exec(`${cmd} u "${localPath}"`, { env: { ...process.env, PATH: getPreferredPathEnv() } }, handleExec)
+      // execFile (no shell) prevents path metacharacters in `localPath`
+      // (e.g. quotes, $(...), backticks) from injecting commands.
+      execFile(cmd, ['u', localPath], { env: { ...process.env, PATH: getPreferredPathEnv() } }, handleExec)
     } else {
       execFile(cliScript, [localPath], { env: { ...process.env, PATH: getPreferredPathEnv() } }, (err, data) => {
         try { if (!localIsPath) window.fileUtils?.unlink && window.fileUtils.unlink(localPath) } catch {}

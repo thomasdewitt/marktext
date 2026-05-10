@@ -6,7 +6,7 @@
         v-model="keyword"
         type="text"
         :placeholder="t('sideBar.search.searchInFolder')"
-        @keyup="search"
+        @keyup="scheduleSearch"
       />
       <div class="controls">
         <span
@@ -68,7 +68,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useLayoutStore } from '@/store/layout'
 import { useProjectStore } from '@/store/project'
 import { useEditorStore } from '@/store/editor'
@@ -92,6 +92,9 @@ const editorStore = useEditorStore()
 const preferencesStore = usePreferencesStore()
 
 let searcherCancelCallback = null
+let searchDebounceTimer = null
+const SEARCH_DEBOUNCE_MS = 250
+const SEARCH_MIN_LENGTH = 2
 const ripgrepDirectorySearcher = new RipgrepDirectorySearcher()
 
 const keyword = ref('')
@@ -135,6 +138,34 @@ const showNoResultFoundMessage = computed(() => {
     searchResult.value.length === 0 && searcherRunning.value === false && keyword.value.length > 0
   )
 })
+
+const scheduleSearch = () => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+
+  // Empty input: clear results immediately so the UI doesn't lag the user.
+  if (!keyword.value) {
+    if (searcherRunning.value && searcherCancelCallback) {
+      searcherCancelCallback()
+    }
+    searchResult.value = []
+    searcherRunning.value = false
+    searchErrorString.value = ''
+    return
+  }
+
+  // A single character would otherwise spawn a project-wide grep on the
+  // very first keystroke; require at least two characters.
+  if (keyword.value.length < SEARCH_MIN_LENGTH) {
+    return
+  }
+
+  searchDebounceTimer = setTimeout(() => {
+    searchDebounceTimer = null
+    search()
+  }, SEARCH_DEBOUNCE_MS)
+}
 
 const search = () => {
   // No root directory is opened.
@@ -195,6 +226,11 @@ const search = () => {
       inclusions: window.fileUtils.MARKDOWN_INCLUSIONS
     })
     .then(() => {
+      // A newer search() call may have already canceled this invocation;
+      // its .then will overwrite searchResult.value once it resolves, so
+      // bail before we clobber the newer state.
+      if (canceled) return
+
       const {
         results: resultsWithFilenames,
         error
@@ -217,6 +253,8 @@ const search = () => {
       stopShowSearchCancelAreaTimer()
     })
     .catch((err) => {
+      if (canceled) return
+
       canceled = true
       if (promises.cancel) {
         promises.cancel()
@@ -241,8 +279,14 @@ const search = () => {
       stopShowSearchCancelAreaTimer()
     })
 
-  if (promises.cancel) {
-    searcherCancelCallback = promises.cancel
+  // Bundle the kill-the-grep call with flipping this invocation's
+  // `canceled` so the next search's pre-check also halts our .then/.catch.
+  searcherCancelCallback = () => {
+    if (canceled) return
+    canceled = true
+    if (promises.cancel) {
+      promises.cancel()
+    }
   }
 }
 
@@ -321,6 +365,17 @@ onMounted(() => {
   if (keyword.value.length > 0 && searcherRunning.value === false) {
     searcherRunning.value = true
     search()
+  }
+})
+
+onBeforeUnmount(() => {
+  bus.off('findInFolder', handleFindInFolder)
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = null
+  }
+  if (searcherRunning.value && searcherCancelCallback) {
+    searcherCancelCallback()
   }
 })
 </script>

@@ -1,4 +1,5 @@
 import { spawn } from 'child_process'
+import { StringDecoder } from 'string_decoder'
 
 const hasPathSeparator = (value) => value.includes('/') || value.includes('\\')
 
@@ -189,11 +190,20 @@ class RipgrepDirectorySearcher {
     let cancelled = false
 
     const returnedPromise = new Promise((resolve, reject) => {
+      // StringDecoder buffers partial multi-byte UTF-8 sequences across
+      // chunks; coercing a Buffer with `+= chunk` would emit a U+FFFD at
+      // every chunk boundary that splits a CJK / emoji character.
+      const stdoutDecoder = new StringDecoder('utf8')
+      const stderrDecoder = new StringDecoder('utf8')
       let buffer = ''
       let bufferError = ''
       const eventsByFile = new Map()
 
       child.on('close', (code) => {
+        // Flush any remaining bytes from both decoders.
+        buffer += stdoutDecoder.end()
+        bufferError += stderrDecoder.end()
+
         if (cancelled) {
           resolve()
           return
@@ -203,6 +213,12 @@ class RipgrepDirectorySearcher {
         if (code !== null && code > 1) {
           reject(new Error(bufferError || `grep exited with code ${code}`))
           return
+        }
+
+        if (buffer) {
+          // Process trailing line that didn't end with a newline.
+          consumeLines(buffer)
+          buffer = ''
         }
 
         for (const event of eventsByFile.values()) {
@@ -218,7 +234,7 @@ class RipgrepDirectorySearcher {
       })
 
       child.stderr.on('data', (chunk) => {
-        bufferError += chunk
+        bufferError += stderrDecoder.write(chunk)
       })
 
       child.stdout.on('data', (chunk) => {
@@ -226,11 +242,16 @@ class RipgrepDirectorySearcher {
           return
         }
 
-        buffer += chunk
+        buffer += stdoutDecoder.write(chunk)
         const lines = buffer.split('\n')
         buffer = lines.pop()
 
-        for (const line of lines) {
+        consumeLines(lines)
+      })
+
+      function consumeLines (lines) {
+        const iterable = Array.isArray(lines) ? lines : [lines]
+        for (const line of iterable) {
           const parsed = parseGrepResultLine(line)
           if (!parsed) {
             continue
@@ -253,7 +274,7 @@ class RipgrepDirectorySearcher {
 
           event.matches.push(...lineMatches)
         }
-      })
+      }
     })
 
     returnedPromise.cancel = () => {

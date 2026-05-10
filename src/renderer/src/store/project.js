@@ -166,17 +166,16 @@ export const useProjectStore = defineStore('project', {
           }
         }
 
-        // Delay the trash operation to ensure the tab is fully closed
-        // and any pending file operations have completed
-        setTimeout(() => {
-          window.electron.ipcRenderer.invoke('mt::fs-trash-item', pathname).catch((err) => {
-            notice.notify({
-              title: 'Error while deleting',
-              type: 'error',
-              message: err.message
-            })
+        // FORCE_CLOSE_TAB above is synchronous from the renderer's perspective,
+        // so trash the item right away. A previous setTimeout(150) here added
+        // a race when several deletes were issued back-to-back.
+        window.electron.ipcRenderer.invoke('mt::fs-trash-item', pathname).catch((err) => {
+          notice.notify({
+            title: 'Error while deleting',
+            type: 'error',
+            message: err.message
           })
-        }, 150)
+        })
       })
       bus.on('SIDEBAR::copy-cut', (type) => {
         const { pathname: src } = this.activeItem
