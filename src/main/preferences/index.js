@@ -110,10 +110,6 @@ class Preference extends EventEmitter {
   }
 
   setItem(key, value) {
-    // 确保拼写检查器语言始终为英语，不受界面语言切换影响
-    if (key === 'spellcheckerLanguage') {
-      value = 'en-US'
-    }
     ipcMain.emit('broadcast-preferences-changed', { [key]: value })
     return this.store.set(key, value)
   }
@@ -163,7 +159,7 @@ class Preference extends EventEmitter {
       this.setItems(settings)
     })
     ipcMain.on('mt::cmd-toggle-autosave', (e) => {
-      this.setItem('autoSave', !!this.getItem('autoSave'))
+      this.setItem('autoSave', !this.getItem('autoSave'))
     })
 
     ipcMain.on('set-user-preference', (settings) => {

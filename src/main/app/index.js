@@ -30,8 +30,6 @@ class App {
     this._openFilesCache = []
     this._openFilesTimer = null
     this._windowManager = this._accessor.windowManager
-    // this.launchScreenshotWin = null // The window which call the screenshot.
-    // this.shortcutCapture = null
 
     // Initialize main process language
     this._initializeLanguage()
@@ -273,28 +271,6 @@ class App {
     } else {
       this._createEditorWindow()
     }
-
-    // this.shortcutCapture = new ShortcutCapture()
-    // if (process.env.NODE_ENV === 'development') {
-    //   this.shortcutCapture.dirname = path.resolve(path.join(__dirname, '../../../node_modules/shortcut-capture'))
-    // }
-    // this.shortcutCapture.on('capture', async ({ dataURL }) => {
-    //   const { screenshotFileName } = this
-    //   const image = nativeImage.createFromDataURL(dataURL)
-    //   const bufferImage = image.toPNG()
-
-    //   if (this.launchScreenshotWin) {
-    //     this.launchScreenshotWin.webContents.send('mt::screenshot-captured')
-    //     this.launchScreenshotWin = null
-    //   }
-
-    //   try {
-    //     // write screenshot image into screenshot folder.
-    //     await fse.writeFile(screenshotFileName, bufferImage)
-    //   } catch (err) {
-    //     log.error(err)
-    //   }
-    // })
   }
 
   openFile = (event, pathname) => {
@@ -532,10 +508,6 @@ class App {
         })
       } else {
         // TODO: Do nothing, maybe we'll add screenCapture later on Linux and Windows.
-        // if (this.shortcutCapture) {
-        //   this.launchScreenshotWin = win
-        //   this.shortcutCapture.shortcutCapture()
-        // }
       }
     })
 

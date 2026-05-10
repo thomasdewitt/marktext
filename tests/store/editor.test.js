@@ -9,7 +9,9 @@ const { handlers, ipcOn, busEmit, noticeNotify, preferencesStore } = vi.hoisted(
   busEmit: vi.fn(),
   noticeNotify: vi.fn(),
   preferencesStore: {
-    autoSave: false
+    autoSave: false,
+    zoom: 1.0,
+    SET_SINGLE_PREFERENCE: vi.fn()
   }
 }))
 
@@ -72,6 +74,8 @@ describe('editor store', () => {
     busEmit.mockReset()
     noticeNotify.mockReset()
     preferencesStore.autoSave = false
+    preferencesStore.zoom = 1.0
+    preferencesStore.SET_SINGLE_PREFERENCE.mockReset()
     Object.keys(handlers).forEach((key) => delete handlers[key])
 
     global.marktext = { env: { windowId: 1 } }
@@ -221,6 +225,21 @@ describe('editor store', () => {
       blocks: []
     })
     expect(store.currentFile.isSaved).toBe(false)
+  })
+
+  it('persists zoom changes to preferences via SET_SINGLE_PREFERENCE', () => {
+    const store = useEditorStore()
+    store.LISTEN_WINDOW_ZOOM()
+
+    global.window.electron.webFrame = { setZoomFactor: vi.fn() }
+
+    handlers['mt::window-zoom'](null, 1.25)
+
+    expect(preferencesStore.SET_SINGLE_PREFERENCE).toHaveBeenCalledWith({
+      type: 'zoom',
+      value: 1.25
+    })
+    expect(global.window.electron.webFrame.setZoomFactor).toHaveBeenCalledWith(1.25)
   })
 
   it('clears the round-trip flag even when Muya output happens to match the input', () => {

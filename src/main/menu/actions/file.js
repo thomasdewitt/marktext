@@ -149,11 +149,7 @@ const handleResponseForSave = async (e, id, filename, pathname, markdown, option
   const extension = path.extname(filePath) || '.md'
   filePath = !filePath.endsWith(extension) ? (filePath += extension) : filePath
 
-  // Check if file actually exists on disk (not just tracked)
-  const fileExistsOnDisk = await exists(filePath)
-  const isNewFile = !alreadyTracked && !fileExistsOnDisk
-
-  return writeMarkdownFile(filePath, markdown, options, win)
+  return writeMarkdownFile(filePath, markdown, options)
     .then(() => {
       if (!alreadyTracked) {
         // This tab wasn't tracking a file before
@@ -195,11 +191,7 @@ const showUnsavedFilesMessage = async (win, files) => {
 
   switch (response) {
     case 0:
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          resolve({ needSave: true })
-        })
-      })
+      return { needSave: true }
     case 1:
       return { needSave: false }
     default:
@@ -306,11 +298,7 @@ ipcMain.on(
     if (filePath && !canceled) {
       filePath = path.resolve(filePath)
 
-      // Check if file actually exists on disk (not just tracked)
-      const fileExistsOnDisk = await exists(filePath)
-      const isNewFile = !alreadyTracked && !fileExistsOnDisk
-
-      writeMarkdownFile(filePath, markdown, options, win)
+      writeMarkdownFile(filePath, markdown, options)
         .then(() => {
           if (!alreadyTracked) {
             ipcMain.emit('window-add-file-path', win.id, filePath)

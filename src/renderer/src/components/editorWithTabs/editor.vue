@@ -67,7 +67,6 @@
 <script setup>
 import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import log from 'electron-log'
-// import ViewImage from 'view-image'
 import Muya from 'muya/lib'
 import TablePicker from 'muya/lib/ui/tablePicker'
 import QuickInsert from 'muya/lib/ui/quickInsert'
@@ -1056,34 +1055,8 @@ onMounted(() => {
     const ctrlOrMeta = (isOsx && event.metaKey) || (!isOsx && event.ctrlKey)
     if (formatType === 'link' && ctrlOrMeta) {
       editorStore.FORMAT_LINK_CLICK({ data, dirname: window.DIRNAME })
-    } else if (formatType === 'image' && ctrlOrMeta) {
-      if (imageViewer) {
-        imageViewer.destroy()
-      }
-
-      // Disabled due to #2120.
-      // imageViewer = new ViewImage(imageViewerRef.value, {
-      //   url: data,
-      //   snapView: true
-      // })
-
-      setImageViewerVisible(true)
     }
   })
-
-  // Disabled due to #2120.
-  // editor.value.on('preview-image', ({ data }) => {
-  //   if (imageViewer) {
-  //     imageViewer.destroy()
-  //   }
-  //
-  //   imageViewer = new ViewImage(imageViewerRef.value, {
-  //     url: data,
-  //     snapView: true
-  //   })
-  //
-  //   setImageViewerVisible(true)
-  // })
 
   editor.value.on('selectionChange', (changes) => {
     const { y } = changes.cursorCoords

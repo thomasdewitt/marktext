@@ -1564,7 +1564,7 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
-    LINTEN_FOR_EXPORT_SUCCESS() {
+    LISTEN_FOR_EXPORT_SUCCESS() {
       window.electron.ipcRenderer.on('mt::export-success', (_, { filePath }) => {
         notice
           .notify({
@@ -1584,13 +1584,13 @@ export const useEditorStore = defineStore('editor', {
       window.electron.ipcRenderer.send('mt::response-print')
     },
 
-    LINTEN_FOR_PRINT_SERVICE_CLEARUP() {
+    LISTEN_FOR_PRINT_SERVICE_CLEARUP() {
       window.electron.ipcRenderer.on('mt::print-service-clearup', () => {
         bus.emit('print-service-clearup')
       })
     },
 
-    LINTEN_FOR_SET_LINE_ENDING() {
+    LISTEN_FOR_SET_LINE_ENDING() {
       window.electron.ipcRenderer.on('mt::set-line-ending', (_, lineEnding) => {
         const { lineEnding: oldLineEnding } = this.currentFile
         if (lineEnding !== oldLineEnding) {
@@ -1602,7 +1602,7 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
-    LINTEN_FOR_SET_ENCODING() {
+    LISTEN_FOR_SET_ENCODING() {
       window.electron.ipcRenderer.on('mt::set-file-encoding', (_, encodingName) => {
         const { encoding } = this.currentFile.encoding
         if (encoding !== encodingName) {
@@ -1613,7 +1613,7 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
-    LINTEN_FOR_SET_FINAL_NEWLINE() {
+    LISTEN_FOR_SET_FINAL_NEWLINE() {
       window.electron.ipcRenderer.on('mt::set-final-newline', (_, value) => {
         const { trimTrailingNewline } = this.currentFile
         if (trimTrailingNewline !== value) {
@@ -1703,7 +1703,7 @@ export const useEditorStore = defineStore('editor', {
         zoomFactor = Number.parseFloat(zoomFactor.toFixed(3))
         const { zoom } = preferencesStore
         if (zoom !== zoomFactor) {
-          preferencesStore.setSinglePreference({ type: 'zoom', value: zoomFactor })
+          preferencesStore.SET_SINGLE_PREFERENCE({ type: 'zoom', value: zoomFactor })
         }
         window.electron.webFrame.setZoomFactor(zoomFactor)
       })
