@@ -1300,9 +1300,10 @@ export const useEditorStore = defineStore('editor', {
 
       const { markdown, isMixedLineEndings } = markdownDocument
       const docState = createDocumentState(Object.assign(markdownDocument, options))
-      // Normalize stored markdown so it matches what muya will emit on first change,
-      // preventing the false "unsaved" indicator on file open.
       docState.markdown = adjustTrailingNewlines(docState.markdown, docState.trimTrailingNewline)
+      // Muya re-parses the markdown and emits a 'change' event with its own
+      // re-exported version. Suppress the false "unsaved" mark on that first event.
+      docState._pendingMuyaRoundtrip = true
       const { id, cursor } = docState
 
       if (selected) {
@@ -1392,6 +1393,13 @@ export const useEditorStore = defineStore('editor', {
 
       this.currentFile.blocks = blocks || []
 
+      // First change event after handing markdown to Muya is just its
+      // import/export round-trip — clear the flag and skip dirty-marking below.
+      const wasPendingRoundtrip = this.currentFile._pendingMuyaRoundtrip
+      if (wasPendingRoundtrip) {
+        this.currentFile._pendingMuyaRoundtrip = false
+      }
+
       if (oldMarkdown.length === 0 && markdown.length === 1 && markdown[0] === '\n') {
         return
       }
@@ -1428,7 +1436,7 @@ export const useEditorStore = defineStore('editor', {
         this.REBUILD_COMPOSITE_TOC()
       }
 
-      if (markdown !== oldMarkdown) {
+      if (markdown !== oldMarkdown && !wasPendingRoundtrip) {
         this.currentFile.isSaved = false
         if (pathname && autoSave) {
           const options = getOptionsFromState(this.currentFile)

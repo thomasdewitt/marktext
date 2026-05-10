@@ -74,6 +74,8 @@ describe('editor store', () => {
     preferencesStore.autoSave = false
     Object.keys(handlers).forEach((key) => delete handlers[key])
 
+    global.marktext = { env: { windowId: 1 } }
+
     global.window = {
       navigator: {
         userAgent: 'vitest'
@@ -81,9 +83,14 @@ describe('editor store', () => {
       fileUtils: {
         isSamePathSync: (a, b) => a === b
       },
+      path: {
+        dirname: (p) => (typeof p === 'string' ? p.replace(/\/[^/]*$/, '') : ''),
+        normalize: (p) => p
+      },
       electron: {
         ipcRenderer: {
-          on: ipcOn
+          on: ipcOn,
+          send: vi.fn()
         }
       }
     }
@@ -138,5 +145,122 @@ describe('editor store', () => {
     })
     expect(pushTabNotificationSpy).not.toHaveBeenCalled()
     expect(store.tabs[0].notifications).toEqual([])
+  })
+
+  it('does not mark a freshly opened file as unsaved when Muya normalises markdown on first change', () => {
+    const store = useEditorStore()
+    store.NEW_TAB_WITH_CONTENT({
+      markdownDocument: {
+        markdown: '#Heading\n- item\n',
+        filename: 'example.md',
+        pathname: '/tmp/example.md',
+        encoding: { encoding: 'utf8', isBom: false },
+        lineEnding: 'lf',
+        adjustLineEndingOnSave: false,
+        trimTrailingNewline: 1
+      }
+    })
+
+    const tab = store.currentFile
+    expect(tab.isSaved).toBe(true)
+    expect(tab._pendingMuyaRoundtrip).toBe(true)
+
+    // Simulate Muya's first change event with re-exported (normalised) markdown.
+    store.LISTEN_FOR_CONTENT_CHANGE({
+      id: 'muya',
+      markdown: '# Heading\n\n- item\n',
+      wordCount: null,
+      cursor: null,
+      muyaIndexCursor: null,
+      history: null,
+      toc: [],
+      blocks: []
+    })
+
+    expect(store.currentFile.isSaved).toBe(true)
+    expect(store.currentFile._pendingMuyaRoundtrip).toBe(false)
+    expect(store.currentFile.markdown).toBe('# Heading\n\n- item\n')
+  })
+
+  it('marks the file as unsaved on the next real edit after the round-trip event', () => {
+    const store = useEditorStore()
+    store.NEW_TAB_WITH_CONTENT({
+      markdownDocument: {
+        markdown: '#Heading\n',
+        filename: 'example.md',
+        pathname: '/tmp/example.md',
+        encoding: { encoding: 'utf8', isBom: false },
+        lineEnding: 'lf',
+        adjustLineEndingOnSave: false,
+        trimTrailingNewline: 1
+      }
+    })
+
+    // Muya's normalising round-trip
+    store.LISTEN_FOR_CONTENT_CHANGE({
+      id: 'muya',
+      markdown: '# Heading\n',
+      wordCount: null,
+      cursor: null,
+      muyaIndexCursor: null,
+      history: null,
+      toc: [],
+      blocks: []
+    })
+    expect(store.currentFile.isSaved).toBe(true)
+
+    // Real user edit
+    store.LISTEN_FOR_CONTENT_CHANGE({
+      id: 'muya',
+      markdown: '# Heading\n\nnew text\n',
+      wordCount: null,
+      cursor: null,
+      muyaIndexCursor: null,
+      history: null,
+      toc: [],
+      blocks: []
+    })
+    expect(store.currentFile.isSaved).toBe(false)
+  })
+
+  it('clears the round-trip flag even when Muya output happens to match the input', () => {
+    const store = useEditorStore()
+    store.NEW_TAB_WITH_CONTENT({
+      markdownDocument: {
+        markdown: '# Heading\n',
+        filename: 'example.md',
+        pathname: '/tmp/example.md',
+        encoding: { encoding: 'utf8', isBom: false },
+        lineEnding: 'lf',
+        adjustLineEndingOnSave: false,
+        trimTrailingNewline: 1
+      }
+    })
+
+    // Identical round-trip — no diff, but flag must still be cleared so the
+    // next real edit is correctly tracked as dirty.
+    store.LISTEN_FOR_CONTENT_CHANGE({
+      id: 'muya',
+      markdown: '# Heading\n',
+      wordCount: null,
+      cursor: null,
+      muyaIndexCursor: null,
+      history: null,
+      toc: [],
+      blocks: []
+    })
+    expect(store.currentFile._pendingMuyaRoundtrip).toBe(false)
+
+    store.LISTEN_FOR_CONTENT_CHANGE({
+      id: 'muya',
+      markdown: '# Heading\n\nedit\n',
+      wordCount: null,
+      cursor: null,
+      muyaIndexCursor: null,
+      history: null,
+      toc: [],
+      blocks: []
+    })
+    expect(store.currentFile.isSaved).toBe(false)
   })
 })

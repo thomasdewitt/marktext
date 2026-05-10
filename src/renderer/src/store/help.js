@@ -46,7 +46,12 @@ export const defaultFileState = {
   // Per tab notifications
   notifications: [],
   tocList: [],
-  muyaIndexCursor: null
+  muyaIndexCursor: null,
+  // True between the moment we hand markdown to Muya for an initial parse and
+  // the first 'change' event it dispatches. Muya's import + ExportMarkdown
+  // round-trip can normalise the text (whitespace, list indentation, etc.),
+  // and that normalised output must not be treated as a user edit.
+  _pendingMuyaRoundtrip: false
 }
 
 export const getOptionsFromState = (file) => {
