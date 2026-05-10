@@ -7,6 +7,7 @@ class BaseScrollFloat extends BaseFloat {
     this.scrollElement = null
     this.reference = null
     this.activeItem = null
+    this.hideTimer = null
     this.createScrollElement()
   }
 
@@ -85,8 +86,22 @@ class BaseScrollFloat extends BaseFloat {
   selectItem (item) {
     const { cb } = this
     cb(item)
-    // delay hide to avoid dispatch enter hander
-    setTimeout(this.hide.bind(this))
+    // delay hide to avoid dispatching enter handler before parent processes it
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer)
+    }
+    this.hideTimer = setTimeout(() => {
+      this.hideTimer = null
+      this.hide()
+    })
+  }
+
+  destroy () {
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer)
+      this.hideTimer = null
+    }
+    super.destroy()
   }
 
   getItemElement () {}

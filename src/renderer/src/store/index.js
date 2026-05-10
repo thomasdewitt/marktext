@@ -1,6 +1,9 @@
 import { createPinia, defineStore } from 'pinia'
+import { createIpcRegistry } from '../util/ipcSubscriptions'
 
 const pinia = createPinia()
+
+const ipc = createIpcRegistry()
 
 // Main store for global states
 export const useMainStore = defineStore('main', {
@@ -25,9 +28,13 @@ export const useMainStore = defineStore('main', {
     },
 
     LISTEN_WIN_STATUS() {
-      window.electron.ipcRenderer.on('mt::window-active-status', (e, { status }) => {
+      ipc.subscribe('mt::window-active-status', (e, { status }) => {
         this.windowActive = status
       })
+    },
+
+    TEAR_DOWN_IPC() {
+      ipc.tearDown()
     }
   }
 })

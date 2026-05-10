@@ -8,9 +8,28 @@ import { BLACK_LIST } from '../config'
 
 // TODO(need::refactor): Refactor this file. Just return an array of directories and files without caching and watching?
 
-// TODO: rebuild cache @jocs
 const IMAGE_PATH = new Map()
 export const watchers = new Map()
+
+// Drop every cached directory entry and stop the underlying fs.watch handles.
+// Call this when the active project changes so stale watchers don't keep
+// firing for directories the user no longer cares about.
+export const clearImagePathCache = () => {
+  for (const watcher of watchers.values()) {
+    watcher.close()
+  }
+  watchers.clear()
+  IMAGE_PATH.clear()
+}
+
+export const releaseImagePathDirectory = (directory) => {
+  const watcher = watchers.get(directory)
+  if (watcher) {
+    watcher.close()
+    watchers.delete(directory)
+  }
+  IMAGE_PATH.delete(directory)
+}
 
 const filesHandler = (files, directory, key) => {
   const IMAGE_REG = new RegExp('(' + IMAGE_EXTENSIONS.join('|') + ')$', 'i')

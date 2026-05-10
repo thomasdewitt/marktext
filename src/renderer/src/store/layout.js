@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
 import bus from '../bus'
+import { createIpcRegistry } from '../util/ipcSubscriptions'
+
+const ipc = createIpcRegistry()
 
 const width = localStorage.getItem('side-bar-width')
 const parsedWidth = Number(width)
@@ -30,7 +33,7 @@ export const useLayoutStore = defineStore('layout', {
       this.sideBarWidth = clamped
     },
     LISTEN_FOR_LAYOUT() {
-      window.electron.ipcRenderer.on('mt::set-view-layout', (e, layout) => {
+      ipc.subscribe('mt::set-view-layout', (e, layout) => {
         if (layout.rightColumn) {
           this.SET_LAYOUT({
             ...layout,
@@ -43,7 +46,7 @@ export const useLayoutStore = defineStore('layout', {
         this.DISPATCH_LAYOUT_MENU_ITEMS()
       })
 
-      window.electron.ipcRenderer.on('mt::toggle-view-layout-entry', (event, entryName) => {
+      ipc.subscribe('mt::toggle-view-layout-entry', (event, entryName) => {
         this.TOGGLE_LAYOUT_ENTRY(entryName)
         this.DISPATCH_LAYOUT_MENU_ITEMS()
       })
@@ -68,6 +71,10 @@ export const useLayoutStore = defineStore('layout', {
 
     CHANGE_SIDE_BAR_WIDTH(width) {
       this.SET_SIDE_BAR_WIDTH(width)
+    },
+
+    TEAR_DOWN_IPC() {
+      ipc.tearDown()
     }
   }
 })

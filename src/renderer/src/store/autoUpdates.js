@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 import notice from '../services/notification'
+import { createIpcRegistry } from '../util/ipcSubscriptions'
+
+const ipc = createIpcRegistry()
 
 export const useAutoUpdatesStore = defineStore('autoUpdates', {
   state: () => ({}),
   actions: {
     LISTEN_FOR_UPDATE() {
-      window.electron.ipcRenderer.on('mt::UPDATE_ERROR', (_, message) => {
+      ipc.subscribe('mt::UPDATE_ERROR', (_, message) => {
         notice.notify({
           title: 'Update',
           type: 'error',
@@ -13,21 +16,21 @@ export const useAutoUpdatesStore = defineStore('autoUpdates', {
           message
         })
       })
-      window.electron.ipcRenderer.on('mt::UPDATE_NOT_AVAILABLE', (_, message) => {
+      ipc.subscribe('mt::UPDATE_NOT_AVAILABLE', (_, message) => {
         notice.notify({
           title: 'Update not Available',
           type: 'primary',
           message
         })
       })
-      window.electron.ipcRenderer.on('mt::UPDATE_DOWNLOADED', (_, message) => {
+      ipc.subscribe('mt::UPDATE_DOWNLOADED', (_, message) => {
         notice.notify({
           title: 'Update Downloaded',
           type: 'info',
           message
         })
       })
-      window.electron.ipcRenderer.on('mt::UPDATE_AVAILABLE', (_, message) => {
+      ipc.subscribe('mt::UPDATE_AVAILABLE', (_, message) => {
         notice
           .notify({
             title: 'Update Available',
@@ -44,6 +47,10 @@ export const useAutoUpdatesStore = defineStore('autoUpdates', {
             window.electron.ipcRenderer.send('mt::NEED_UPDATE', { needUpdate })
           })
       })
+    },
+
+    TEAR_DOWN_IPC() {
+      ipc.tearDown()
     }
   }
 })

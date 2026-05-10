@@ -14,6 +14,9 @@ class Tooltip {
   constructor (muya) {
     this.muya = muya
     this.cache = new WeakMap()
+    // Tracks the polling intervals so a mouseLeave or destroy() can stop them.
+    // WeakMap keys auto-release when the source element is garbage-collected.
+    this.timers = new WeakMap()
     const { container, eventCenter } = this.muya
 
     eventCenter.attachDOMEvent(container, 'mouseover', this.mouseOver.bind(this))
@@ -40,9 +43,9 @@ class Tooltip {
       const timer = setInterval(() => {
         if (!document.body.contains(toolTipTarget)) {
           this.mouseLeave({ target: toolTipTarget })
-          clearInterval(timer)
         }
       }, 300)
+      this.timers.set(toolTipTarget, timer)
 
       eventCenter.attachDOMEvent(toolTipTarget, 'mouseleave', this.mouseLeave.bind(this))
     }
@@ -54,6 +57,11 @@ class Tooltip {
       const tooltipEle = this.cache.get(target)
       tooltipEle.remove()
       this.cache.delete(target)
+    }
+    const timer = this.timers.get(target)
+    if (timer) {
+      clearInterval(timer)
+      this.timers.delete(target)
     }
   }
 }

@@ -537,11 +537,17 @@ class Muya {
       this._mutationObserver = null
     }
     this.contentState.clear()
-    this.quickInsert.destroy()
-    this.codePicker.destroy()
-    this.tablePicker.destroy()
-    this.emojiPicker.destroy()
-    this.imagePathPicker.destroy()
+    // Iterate every registered plugin instead of a hard-coded subset so we
+    // don't silently leak when new plugins are added.
+    for (const { plugin: Plugin } of Muya.plugins) {
+      const instance = this[Plugin.pluginName]
+      if (instance && typeof instance.destroy === 'function') {
+        instance.destroy()
+      }
+    }
+    if (this.tooltip && typeof this.tooltip.destroy === 'function') {
+      this.tooltip.destroy()
+    }
     this.eventCenter.detachAllDomEvents()
   }
 }

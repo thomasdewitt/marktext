@@ -36,7 +36,7 @@
 </template>
 
 <script setup>
-import { computed, watch, nextTick, onMounted, ref } from 'vue'
+import { computed, watch, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useMainStore } from '@/store'
 import { storeToRefs } from 'pinia'
 import { addStyles, addThemeStyle, addCustomStyle } from '@/util/theme'
@@ -113,36 +113,34 @@ watch(zoom, (zoomValue) => {
   window.electron.ipcRenderer.emit('mt::window-zoom', null, zoomValue)
 })
 
-const setupDragDropHandler = () => {
-  window.addEventListener(
-    'dragover',
-    (e) => {
-      if (!e.dataTransfer.types.length) return
+const handleDragOver = (e) => {
+  if (!e.dataTransfer.types.length) return
 
-      if (e.dataTransfer.types.indexOf('Files') >= 0) {
-        if (
-          e.dataTransfer.items.length === 1 &&
-          e.dataTransfer.items[0].type.indexOf('image') > -1
-        ) {
-          // Do nothing
-        } else {
-          e.preventDefault()
-          if (timer.value) {
-            clearTimeout(timer.value)
-          }
-          timer.value = setTimeout(() => {
-            bus.emit('importDialog', false)
-          }, 300)
-          bus.emit('importDialog', true)
-        }
-        e.dataTransfer.dropEffect = 'copy'
-      } else {
-        e.stopPropagation()
-        e.dataTransfer.dropEffect = 'none'
+  if (e.dataTransfer.types.indexOf('Files') >= 0) {
+    if (
+      e.dataTransfer.items.length === 1 &&
+      e.dataTransfer.items[0].type.indexOf('image') > -1
+    ) {
+      // Do nothing
+    } else {
+      e.preventDefault()
+      if (timer.value) {
+        clearTimeout(timer.value)
       }
-    },
-    false
-  )
+      timer.value = setTimeout(() => {
+        bus.emit('importDialog', false)
+      }, 300)
+      bus.emit('importDialog', true)
+    }
+    e.dataTransfer.dropEffect = 'copy'
+  } else {
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'none'
+  }
+}
+
+const setupDragDropHandler = () => {
+  window.addEventListener('dragover', handleDragOver, false)
 }
 onMounted(async () => {
   if (global.marktext.initialState) {
@@ -195,6 +193,27 @@ onMounted(async () => {
     const style = global.marktext.initialState || DEFAULT_STYLE
     addStyles(style)
   })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('dragover', handleDragOver, false)
+  if (timer.value) {
+    clearTimeout(timer.value)
+    timer.value = null
+  }
+
+  // Tear down IPC subscriptions registered during bootstrap so they don't
+  // accumulate across HMR reloads or test re-runs.
+  mainStore.TEAR_DOWN_IPC()
+  tweetStore.TEAR_DOWN_IPC()
+  layoutStore.TEAR_DOWN_IPC()
+  listenForMainStore.TEAR_DOWN_IPC()
+  preferencesStore.TEAR_DOWN_IPC()
+  projectStore.TEAR_DOWN_IPC()
+  autoUpdateStore.TEAR_DOWN_IPC()
+  editorStore.TEAR_DOWN_IPC()
+  commandCenterStore.TEAR_DOWN_IPC()
+  notificationStore.tearDownIpc()
 })
 </script>
 

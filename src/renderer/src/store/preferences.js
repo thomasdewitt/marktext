@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import bus from '../bus'
 import { setLanguage } from '../i18n'
+import { createIpcRegistry } from '../util/ipcSubscriptions'
+
+const ipc = createIpcRegistry()
 
 export const usePreferencesStore = defineStore('preferences', {
   state: () => ({
@@ -129,7 +132,7 @@ export const usePreferencesStore = defineStore('preferences', {
       window.electron.ipcRenderer.send('mt::ask-for-user-preference')
       window.electron.ipcRenderer.send('mt::ask-for-user-data')
 
-      window.electron.ipcRenderer.on('mt::user-preference', (e, preferences) => {
+      ipc.subscribe('mt::user-preference', (e, preferences) => {
         this.SET_USER_PREFERENCE(preferences)
       })
     },
@@ -160,10 +163,10 @@ export const usePreferencesStore = defineStore('preferences', {
     },
 
     LISTEN_FOR_VIEW() {
-      window.electron.ipcRenderer.on('mt::show-command-palette', () => {
+      ipc.subscribe('mt::show-command-palette', () => {
         bus.emit('show-command-palette')
       })
-      window.electron.ipcRenderer.on('mt::toggle-view-mode-entry', (event, entryName) => {
+      ipc.subscribe('mt::toggle-view-mode-entry', (event, entryName) => {
         this.TOGGLE_VIEW_MODE(entryName)
         this.DISPATCH_EDITOR_VIEW_STATE({ [entryName]: this[entryName] })
       })
@@ -180,6 +183,10 @@ export const usePreferencesStore = defineStore('preferences', {
     DISPATCH_EDITOR_VIEW_STATE(viewState) {
       const { windowId } = global.marktext.env
       window.electron.ipcRenderer.send('mt::view-layout-changed', windowId, viewState)
+    },
+
+    TEAR_DOWN_IPC() {
+      ipc.tearDown()
     }
   }
 })

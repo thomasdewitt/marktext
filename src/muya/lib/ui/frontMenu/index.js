@@ -37,6 +37,8 @@ class FrontMenu extends BaseFloat {
     this.menu = createMenu(this.t)
     this.getLabel = createGetLabel(this.t)
     this.getSubMenu = createGetSubMenu(this.t)
+    this.hideTimer = null
+    this.showTimer = null
     const frontMenuContainer = (this.frontMenuContainer = document.createElement('div'))
     Object.assign(this.container.parentNode.style, {
       overflow: 'visible'
@@ -56,7 +58,11 @@ class FrontMenu extends BaseFloat {
           this.startBlock = startBlock
           this.endBlock = endBlock
           this.reference = reference
-          setTimeout(() => {
+          if (this.showTimer) {
+            clearTimeout(this.showTimer)
+          }
+          this.showTimer = setTimeout(() => {
+            this.showTimer = null
             this.show(reference)
             this.render()
           }, 0)
@@ -206,8 +212,26 @@ class FrontMenu extends BaseFloat {
         contentState.updateParagraph(label)
         break
     }
-    // delay hide to avoid dispatch enter hander
-    setTimeout(this.hide.bind(this))
+    // delay hide to avoid dispatching enter handler before parent processes it
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer)
+    }
+    this.hideTimer = setTimeout(() => {
+      this.hideTimer = null
+      this.hide()
+    })
+  }
+
+  destroy () {
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer)
+      this.hideTimer = null
+    }
+    if (this.showTimer) {
+      clearTimeout(this.showTimer)
+      this.showTimer = null
+    }
+    super.destroy()
   }
 }
 

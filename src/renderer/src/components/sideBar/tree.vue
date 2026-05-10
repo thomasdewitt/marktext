@@ -102,7 +102,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/store/project'
 import { useEditorStore } from '@/store/editor'
@@ -173,33 +173,43 @@ const handleInputEnter = () => {
   projectStore.CREATE_FILE_DIRECTORY(createName.value)
 }
 
+// hide rename or create input if needed
+const handleDocumentClick = (event) => {
+  const target = event.target
+  if (target.tagName !== 'INPUT' && target.textContent !== 'Create File') {
+    projectStore.CHANGE_ACTIVE_ITEM({})
+    projectStore.createCache = {}
+    projectStore.renameCache = null
+  }
+}
+
+const handleDocumentContextmenu = (event) => {
+  const target = event.target
+  if (target.tagName !== 'INPUT') {
+    projectStore.createCache = {}
+    projectStore.renameCache = null
+  }
+}
+
+const handleDocumentKeydown = (event) => {
+  if (event.key === 'Escape') {
+    projectStore.createCache = {}
+    projectStore.renameCache = null
+  }
+}
+
 onMounted(() => {
   bus.on('SIDEBAR::show-new-input', handleInputFocus)
+  document.addEventListener('click', handleDocumentClick)
+  document.addEventListener('contextmenu', handleDocumentContextmenu)
+  document.addEventListener('keydown', handleDocumentKeydown)
+})
 
-  // hide rename or create input if needed
-  document.addEventListener('click', (event) => {
-    const target = event.target
-    if (target.tagName !== 'INPUT' && target.textContent !== 'Create File') {
-      projectStore.CHANGE_ACTIVE_ITEM({})
-      projectStore.createCache = {}
-      projectStore.renameCache = null
-    }
-  })
-
-  document.addEventListener('contextmenu', (event) => {
-    const target = event.target
-    if (target.tagName !== 'INPUT') {
-      projectStore.createCache = {}
-      projectStore.renameCache = null
-    }
-  })
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      projectStore.createCache = {}
-      projectStore.renameCache = null
-    }
-  })
+onBeforeUnmount(() => {
+  bus.off('SIDEBAR::show-new-input', handleInputFocus)
+  document.removeEventListener('click', handleDocumentClick)
+  document.removeEventListener('contextmenu', handleDocumentContextmenu)
+  document.removeEventListener('keydown', handleDocumentKeydown)
 })
 </script>
 

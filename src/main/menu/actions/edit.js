@@ -2,7 +2,11 @@ import path from 'path'
 import { BrowserWindow, ipcMain } from 'electron'
 import log from 'electron-log'
 import { COMMANDS } from '../../commands'
-import { searchFilesAndDir } from '../../utils/imagePathAutoComplement'
+import { searchFilesAndDir, clearImagePathCache } from '../../utils/imagePathAutoComplement'
+
+ipcMain.on('mt::image-path-cache-clear', () => {
+  clearImagePathCache()
+})
 
 // TODO(Refactor): Move to filesystem and provide generic API to search files in directories.
 ipcMain.on('mt::ask-for-image-auto-path', (e, { pathname, src, id }) => {

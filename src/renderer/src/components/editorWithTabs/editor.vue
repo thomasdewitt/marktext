@@ -561,6 +561,12 @@ const switchSpellcheckLanguage = (languageCode) => {
     })
 }
 
+const handleLanguageChanged = () => {
+  if (editor.value) {
+    editor.value.setOptions({ t })
+  }
+}
+
 const handleInvalidateImageCache = () => {
   if (editor.value) {
     editor.value.invalidateImageCache()
@@ -988,11 +994,7 @@ onMounted(() => {
   const { container } = editor.value
 
   // Listen for language changes and update Muya's translation function
-  bus.on('language-changed', () => {
-    if (editor.value) {
-      editor.value.setOptions({ t })
-    }
-  })
+  bus.on('language-changed', handleLanguageChanged)
 
   // Create spell check wrapper and enable spell checking if preferred.
   spellchecker = new SpellChecker(spellcheckerEnabled.value, spellcheckerLanguage.value)
@@ -1121,6 +1123,7 @@ onBeforeUnmount(() => {
   bus.off('switch-spellchecker-language', switchSpellcheckLanguage)
   bus.off('open-command-spellchecker-switch-language', openSpellcheckerLanguageCommand)
   bus.off('replace-misspelling', replaceMisspelling)
+  bus.off('language-changed', handleLanguageChanged)
 
   document.removeEventListener('keyup', keyup)
 

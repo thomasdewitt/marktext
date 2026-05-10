@@ -24,6 +24,9 @@ import { useLayoutStore } from './layout'
 import { useMainStore } from '.'
 import { extractHeadingsFromMarkdown } from './markdownHeading'
 import { i18n } from '../i18n'
+import { createIpcRegistry } from '../util/ipcSubscriptions'
+
+const ipc = createIpcRegistry()
 
 const autoSaveTimers = new Map()
 
@@ -264,7 +267,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_SCREEN_SHOT() {
-      window.electron.ipcRenderer.on('mt::screenshot-captured', () => {
+      ipc.subscribe('mt::screenshot-captured', () => {
         bus.emit('screenshot-captured')
       })
     },
@@ -522,7 +525,7 @@ export const useEditorStore = defineStore('editor', {
     // need pass some data to main process when `save` menu item clicked
     LISTEN_FOR_SAVE() {
       const projectStore = useProjectStore()
-      window.electron.ipcRenderer.on('mt::editor-ask-file-save', () => {
+      ipc.subscribe('mt::editor-ask-file-save', () => {
         const { id, filename, pathname, markdown } = this.currentFile
         const options = getOptionsFromState(this.currentFile)
         const defaultPath = getRootFolderFromState(projectStore)
@@ -543,7 +546,7 @@ export const useEditorStore = defineStore('editor', {
     // need pass some data to main process when `save as` menu item clicked
     LISTEN_FOR_SAVE_AS() {
       const projectStore = useProjectStore()
-      window.electron.ipcRenderer.on('mt::editor-ask-file-save-as', () => {
+      ipc.subscribe('mt::editor-ask-file-save-as', () => {
         const { id, filename, pathname, markdown } = this.currentFile
         const options = getOptionsFromState(this.currentFile)
         const defaultPath = getRootFolderFromState(projectStore)
@@ -563,7 +566,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_SET_PATHNAME() {
-      window.electron.ipcRenderer.on('mt::set-pathname', (_, fileInfo) => {
+      ipc.subscribe('mt::set-pathname', (_, fileInfo) => {
         const { tabs } = this
         const { pathname, id } = fileInfo
         const tab = tabs.find((f) => f.id === id)
@@ -605,14 +608,14 @@ export const useEditorStore = defineStore('editor', {
         }
       })
 
-      window.electron.ipcRenderer.on('mt::tab-saved', (_, tabId) => {
+      ipc.subscribe('mt::tab-saved', (_, tabId) => {
         const tab = this.tabs.find((f) => f.id === tabId)
         if (tab) {
           tab.isSaved = true
         }
       })
 
-      window.electron.ipcRenderer.on('mt::tab-save-failure', (_, tabId, msg) => {
+      ipc.subscribe('mt::tab-save-failure', (_, tabId, msg) => {
         const tab = this.tabs.find((t) => t.id === tabId)
         if (!tab) {
           notice.notify({
@@ -636,7 +639,7 @@ export const useEditorStore = defineStore('editor', {
 
     LISTEN_FOR_CLOSE() {
       const projectStore = useProjectStore()
-      window.electron.ipcRenderer.on('mt::ask-for-close', () => {
+      ipc.subscribe('mt::ask-for-close', () => {
         const unsavedFiles = this.tabs
           .filter((file) => !file.isSaved)
           .map((file) => {
@@ -661,7 +664,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_SAVE_CLOSE() {
-      window.electron.ipcRenderer.on('mt::force-close-tabs-by-id', (_, tabIdList) => {
+      ipc.subscribe('mt::force-close-tabs-by-id', (_, tabIdList) => {
         if (Array.isArray(tabIdList) && tabIdList.length) {
           this.CLOSE_TABS(tabIdList)
         }
@@ -700,7 +703,7 @@ export const useEditorStore = defineStore('editor', {
 
     LISTEN_FOR_MOVE_TO() {
       const projectStore = useProjectStore()
-      window.electron.ipcRenderer.on('mt::editor-move-file', () => {
+      ipc.subscribe('mt::editor-move-file', () => {
         const { id, filename, pathname, markdown } = this.currentFile
         const options = getOptionsFromState(this.currentFile)
         const defaultPath = getRootFolderFromState(projectStore)
@@ -724,7 +727,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_RENAME() {
-      window.electron.ipcRenderer.on('mt::editor-rename-file', () => {
+      ipc.subscribe('mt::editor-rename-file', () => {
         this.RESPONSE_FOR_RENAME()
       })
     },
@@ -856,7 +859,7 @@ export const useEditorStore = defineStore('editor', {
         }, 100)
       }, 400)
 
-      window.electron.ipcRenderer.on('mt::bootstrap-editor', (_, config) => {
+      ipc.subscribe('mt::bootstrap-editor', (_, config) => {
         const {
           addBlankTab,
           markdownList,
@@ -894,7 +897,7 @@ export const useEditorStore = defineStore('editor', {
 
     // Open a new tab, optionally with content.
     LISTEN_FOR_NEW_TAB() {
-      window.electron.ipcRenderer.on(
+      ipc.subscribe(
         'mt::open-new-tab',
         (_, markdownDocument, options = {}, selected = true) => {
           if (markdownDocument) {
@@ -907,7 +910,7 @@ export const useEditorStore = defineStore('editor', {
         }
       )
 
-      window.electron.ipcRenderer.on(
+      ipc.subscribe(
         'mt::new-untitled-tab',
         (_, selected = true, markdown = '') => {
           // Create a blank tab
@@ -917,7 +920,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_CLOSE_TAB() {
-      window.electron.ipcRenderer.on('mt::editor-close-tab', () => {
+      ipc.subscribe('mt::editor-close-tab', () => {
         const file = this.currentFile
         if (!hasKeys(file)) return
         this.CLOSE_TAB(file)
@@ -925,16 +928,16 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_TAB_CYCLE() {
-      window.electron.ipcRenderer.on('mt::tabs-cycle-left', () => {
+      ipc.subscribe('mt::tabs-cycle-left', () => {
         this.CYCLE_TABS(false)
       })
-      window.electron.ipcRenderer.on('mt::tabs-cycle-right', () => {
+      ipc.subscribe('mt::tabs-cycle-right', () => {
         this.CYCLE_TABS(true)
       })
     },
 
     LISTEN_FOR_SWITCH_TABS() {
-      window.electron.ipcRenderer.on('mt::switch-tab-by-index', (_, index) => {
+      ipc.subscribe('mt::switch-tab-by-index', (_, index) => {
         this.SWITCH_TAB_BY_INDEX(index)
       })
     },
@@ -1565,7 +1568,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_EXPORT_SUCCESS() {
-      window.electron.ipcRenderer.on('mt::export-success', (_, { filePath }) => {
+      ipc.subscribe('mt::export-success', (_, { filePath }) => {
         notice
           .notify({
             title: i18n.global.t('store.editor.exportSuccessTitle'),
@@ -1585,13 +1588,13 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_PRINT_SERVICE_CLEARUP() {
-      window.electron.ipcRenderer.on('mt::print-service-clearup', () => {
+      ipc.subscribe('mt::print-service-clearup', () => {
         bus.emit('print-service-clearup')
       })
     },
 
     LISTEN_FOR_SET_LINE_ENDING() {
-      window.electron.ipcRenderer.on('mt::set-line-ending', (_, lineEnding) => {
+      ipc.subscribe('mt::set-line-ending', (_, lineEnding) => {
         const { lineEnding: oldLineEnding } = this.currentFile
         if (lineEnding !== oldLineEnding) {
           this.currentFile.lineEnding = lineEnding
@@ -1603,7 +1606,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_SET_ENCODING() {
-      window.electron.ipcRenderer.on('mt::set-file-encoding', (_, encodingName) => {
+      ipc.subscribe('mt::set-file-encoding', (_, encodingName) => {
         const { encoding } = this.currentFile.encoding
         if (encoding !== encodingName) {
           this.currentFile.encoding.encoding = encodingName
@@ -1614,7 +1617,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_SET_FINAL_NEWLINE() {
-      window.electron.ipcRenderer.on('mt::set-final-newline', (_, value) => {
+      ipc.subscribe('mt::set-final-newline', (_, value) => {
         const { trimTrailingNewline } = this.currentFile
         if (trimTrailingNewline !== value) {
           this.currentFile.trimTrailingNewline = value
@@ -1625,7 +1628,7 @@ export const useEditorStore = defineStore('editor', {
 
     LISTEN_FOR_FILE_CHANGE() {
       const preferencesStore = usePreferencesStore()
-      window.electron.ipcRenderer.on('mt::update-file', (_, { type, change }) => {
+      ipc.subscribe('mt::update-file', (_, { type, change }) => {
         const { tabs, currentFile } = this
         const { pathname } = change
         const tab = tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, pathname))
@@ -1699,7 +1702,7 @@ export const useEditorStore = defineStore('editor', {
 
     LISTEN_WINDOW_ZOOM() {
       const preferencesStore = usePreferencesStore()
-      window.electron.ipcRenderer.on('mt::window-zoom', (_, zoomFactor) => {
+      ipc.subscribe('mt::window-zoom', (_, zoomFactor) => {
         zoomFactor = Number.parseFloat(zoomFactor.toFixed(3))
         const { zoom } = preferencesStore
         if (zoom !== zoomFactor) {
@@ -1710,33 +1713,37 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_RELOAD_IMAGES() {
-      window.electron.ipcRenderer.on('mt::invalidate-image-cache', () => {
+      ipc.subscribe('mt::invalidate-image-cache', () => {
         bus.emit('invalidate-image-cache')
       })
     },
 
     LISTEN_FOR_CONTEXT_MENU() {
       // General context menu
-      window.electron.ipcRenderer.on('mt::cm-copy-as-markdown', () => {
+      ipc.subscribe('mt::cm-copy-as-markdown', () => {
         bus.emit('copyAsMarkdown', 'copyAsMarkdown')
       })
-      window.electron.ipcRenderer.on('mt::cm-copy-as-html', () => {
+      ipc.subscribe('mt::cm-copy-as-html', () => {
         bus.emit('copyAsHtml', 'copyAsHtml')
       })
-      window.electron.ipcRenderer.on('mt::cm-paste-as-plain-text', () => {
+      ipc.subscribe('mt::cm-paste-as-plain-text', () => {
         bus.emit('pasteAsPlainText', 'pasteAsPlainText')
       })
-      window.electron.ipcRenderer.on('mt::cm-insert-paragraph', (_, location) => {
+      ipc.subscribe('mt::cm-insert-paragraph', (_, location) => {
         bus.emit('insertParagraph', location)
       })
 
       // Spelling
-      window.electron.ipcRenderer.on('mt::spelling-replace-misspelling', (_, info) => {
+      ipc.subscribe('mt::spelling-replace-misspelling', (_, info) => {
         bus.emit('replace-misspelling', info)
       })
-      window.electron.ipcRenderer.on('mt::spelling-show-switch-language', () => {
+      ipc.subscribe('mt::spelling-show-switch-language', () => {
         bus.emit('open-command-spellchecker-switch-language')
       })
+    },
+
+    TEAR_DOWN_IPC() {
+      ipc.tearDown()
     }
   }
 })

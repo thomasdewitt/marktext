@@ -322,6 +322,10 @@ class EditorWindow extends BaseWindow {
         ipcMain.emit('watcher-unwatch-directory', browserWindow, this._openedRootDirectory)
       }
 
+      // Drop the previous project's image-path autocomplete cache and its
+      // watchers; otherwise stale fs.watch handles fire forever.
+      ipcMain.emit('mt::image-path-cache-clear')
+
       appMenu.addRecentlyUsedDocument(pathname)
       this._openedRootDirectory = pathname
       ipcMain.emit('watcher-watch-directory', browserWindow, pathname)

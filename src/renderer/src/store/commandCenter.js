@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import log from 'electron-log'
 import bus from '../bus'
 import staticCommands, { RootCommand, getCommandsWithDescriptions } from '../commands'
+import { createIpcRegistry } from '../util/ipcSubscriptions'
+
+const ipc = createIpcRegistry()
 
 export const useCommandCenterStore = defineStore('commandCenter', {
   state: () => ({
@@ -43,7 +46,7 @@ export const useCommandCenterStore = defineStore('commandCenter', {
       bus.on('cmd::sort-commands', () => {
         this.SORT_COMMANDS()
       })
-      window.electron.ipcRenderer.on('mt::keybindings-response', (e, keybindingMap) => {
+      ipc.subscribe('mt::keybindings-response', (e, keybindingMap) => {
         const { subcommands } = this.rootCommand
         for (const entry of subcommands) {
           const value = keybindingMap[entry.id]
@@ -62,11 +65,13 @@ export const useCommandCenterStore = defineStore('commandCenter', {
       bus.on('cmd::execute', (commandId) => {
         executeCommand(this, commandId)
       })
-      window.electron.ipcRenderer.on('mt::execute-command-by-id', (e, commandId) => {
+      ipc.subscribe('mt::execute-command-by-id', (e, commandId) => {
         executeCommand(this, commandId)
       })
+    },
 
-
+    TEAR_DOWN_IPC() {
+      ipc.tearDown()
     }
   }
 })

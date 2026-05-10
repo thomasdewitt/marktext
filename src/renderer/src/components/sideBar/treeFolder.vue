@@ -1,12 +1,12 @@
 <template>
   <div class="side-bar-folder">
     <div
-      ref="folderEl"
       class="folder-name"
       :style="{ 'padding-left': `${depth * 20 + 20}px` }"
       :class="[{ active: folder.id === activeItem.id }, { 'drag-over': isDragOver } ]"
       :title="folder.pathname"
       @click="folderNameClick"
+      @contextmenu.prevent="handleContextmenu"
       @dragover.prevent="handleDragOver"
       @dragenter.prevent="handleDragEnter"
       @dragleave="handleDragLeave"
@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/store/project'
 import { showContextMenu } from '../../contextMenu/sideBar'
@@ -78,7 +78,6 @@ const projectStore = useProjectStore()
 const createName = ref('')
 const newName = ref('')
 
-const folderEl = ref(null)
 const renameInput = ref(null)
 const input = ref(null)
 const isDragOver = ref(false)
@@ -181,16 +180,19 @@ const handleDrop = (event) => {
   isDragOver.value = false
 }
 
+const handleContextmenu = (event) => {
+  projectStore.CHANGE_ACTIVE_ITEM(props.folder)
+  showContextMenu(event, !!clipboard.value)
+}
+
 onMounted(() => {
-  if (folderEl.value) {
-    folderEl.value.addEventListener('contextmenu', (event) => {
-      event.preventDefault()
-      projectStore.CHANGE_ACTIVE_ITEM(props.folder)
-      showContextMenu(event, !!clipboard.value)
-    })
-  }
   bus.on('SIDEBAR::show-new-input', handleInputFocus)
   bus.on('SIDEBAR::show-rename-input', focusRenameInput)
+})
+
+onBeforeUnmount(() => {
+  bus.off('SIDEBAR::show-new-input', handleInputFocus)
+  bus.off('SIDEBAR::show-rename-input', focusRenameInput)
 })
 </script>
 

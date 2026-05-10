@@ -7,6 +7,9 @@ import notice from '../services/notification'
 import { getFileStateFromData } from './help'
 import { useLayoutStore } from './layout'
 import { useEditorStore } from './editor'
+import { createIpcRegistry } from '../util/ipcSubscriptions'
+
+const ipc = createIpcRegistry()
 
 export const useProjectStore = defineStore('project', {
   state: () => ({
@@ -23,7 +26,7 @@ export const useProjectStore = defineStore('project', {
     LISTEN_FOR_LOAD_PROJECT() {
       const layoutStore = useLayoutStore()
       const editorStore = useEditorStore()
-      window.electron.ipcRenderer.on('mt::open-directory', (e, pathname) => {
+      ipc.subscribe('mt::open-directory', (e, pathname) => {
         let name = window.path.basename(pathname)
         if (!name) {
           // Root directory such as "/" or "C:\"
@@ -55,7 +58,7 @@ export const useProjectStore = defineStore('project', {
 
     LISTEN_FOR_UPDATE_PROJECT() {
       const editorStore = useEditorStore()
-      window.electron.ipcRenderer.on('mt::update-object-tree', (e, { type, change }) => {
+      ipc.subscribe('mt::update-object-tree', (e, { type, change }) => {
         switch (type) {
           case 'add': {
             const { pathname, data, isMarkdown } = change
@@ -290,6 +293,10 @@ export const useProjectStore = defineStore('project', {
 
     OPEN_SETTING_WINDOW() {
       window.electron.ipcRenderer.send('mt::open-setting-window')
+    },
+
+    TEAR_DOWN_IPC() {
+      ipc.tearDown()
     }
   }
 })
