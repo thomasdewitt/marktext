@@ -287,8 +287,7 @@ export const useEditorStore = defineStore('editor', {
         window.electron.ipcRenderer.send('mt::ask-for-image-auto-path', {
           pathname,
           src,
-          id,
-          currentFile: deepClone(this.currentFile)
+          id
         })
         return promise
       } else {
@@ -352,9 +351,10 @@ export const useEditorStore = defineStore('editor', {
         const openTab = openTabsByPath.get(normalizedPath)
         const tocList = openTab ? openTab.tocList : this.fileTocCache[normalizedPath]
 
-        if (!openTab && !this.fileTocCache[normalizedPath]) {
-          this.LOAD_FILE_TOC(normalizedPath)
-        }
+        // Note: closed-file TOCs are now loaded lazily — toc.vue calls
+        // LOAD_FILE_TOC when the user expands a directory containing them.
+        // Loading every file unconditionally was O(N) reads per project
+        // even when the user never opened the TOC pane.
 
         const tabLike = openTab || {
           id: normalizedPath,
@@ -510,11 +510,24 @@ export const useEditorStore = defineStore('editor', {
         this.fileTocCache[pathname] = []
       } finally {
         pendingTocLoads.delete(pathname)
-        // Debounce rebuild so that batch-loading many files doesn't trigger
-        // a full tree rebuild per file.
-        clearTimeout(pendingTocRebuildTimer)
-        pendingTocRebuildTimer = setTimeout(() => this.REBUILD_COMPOSITE_TOC(), 100)
+        // Defer to the shared scheduler so batch-loading many files only
+        // triggers one tree rebuild.
+        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
       }
+    },
+
+    // Coalesces N near-simultaneous rebuild requests into one. Use this
+    // instead of REBUILD_COMPOSITE_TOC() from any code path that may fire
+    // many times in quick succession (typing in a heading, opening a
+    // folder, watcher events, tab switches).
+    SCHEDULE_REBUILD_COMPOSITE_TOC(delay = 100) {
+      if (pendingTocRebuildTimer) {
+        clearTimeout(pendingTocRebuildTimer)
+      }
+      pendingTocRebuildTimer = setTimeout(() => {
+        pendingTocRebuildTimer = null
+        this.REBUILD_COMPOSITE_TOC()
+      }, delay)
     },
 
     RESET_TOC_CACHE() {
@@ -604,7 +617,7 @@ export const useEditorStore = defineStore('editor', {
               delete this.fileTocCache[normalizedNew]
             }
           }
-          this.REBUILD_COMPOSITE_TOC()
+          this.SCHEDULE_REBUILD_COMPOSITE_TOC()
         }
       })
 
@@ -762,8 +775,7 @@ export const useEditorStore = defineStore('editor', {
         window.electron.ipcRenderer.send('mt::rename', {
           id,
           pathname,
-          newPathname,
-          currentFile: deepClone(this.currentFile)
+          newPathname
         })
       }
     },
@@ -802,7 +814,7 @@ export const useEditorStore = defineStore('editor', {
         delete this.fileTocCache[cacheSrcKey]
       }
 
-      this.REBUILD_COMPOSITE_TOC()
+      this.SCHEDULE_REBUILD_COMPOSITE_TOC()
     },
 
     UPDATE_CURRENT_FILE(currentFile) {
@@ -828,7 +840,7 @@ export const useEditorStore = defineStore('editor', {
       }
 
       this.listToc = Array.isArray(currentFile.tocList) ? currentFile.tocList : []
-      this.REBUILD_COMPOSITE_TOC()
+      this.SCHEDULE_REBUILD_COMPOSITE_TOC()
       this.UPDATE_LINE_ENDING_MENU()
     },
 
@@ -988,7 +1000,7 @@ export const useEditorStore = defineStore('editor', {
         this.listToc = []
       }
 
-      this.REBUILD_COMPOSITE_TOC()
+      this.SCHEDULE_REBUILD_COMPOSITE_TOC()
 
       const { pathname } = file
       if (pathname) {
@@ -1258,7 +1270,7 @@ export const useEditorStore = defineStore('editor', {
         }
       } else {
         this.tabs.push(fileState)
-        this.REBUILD_COMPOSITE_TOC()
+        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
       }
     },
 
@@ -1314,7 +1326,7 @@ export const useEditorStore = defineStore('editor', {
         bus.emit('file-loaded', { id, markdown, cursor })
       } else {
         this.tabs.push(docState)
-        this.REBUILD_COMPOSITE_TOC()
+        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
       }
 
       if (isMixedLineEndings) {
@@ -1387,7 +1399,7 @@ export const useEditorStore = defineStore('editor', {
             break
           }
         }
-        this.REBUILD_COMPOSITE_TOC()
+        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
         return
       }
 
@@ -1429,14 +1441,14 @@ export const useEditorStore = defineStore('editor', {
           const normalizedPath = window.path.normalize(this.currentFile.pathname)
           this.fileTocCache[normalizedPath] = normalizedToc
         }
-        this.REBUILD_COMPOSITE_TOC()
+        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
       } else if (Array.isArray(toc)) {
         this.currentFile.tocList = normalizedToc
         if (this.currentFile.pathname) {
           const normalizedPath = window.path.normalize(this.currentFile.pathname)
           this.fileTocCache[normalizedPath] = normalizedToc
         }
-        this.REBUILD_COMPOSITE_TOC()
+        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
       }
 
       if (markdown !== oldMarkdown && !wasPendingRoundtrip) {

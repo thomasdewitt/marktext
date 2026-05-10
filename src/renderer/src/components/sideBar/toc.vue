@@ -10,11 +10,10 @@
     <el-tree
       v-if="toc.length"
       ref="treeRef"
-      :key="treeKey"
       :data="toc"
       node-key="id"
       :default-expand-all="false"
-      :default-expanded-keys="expandedKeys"
+      :default-expanded-keys="initialExpandedKeys"
       :props="defaultProps"
       :expand-on-click-node="false"
       :highlight-current="true"
@@ -54,7 +53,6 @@ const { wordWrapInToc } = storeToRefs(preferencesStore)
 const treeRef = ref(null)
 const userExpandedKeys = ref([])
 const unfoldDepth = ref(0) // 0 = collapsed, 1+ = depth level
-const treeKey = ref(0) // Incrementing key to force el-tree re-render when expanded keys change
 
 const activePath = computed(() => findPathToNode(toc.value, currentFile.value?.id || '', []))
 const currentNodeKey = computed(() => (activePath.value.length ? activePath.value[activePath.value.length - 1] : ''))
@@ -72,24 +70,61 @@ const expandedKeys = computed(() => {
   return Array.from(merged)
 })
 
-// Force tree re-render when expanded keys change, since el-tree only reads
-// default-expanded-keys on mount
-const forceTreeRerender = () => {
-  treeKey.value++
+// el-tree reads `default-expanded-keys` only on mount; subsequent updates
+// have to go through node.expand() / node.collapse(). Snapshot the keys
+// at render time so the initial render reflects the latest computed set.
+const initialExpandedKeys = computed(() => expandedKeys.value)
+
+const applyExpansionState = () => {
+  const tree = treeRef.value
+  if (!tree) return
+  const desired = new Set(expandedKeys.value)
+  // Walk the tree's node map and toggle expansion to match the desired
+  // set without remounting the component.
+  const store = tree.store
+  if (!store || !store.nodesMap) return
+  for (const key of Object.keys(store.nodesMap)) {
+    const node = store.nodesMap[key]
+    if (!node) continue
+    if (desired.has(node.key) && !node.expanded) {
+      node.expand()
+    } else if (!desired.has(node.key) && node.expanded && !node.isLeaf) {
+      // Don't auto-collapse the root.
+      if (node.level > 0) node.collapse()
+    }
+  }
 }
 
-watch([toc, currentNodeKey], () => {
-  // Prune user expanded keys to only valid ones
+watch(toc, () => {
+  // Prune user expanded keys to only valid ones whenever the tree shape changes.
   const availableKeys = new Set(collectNodeKeys(toc.value, []))
   userExpandedKeys.value = userExpandedKeys.value.filter((key) => availableKeys.has(key))
-  forceTreeRerender()
+  nextTick(applyExpansionState)
 }, { deep: true })
+
+watch(currentNodeKey, (key) => {
+  // Highlight the active heading without remounting the tree DOM.
+  const tree = treeRef.value
+  if (!tree || !key) return
+  tree.setCurrentKey(key)
+  nextTick(applyExpansionState)
+})
 
 const handleNodeExpand = (node) => {
   if (!node?.id) return
   unfoldDepth.value = 0
   if (!userExpandedKeys.value.includes(node.id)) {
     userExpandedKeys.value = [...userExpandedKeys.value, node.id]
+  }
+
+  // Lazy-load TOCs for files inside the expanded directory so we don't
+  // pay the readFile/parser cost for files the user never reveals.
+  if (node.isDirectory && Array.isArray(node.children)) {
+    for (const child of node.children) {
+      if (child && !child.isDirectory && child.pathname) {
+        editorStore.LOAD_FILE_TOC(child.pathname)
+      }
+    }
   }
 }
 
@@ -206,7 +241,7 @@ const handleUnfold = () => {
   const { depth, keys } = getNextUnfoldState(toc.value, unfoldDepth.value)
   unfoldDepth.value = depth
   userExpandedKeys.value = keys
-  forceTreeRerender()
+  nextTick(applyExpansionState)
 }
 </script>
 

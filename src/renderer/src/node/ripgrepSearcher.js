@@ -197,7 +197,19 @@ class RipgrepDirectorySearcher {
       const stderrDecoder = new StringDecoder('utf8')
       let buffer = ''
       let bufferError = ''
-      const eventsByFile = new Map()
+      // Streaming emission: keep just the in-progress file's matches in
+      // memory and flush as soon as we see grep move on to a different
+      // file. Previously we accumulated every match across the whole
+      // search and emitted only after the child closed, so the search
+      // pane stayed empty until the entire project had been scanned.
+      let currentEvent = null
+
+      const flushCurrent = () => {
+        if (!currentEvent) return
+        didSearchPaths(++numPathsFound.num)
+        didMatch(currentEvent)
+        currentEvent = null
+      }
 
       child.on('close', (code) => {
         // Flush any remaining bytes from both decoders.
@@ -221,10 +233,7 @@ class RipgrepDirectorySearcher {
           buffer = ''
         }
 
-        for (const event of eventsByFile.values()) {
-          didSearchPaths(++numPathsFound.num)
-          didMatch(event)
-        }
+        flushCurrent()
 
         resolve()
       })
@@ -263,16 +272,14 @@ class RipgrepDirectorySearcher {
             continue
           }
 
-          let event = eventsByFile.get(parsed.filePath)
-          if (!event) {
-            event = {
-              filePath: parsed.filePath,
-              matches: []
-            }
-            eventsByFile.set(parsed.filePath, event)
+          if (!currentEvent || currentEvent.filePath !== parsed.filePath) {
+            // grep walks one file at a time, so a filePath change means
+            // the previous file is complete.
+            flushCurrent()
+            currentEvent = { filePath: parsed.filePath, matches: [] }
           }
 
-          event.matches.push(...lineMatches)
+          currentEvent.matches.push(...lineMatches)
         }
       }
     })

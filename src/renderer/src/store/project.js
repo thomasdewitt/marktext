@@ -52,7 +52,7 @@ export const useProjectStore = defineStore('project', {
         layoutStore.SET_LAYOUT(layout)
         layoutStore.DISPATCH_LAYOUT_MENU_ITEMS()
         editorStore.RESET_TOC_CACHE()
-        editorStore.REBUILD_COMPOSITE_TOC()
+        editorStore.SCHEDULE_REBUILD_COMPOSITE_TOC()
       })
     },
 
@@ -108,7 +108,7 @@ export const useProjectStore = defineStore('project', {
             }
             break
         }
-        editorStore.REBUILD_COMPOSITE_TOC()
+        editorStore.SCHEDULE_REBUILD_COMPOSITE_TOC()
       })
     },
 

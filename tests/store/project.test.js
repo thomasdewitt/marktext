@@ -24,6 +24,7 @@ const { createMock, pasteMock, renameMock, noticeNotify, editorMock, layoutMock,
     UPDATE_CURRENT_FILE: vi.fn(),
     RESET_TOC_CACHE: vi.fn(),
     REBUILD_COMPOSITE_TOC: vi.fn(),
+    SCHEDULE_REBUILD_COMPOSITE_TOC: vi.fn(),
     SET_SAVE_STATUS_WHEN_REMOVE: vi.fn(),
     LOAD_FILE_TOC: vi.fn(),
     fileTocCache: {}
@@ -93,6 +94,7 @@ describe('project store', () => {
     editorMock.UPDATE_CURRENT_FILE.mockReset()
     editorMock.RESET_TOC_CACHE.mockReset()
     editorMock.REBUILD_COMPOSITE_TOC.mockReset()
+    editorMock.SCHEDULE_REBUILD_COMPOSITE_TOC.mockReset()
     editorMock.SET_SAVE_STATUS_WHEN_REMOVE.mockReset()
     editorMock.LOAD_FILE_TOC.mockReset()
     editorMock.fileTocCache = {}
@@ -221,7 +223,7 @@ describe('project store', () => {
     expect(store.projectTree.name).toBe('root')
     expect(layoutMock.SET_LAYOUT).toHaveBeenCalled()
     expect(editorMock.RESET_TOC_CACHE).toHaveBeenCalled()
-    expect(editorMock.REBUILD_COMPOSITE_TOC).toHaveBeenCalled()
+    expect(editorMock.SCHEDULE_REBUILD_COMPOSITE_TOC).toHaveBeenCalled()
   })
 
   it('LISTEN_FOR_UPDATE_PROJECT handles add/change/unlinkDir and rebuilds TOC', () => {
@@ -260,7 +262,7 @@ describe('project store', () => {
     expect(unlinkDirectoryMock).toHaveBeenCalled()
     expect(editorMock.fileTocCache['/root/dir/a.md']).toBeUndefined()
 
-    expect(editorMock.REBUILD_COMPOSITE_TOC).toHaveBeenCalled()
+    expect(editorMock.SCHEDULE_REBUILD_COMPOSITE_TOC).toHaveBeenCalled()
   })
 
   it('LISTEN_FOR_UPDATE_PROJECT handles unlink and addDir updates', () => {
