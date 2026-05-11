@@ -145,13 +145,18 @@ const scheduleSearch = () => {
   }
 
   // Empty input: clear results immediately so the UI doesn't lag the user.
+  // Mark any in-flight search as superseded so its .then/.catch/.finally do
+  // not race ahead and overwrite the cleared results with stale partials.
+  // Because the .finally is skipped when superseded, do its cleanup inline.
   if (!keyword.value) {
     if (searcherRunning.value && searcherCancelCallback) {
-      searcherCancelCallback()
+      searcherCancelCallback(true)
     }
     searchResult.value = []
     searcherRunning.value = false
+    searcherCancelCallback = null
     searchErrorString.value = ''
+    stopShowSearchCancelAreaTimer()
     return
   }
 
