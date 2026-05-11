@@ -140,17 +140,14 @@ export const getLabel = createGetLabel()
 export const createGetSubMenu = (t) => {
   const wholeSubMenu = createWholeSubMenu(t)
 
+  // Headings are intentionally excluded everywhere — they're easier to apply
+  // with the `#` prefix shortcut, and crowd the inlined front menu.
   return (block, startBlock, endBlock) => {
     const { type } = block
     switch (type) {
       case 'p': {
         return wholeSubMenu.filter((menuItem) => {
-          const REG_EXP =
-            startBlock.key === endBlock.key
-              ? /front-matter|hr|table/
-              : /front-matter|hr|table|heading/
-
-          return !REG_EXP.test(menuItem.label)
+          return !/front-matter|hr|table|heading/.test(menuItem.label)
         })
       }
       case 'h1':
@@ -160,7 +157,7 @@ export const createGetSubMenu = (t) => {
       case 'h5':
       case 'h6': {
         return wholeSubMenu.filter((menuItem) => {
-          return /heading|paragraph/.test(menuItem.label)
+          return /paragraph/.test(menuItem.label)
         })
       }
       case 'ul':

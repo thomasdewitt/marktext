@@ -69,26 +69,6 @@ export default function (keybindings) {
     }, {
       type: 'separator'
     }, {
-      label: t('menu.edit.duplicate'),
-      accelerator: keybindings.getAccelerator(COMMANDS.EDIT_DUPLICATE),
-      click (menuItem, browserWindow) {
-        actions.editorDuplicate(browserWindow)
-      }
-    }, {
-      label: t('menu.edit.createParagraph'),
-      accelerator: keybindings.getAccelerator(COMMANDS.EDIT_CREATE_PARAGRAPH),
-      click (menuItem, browserWindow) {
-        actions.editorCreateParagraph(browserWindow)
-      }
-    }, {
-      label: t('menu.edit.deleteParagraph'),
-      accelerator: keybindings.getAccelerator(COMMANDS.EDIT_DELETE_PARAGRAPH),
-      click (menuItem, browserWindow) {
-        actions.editorDeleteParagraph(browserWindow)
-      }
-    }, {
-      type: 'separator'
-    }, {
       label: t('menu.edit.find'),
       accelerator: keybindings.getAccelerator(COMMANDS.EDIT_FIND),
       click (menuItem, browserWindow) {

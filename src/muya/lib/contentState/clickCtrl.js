@@ -60,8 +60,13 @@ const clickCtrl = (ContentState) => {
         const endOutBlock = this.findOutMostBlock(endBlock)
         hasSameParent = startOutBlock === endOutBlock
       }
+      // Don't open the front menu when the user is finishing a drag-to-select
+      // (mouse-up landed on the icon while a selection exists). The render
+      // triggered by opening the menu otherwise wipes the selection.
+      const hasActiveSelection =
+        oldStart.key !== oldEnd.key || oldStart.offset !== oldEnd.offset
       // show the muya-front-menu only when the cursor in the same paragraph
-      if (target.closest('.ag-front-icon-button') && hasSameParent) {
+      if (target.closest('.ag-front-icon-button') && hasSameParent && !hasActiveSelection) {
         const currentBlock = this.findOutMostBlock(startBlock)
         const frontIcon = target.closest('.ag-front-icon-button')
         const rect = frontIcon.getBoundingClientRect()

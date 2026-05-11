@@ -1,12 +1,8 @@
 import BaseFloat from '../baseFloat'
 import { patch, h } from '../../parser/render/snabbdom'
-import { createMenu, createGetSubMenu, createGetLabel } from './config'
+import { createGetSubMenu, createGetLabel } from './config'
 
 import './index.css'
-
-const MAX_SUBMENU_HEIGHT = 400
-const ITEM_HEIGHT = 28
-const PADDING = 10
 
 const defaultOptions = {
   placement: 'bottom',
@@ -31,10 +27,7 @@ class FrontMenu extends BaseFloat {
     this.endBlock = null
     this.options = opts
     this.reference = null
-    // 获取翻译函数
     this.t = opts.t || muya.options.t || ((key) => key)
-    // 创建菜单和标签函数
-    this.menu = createMenu(this.t)
     this.getLabel = createGetLabel(this.t)
     this.getSubMenu = createGetSubMenu(this.t)
     this.hideTimer = null
@@ -74,15 +67,20 @@ class FrontMenu extends BaseFloat {
     )
   }
 
-  renderSubMenu(subMenu) {
-    const { reference } = this
-    const rect = reference.getBoundingClientRect()
-    const windowHeight = document.documentElement.clientHeight
-    const children = subMenu.map((menuItem) => {
+  render() {
+    const { oldVnode, frontMenuContainer, outmostBlock, startBlock, endBlock } = this
+    const items = this.getSubMenu(outmostBlock, startBlock, endBlock)
+
+    if (!items.length) {
+      // Nothing applicable for this block type — close the menu.
+      this.hide()
+      return
+    }
+
+    const children = items.map((menuItem) => {
       const { icon, title, label, shortCut } = menuItem
-      const iconWrapperSelector = 'div.icon-wrapper'
       const iconWrapper = h(
-        iconWrapperSelector,
+        'div.icon-wrapper',
         h(
           'i.icon',
           h(
@@ -97,13 +95,9 @@ class FrontMenu extends BaseFloat {
           )
         )
       )
-
       const textWrapper = h('span', title)
-      const shortCutWrapper = h('div.short-cut', [h('span', shortCut)])
-      let itemSelector = `li.item.${label}`
-      if (label === this.getLabel(this.outmostBlock)) {
-        itemSelector += '.active'
-      }
+      const shortCutWrapper = h('div.short-cut', [h('span', shortCut || '')])
+      const itemSelector = `li.item.${label.replace(/\s/g, '-')}`
       return h(
         itemSelector,
         {
@@ -114,61 +108,6 @@ class FrontMenu extends BaseFloat {
           }
         },
         [iconWrapper, textWrapper, shortCutWrapper]
-      )
-    })
-    let subMenuSelector = 'div.submenu'
-    if (windowHeight - rect.bottom < MAX_SUBMENU_HEIGHT - (ITEM_HEIGHT + PADDING)) {
-      subMenuSelector += '.align-bottom'
-    }
-    return h(subMenuSelector, h('ul', children))
-  }
-
-  render() {
-    const { oldVnode, frontMenuContainer, outmostBlock, startBlock, endBlock } = this
-    const { type, functionType } = outmostBlock
-    const children = this.menu.map(({ icon, label, text, shortCut }) => {
-      const subMenu = this.getSubMenu(outmostBlock, startBlock, endBlock)
-      const iconWrapperSelector = 'div.icon-wrapper'
-      const iconWrapper = h(
-        iconWrapperSelector,
-        h(
-          'i.icon',
-          h(
-            `i.icon-${label.replace(/\s/g, '-')}`,
-            {
-              style: {
-                background: `url(${icon}) no-repeat`,
-                'background-size': '100%'
-              }
-            },
-            ''
-          )
-        )
-      )
-      const textWrapper = h('span', text)
-      const shortCutWrapper = h('div.short-cut', [h('span', shortCut)])
-      let itemSelector = `li.item.${label}`
-      const itemChildren = [iconWrapper, textWrapper, shortCutWrapper]
-      if (label === 'turnInto' && subMenu.length !== 0) {
-        itemChildren.push(this.renderSubMenu(subMenu))
-      }
-      if (label === 'turnInto' && subMenu.length === 0) {
-        itemSelector += '.disabled'
-      }
-      // front matter can not be duplicated.
-      if (label === 'duplicate' && type === 'pre' && functionType === 'frontmatter') {
-        itemSelector += '.disabled'
-      }
-      return h(
-        itemSelector,
-        {
-          on: {
-            click: (event) => {
-              this.selectItem(event, { label })
-            }
-          }
-        },
-        itemChildren
       )
     })
 
@@ -185,33 +124,9 @@ class FrontMenu extends BaseFloat {
   selectItem(event, { label }) {
     event.preventDefault()
     event.stopPropagation()
-    const { type, functionType } = this.outmostBlock
-    // front matter can not be duplicated.
-    if (label === 'duplicate' && type === 'pre' && functionType === 'frontmatter') {
-      return
-    }
     const { contentState } = this.muya
     contentState.selectedBlock = null
-    switch (label) {
-      case 'duplicate': {
-        contentState.duplicate()
-        break
-      }
-      case 'delete': {
-        contentState.deleteParagraph()
-        break
-      }
-      case 'new': {
-        contentState.insertParagraph('after', '', true)
-        break
-      }
-      case 'turnInto':
-        // do nothing, do not hide float box.
-        return
-      default:
-        contentState.updateParagraph(label)
-        break
-    }
+    contentState.updateParagraph(label)
     // delay hide to avoid dispatching enter handler before parent processes it
     if (this.hideTimer) {
       clearTimeout(this.hideTimer)
