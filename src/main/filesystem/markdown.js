@@ -5,7 +5,7 @@ import iconv from 'iconv-lite'
 import { LINE_ENDING_REG, LF_LINE_ENDING_REG, CRLF_LINE_ENDING_REG } from '../config'
 import { isDirectory2 } from 'common/filesystem'
 import { isMarkdownFile } from 'common/filesystem/paths'
-import { normalizeAndResolvePath, writeFile } from '../filesystem'
+import { normalizeAndResolvePath, atomicWriteFile } from '../filesystem'
 import { guessEncoding } from './encoding'
 
 const getLineEnding = (lineEnding) => {
@@ -63,8 +63,10 @@ export const writeMarkdownFile = (pathname, content, options) => {
 
   const buffer = iconv.encode(content, encoding, { addBOM: isBom })
 
-  // TODO(@fxha): "safeSaveDocuments" using temporary file and rename syscall.
-  return writeFile(pathname, buffer, extension, undefined)
+  // Atomic write-to-temp + rename; survives a crash or power loss without
+  // truncating the prior on-disk content (fixes the long-standing TODO
+  // about safeSaveDocuments).
+  return atomicWriteFile(pathname, buffer, extension)
 }
 
 /**
