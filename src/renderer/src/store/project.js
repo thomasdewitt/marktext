@@ -8,6 +8,9 @@ import { getFileStateFromData } from './help'
 import { useLayoutStore } from './layout'
 import { useEditorStore } from './editor'
 import { createIpcRegistry } from '../util/ipcSubscriptions'
+import { i18n } from '../i18n'
+
+const t = (key, params) => i18n.global.t(key, params)
 
 const ipc = createIpcRegistry()
 
@@ -171,7 +174,7 @@ export const useProjectStore = defineStore('project', {
         // a race when several deletes were issued back-to-back.
         window.electron.ipcRenderer.invoke('mt::fs-trash-item', pathname).catch((err) => {
           notice.notify({
-            title: 'Error while deleting',
+            title: t('sideBar.project.errorWhileDeleting'),
             type: 'error',
             message: err.message
           })
@@ -190,9 +193,9 @@ export const useProjectStore = defineStore('project', {
 
           if (window.path.normalize(clipboard.src) === window.path.normalize(clipboard.dest)) {
             notice.notify({
-              title: 'Paste Forbidden',
+              title: t('sideBar.project.pasteForbidden'),
               type: 'warning',
-              message: 'Source and destination must not be the same.'
+              message: t('sideBar.project.pasteSameSource')
             })
             return
           }
@@ -203,7 +206,7 @@ export const useProjectStore = defineStore('project', {
             })
             .catch((err) => {
               notice.notify({
-                title: 'Error while pasting',
+                title: t('sideBar.project.errorWhilePasting'),
                 type: 'error',
                 message: err.message
               })
@@ -235,7 +238,7 @@ export const useProjectStore = defineStore('project', {
         })
         .catch((err) => {
           notice.notify({
-            title: 'Error in Side Bar',
+            title: t('sideBar.project.errorInSideBar'),
             type: 'error',
             message: err.message
           })
@@ -272,9 +275,9 @@ export const useProjectStore = defineStore('project', {
 
       if (window.fileUtils.pathExistsSync(destinationPath)) {
         notice.notify({
-          title: 'Move Forbidden',
+          title: t('sideBar.project.moveForbidden'),
           type: 'warning',
-          message: `A file named "${filename}" already exists in the target folder.`
+          message: t('sideBar.project.moveTargetExists', { filename })
         })
         return
       }
@@ -283,7 +286,7 @@ export const useProjectStore = defineStore('project', {
         await window.fileUtils.move(src, destinationPath)
       } catch (err) {
         notice.notify({
-          title: 'Error while moving file',
+          title: t('sideBar.project.errorWhileMovingFile'),
           type: 'error',
           message: err.message
         })

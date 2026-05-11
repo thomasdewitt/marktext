@@ -12,9 +12,13 @@ const getCommand = () => {
   return pandocCommand
 }
 
-const pandoc = (from, to, ...args) => {
+const pandoc = (input, to, ...args) => {
   const command = getCommand()
-  const option = ['-s', from, '-t', to].concat(args)
+  // Layout: <input file> -s -t <target format> [extra args].
+  // The previous order put `-s` first and then the input; pandoc happens
+  // to accept the positional input anywhere, but adding any flag with a
+  // value (e.g. -f) later would have shifted the parse.
+  const option = [input, '-s', '-t', to].concat(args)
 
   const converter = () => new Promise((resolve, reject) => {
     const proc = spawn(command, option)

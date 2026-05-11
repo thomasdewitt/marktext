@@ -241,7 +241,18 @@
       "openFolder": "Open Folder"
     },
     "toc": {
-      "title": "Table Of Contents"
+      "title": "Table Of Contents",
+      "unfold": "Unfold"
+    },
+    "project": {
+      "errorWhileDeleting": "Error while deleting",
+      "pasteForbidden": "Paste Forbidden",
+      "pasteSameSource": "Source and destination must not be the same.",
+      "errorWhilePasting": "Error while pasting",
+      "errorInSideBar": "Error in Side Bar",
+      "moveForbidden": "Move Forbidden",
+      "moveTargetExists": "A file named \"{filename}\" already exists in the target folder.",
+      "errorWhileMovingFile": "Error while moving file"
     },
     "icons": {
       "files": "Files",
@@ -1051,7 +1062,14 @@
     "replace": "Replace",
     "save": "Save",
     "saveChanges": "Save changes",
-    "saveFailure": "Save failure"
+    "saveFailure": "Save failure",
+    "crashMessage": "MarkText has crashed",
+    "crashReload": "Reload",
+    "crashKeepOpen": "Keep It Open",
+    "cannotOpenTab": "Cannot open tab",
+    "watcherIoError": "Watcher I/O error",
+    "inotifyLimit": "inotify limit reached",
+    "inotifyLimitDetail": "Cannot watch all files and file changes because too many file descriptors are opened."
   },
   "error": {
     "configSchemaViolation": "Configuration schema violation",

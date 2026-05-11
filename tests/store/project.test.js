@@ -43,6 +43,14 @@ vi.mock('../../src/renderer/src/services/notification', () => ({
   }
 }))
 
+vi.mock('../../src/renderer/src/i18n', () => ({
+  i18n: {
+    global: {
+      t: (key) => key
+    }
+  }
+}))
+
 vi.mock('../../src/renderer/src/store/editor', () => ({
   useEditorStore: () => editorMock
 }))

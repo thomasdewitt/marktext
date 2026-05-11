@@ -49,12 +49,13 @@ const fileUtilsAPI = {
 const commandAPI = {
   exists: (command) => {
     try {
-      // 先尝试使用 command-exists 检查
+      // First try command-exists for PATH-resolved commands.
       if (commandExists.sync(command)) {
         return true
       }
 
-      // 对于 picgo，额外检查常见安装路径
+      // PicGo on macOS sometimes lives outside the GUI PATH; probe the
+      // common installation locations as a fallback.
       if (command === 'picgo' && process.platform === 'darwin') {
         const commonPaths = [
           '/usr/local/bin/picgo',
@@ -66,7 +67,6 @@ const commandAPI = {
 
         for (const picgoPath of commonPaths) {
           if (fs.pathExistsSync(picgoPath)) {
-            console.log(`Found picgo at: ${picgoPath}`)
             return true
           }
         }

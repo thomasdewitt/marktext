@@ -7,6 +7,7 @@ import { hasMarkdownExtension, checkPathExcludePattern } from 'common/filesystem
 import { getUniqueId } from '../utils'
 import { loadMarkdownFile } from '../filesystem/markdown'
 import { isLinux, isOsx } from '../config'
+import { t } from '../i18n'
 
 // TODO(refactor): Please see GH#1035.
 
@@ -57,7 +58,7 @@ const add = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTraili
       // Only notify user about opened files.
       if (type === 'file') {
         safeSend(win, 'mt::show-notification', {
-          title: 'Watcher I/O error',
+          title: t('dialog.watcherIoError'),
           type: 'error',
           message: err.message
         })
@@ -106,7 +107,7 @@ const change = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTra
       // Only notify user about opened files.
       if (type === 'file') {
         safeSend(win, 'mt::show-notification', {
-          title: 'Watcher I/O error',
+          title: t('dialog.watcherIoError'),
           type: 'error',
           message: err.message
         })
@@ -267,9 +268,9 @@ class Watcher {
             log.warn('inotify limit reached: Too many file descriptors are opened.')
 
             safeSend(win, 'mt::show-notification', {
-              title: 'inotify limit reached',
+              title: t('dialog.inotifyLimit'),
               type: 'warning',
-              message: 'Cannot watch all files and file changes because too many file descriptors are opened.'
+              message: t('dialog.inotifyLimitDetail')
             })
           }
         } else {

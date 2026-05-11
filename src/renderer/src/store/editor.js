@@ -1,5 +1,6 @@
 import equal from 'deep-equal'
 import dayjs from 'dayjs'
+import log from 'electron-log'
 import bus from '../bus'
 import { hasKeys, getUniqueId, deepClone } from '../util'
 import listToTree from '../util/listToTree'
@@ -102,7 +103,7 @@ export const useEditorStore = defineStore('editor', {
           showConfirm: false
         })
       } else {
-        console.warn(i18n.global.t('store.editor.tocItemNotFound', { key }))
+        log.warn(i18n.global.t('store.editor.tocItemNotFound', { key }))
       }
     },
 
@@ -127,7 +128,7 @@ export const useEditorStore = defineStore('editor', {
 
       const tab = this.tabs.find((t) => t.id === tabId)
       if (!tab) {
-        console.error(i18n.global.t('store.editor.tabNotFound'))
+        log.error(i18n.global.t('store.editor.tabNotFound'))
         return
       }
 
@@ -180,7 +181,7 @@ export const useEditorStore = defineStore('editor', {
       const tab = tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, pathname))
       if (!tab) {
         // The tab may be closed in the meanwhile.
-        console.error('loadChange: Cannot find tab in tab list.')
+        log.error('loadChange: Cannot find tab in tab list.')
         notice.notify({
           title: i18n.global.t('store.editor.errorLoadingTabTitle'),
           message: i18n.global.t('store.editor.errorLoadingTabMessage'),
@@ -506,7 +507,7 @@ export const useEditorStore = defineStore('editor', {
 
         this.fileTocCache[pathname] = headings
       } catch (error) {
-        console.error('Failed to build TOC for file:', pathname, error)
+        log.error('Failed to build TOC for file:', pathname, error)
         this.fileTocCache[pathname] = []
       } finally {
         pendingTocLoads.delete(pathname)
@@ -584,7 +585,7 @@ export const useEditorStore = defineStore('editor', {
         const { pathname, id } = fileInfo
         const tab = tabs.find((f) => f.id === id)
         if (!tab) {
-          console.error('[ERROR] Cannot change file path from unknown tab.')
+          log.error('[ERROR] Cannot change file path from unknown tab.')
           return
         }
 
@@ -1127,7 +1128,7 @@ export const useEditorStore = defineStore('editor', {
 
       const currentIndex = tabs.findIndex((t) => t.id === currentFile.id)
       if (currentIndex === -1) {
-        console.error('CYCLE_TABS: Cannot find current tab index.')
+        log.error('CYCLE_TABS: Cannot find current tab index.')
         return
       }
 
@@ -1142,7 +1143,7 @@ export const useEditorStore = defineStore('editor', {
 
       const nextTab = tabs[nextTabIndex]
       if (!nextTab || !nextTab.id) {
-        console.error(`CYCLE_TABS: Cannot find next tab (index="${nextTabIndex}").`)
+        log.error(`CYCLE_TABS: Cannot find next tab (index="${nextTabIndex}").`)
         return
       }
 
@@ -1152,19 +1153,19 @@ export const useEditorStore = defineStore('editor', {
     SWITCH_TAB_BY_INDEX(nextTabIndex) {
       const { tabs, currentFile } = this
       if (nextTabIndex < 0 || nextTabIndex >= tabs.length) {
-        console.warn('Invalid tab index:', nextTabIndex)
+        log.warn('Invalid tab index:', nextTabIndex)
         return
       }
 
       const currentIndex = tabs.findIndex((t) => t.id === currentFile.id)
       if (currentIndex === -1) {
-        console.error('Cannot find current tab index.')
+        log.error('Cannot find current tab index.')
         return
       }
 
       const nextTab = tabs[nextTabIndex]
       if (!nextTab || !nextTab.id) {
-        console.error(`Cannot find tab by index="${nextTabIndex}".`)
+        log.error(`Cannot find tab by index="${nextTabIndex}".`)
         return
       }
       this.UPDATE_CURRENT_FILE(nextTab)
@@ -1232,7 +1233,7 @@ export const useEditorStore = defineStore('editor', {
             }
           }
         } catch (err) {
-          console.error('Error checking for today\'s file:', err)
+          log.error('Error checking for today\'s file:', err)
         }
       }
 
@@ -1283,7 +1284,7 @@ export const useEditorStore = defineStore('editor', {
      */
     NEW_TAB_WITH_CONTENT({ markdownDocument, options = {}, selected }) {
       if (!markdownDocument) {
-        console.warn('Cannot create a file tab without a markdown document!')
+        log.warn('Cannot create a file tab without a markdown document!')
         this.NEW_UNTITLED_TAB({})
         return
       }
@@ -1700,10 +1701,10 @@ export const useEditorStore = defineStore('editor', {
               break
             }
             default:
-              console.error(`LISTEN_FOR_FILE_CHANGE: Invalid type "${type}"`)
+              log.error(`LISTEN_FOR_FILE_CHANGE: Invalid type "${type}"`)
           }
         } else {
-          console.error(`LISTEN_FOR_FILE_CHANGE: Cannot find tab for path "${pathname}".`)
+          log.error(`LISTEN_FOR_FILE_CHANGE: Cannot find tab for path "${pathname}".`)
         }
       })
     },

@@ -52,7 +52,8 @@ class Preference extends EventEmitter {
         if (systemLanguage) {
           defaultSettings.language = systemLanguage
         }
-        // 确保拼写检查器始终使用英语，不受界面语言影响
+        // Default the spellchecker to en-US on first launch regardless of
+        // the UI language; users can change it from Settings afterwards.
         defaultSettings.spellcheckerLanguage = 'en-US'
       }
     } catch (err) {
@@ -142,14 +143,6 @@ class Preference extends EventEmitter {
     return endOfLine === 'crlf' || isWindows ? 'crlf' : 'lf'
   }
 
-  exportJSON() {
-    // todo
-  }
-
-  importJSON() {
-    // todo
-  }
-
   _listenForIpcMain() {
     ipcMain.on('mt::ask-for-user-preference', (e) => {
       const win = BrowserWindow.fromWebContents(e.sender)
@@ -168,25 +161,26 @@ class Preference extends EventEmitter {
   }
 
   /**
-   * 获取系统语言，如果系统语言不在支持列表中则返回 null
-   * @returns {string|null} 支持的系统语言代码或 null
+   * Resolve the user's system locale to one of our supported language codes.
+   * Returns null when no match is found so the caller can fall back to the
+   * shipped default.
+   *
+   * @returns {string|null}
    */
   _getSystemLanguage() {
     try {
-      // 获取系统语言
       const systemLocale = app.getLocale()
       log.info(`System locale detected: ${systemLocale}`)
 
-      // 获取支持的语言列表
       const supportedLanguages = getSupportedLanguages()
 
-      // 直接匹配完整的语言代码（如 zh-CN）
+      // Exact-match first (e.g. zh-CN, pt-BR).
       if (isLanguageSupported(systemLocale)) {
         log.info(`Using system language: ${systemLocale}`)
         return systemLocale
       }
 
-      // 尝试匹配语言的主要部分（如 zh）
+      // Fall back to the primary language tag (e.g. zh, fr).
       const primaryLanguage = systemLocale.split('-')[0]
       const matchedLanguage = supportedLanguages.find((lang) => lang.startsWith(primaryLanguage))
 

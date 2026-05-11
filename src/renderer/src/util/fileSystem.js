@@ -25,8 +25,11 @@ export const getHash = (content, encoding, type) => {
   return crypto.createHash(type).update(content, encoding).digest('hex')
 }
 
-export const getContentHash = (content) => {
-  return getHash(content, 'utf8', 'sha1')
+// Returns a sha1 of the given string. The previous name `getContentHash`
+// was misleading: the only call site (moveImageToFolder) passes a path
+// string, not the file contents, so the hash dedupes by source path.
+export const getPathHash = (value) => {
+  return getHash(value, 'utf8', 'sha1')
 }
 
 /**
@@ -71,7 +74,7 @@ export const moveImageToFolder = async (pathname, image, outputDir) => {
       if (noHashPath === imagePath) {
         return imagePath
       }
-      const hash = getContentHash(imagePath)
+      const hash = getPathHash(imagePath)
       const hashFilePath = window.path.join(outputDir, `${hash}${ext}`)
       await window.fileUtils.copy(imagePath, hashFilePath)
       return hashFilePath
@@ -164,26 +167,25 @@ export const uploadImage = async (pathname, image, preferences) => {
           try {
             const obj = JSON.parse(line)
             if (obj) {
-              // 仅在明确成功时返回 URL
+              // Only return the URL when the uploader explicitly succeeded.
               if (obj.success === true && typeof obj.imgUrl === 'string') return obj.imgUrl
               if (obj.success === true && Array.isArray(obj.result) && obj.result.length > 0) return String(obj.result[obj.result.length - 1])
               if (obj.success === true && typeof obj.url === 'string') return obj.url
             }
           } catch {}
         }
-        // 仅在包含 success 关键词时接受 URL
+        // Accept URLs only when prefixed by a success-ish keyword.
         const kv = line.match(/(?:success|succeeded|uploaded)\s*:?\s*(https?:\/\/\S+)/i)
         if (kv && kv[1]) return kv[1]
       }
-      // last non-empty line may be the URL itself
-      // 不再使用最后一行 URL 兜底，避免误判成功
+      // Intentionally not falling back to "last URL printed"; it gave
+      // false positives when PicGo logged an error containing a URL.
     } catch {}
     const marker = cleaned.split('[PicGo SUCCESS]:')
     if (marker.length >= 2) {
       const candidate = marker[marker.length - 1].trim()
       if (/^https?:\/\//i.test(candidate)) return candidate
     }
-    // 不再用任意 URL 兜底
     return null
   }
 

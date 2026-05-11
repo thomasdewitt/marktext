@@ -5,7 +5,7 @@
   >
     <div class="title-container">
       <div class="title">{{ t('sideBar.toc.title') }}</div>
-      <button class="unfold-button" @click="handleUnfold" title="Unfold">Unfold</button>
+      <button class="unfold-button" @click="handleUnfold" :title="t('sideBar.toc.unfold')">{{ t('sideBar.toc.unfold') }}</button>
     </div>
     <el-tree
       v-if="toc.length"

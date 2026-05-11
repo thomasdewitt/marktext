@@ -8,6 +8,7 @@ import BaseWindow, { WindowLifecycle, WindowType } from './base'
 import { ensureWindowPosition, zoomIn, zoomOut } from './utils'
 import { TITLE_BAR_HEIGHT, editorWinOptions, isLinux, isOsx } from '../config'
 import { showEditorContextMenu } from '../contextMenu/editor'
+import { t } from '../i18n'
 import { loadMarkdownFile } from '../filesystem/markdown'
 import { switchLanguage } from '../spellchecker'
 
@@ -148,8 +149,8 @@ class EditorWindow extends BaseWindow {
 
       const { response } = await dialog.showMessageBox(win, {
         type: 'warning',
-        buttons: ['Close', 'Reload', 'Keep It Open'],
-        message: 'MarkText has crashed',
+        buttons: [t('dialog.close'), t('dialog.crashReload'), t('dialog.crashKeepOpen')],
+        message: t('dialog.crashMessage'),
         detail: msg
       })
 
@@ -273,7 +274,7 @@ class EditorWindow extends BaseWindow {
           const { message, stack } = err
           log.error(`[ERROR] Cannot open file or directory: ${message}\n\n${stack}`)
           browserWindow.webContents.send('mt::show-notification', {
-            title: 'Cannot open tab',
+            title: t('dialog.cannotOpenTab'),
             type: 'error',
             message: err.message
           })

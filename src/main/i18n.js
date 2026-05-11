@@ -1,30 +1,32 @@
 import { getTranslation } from '../common/i18n'
 import { BrowserWindow } from 'electron'
 
-// 当前语言设置（可以从配置文件或用户设置中获取）
+// Current main-process language. Seeded from preferences during bootstrap.
 let currentLanguage = 'en'
 
 /**
- * 获取翻译文本
- * @param {string} key - 翻译键
- * @param {object} params - 参数对象
- * @returns {string} 翻译后的文本
+ * Look up a translation string for the main process.
+ *
+ * @param {string} key Translation key.
+ * @param {object} [params] Optional interpolation values.
+ * @returns {string}
  */
 export function t(key, params = {}) {
   return getTranslation(key, currentLanguage, params)
 }
 
 /**
- * 获取当前语言
- * @returns {string} 当前语言代码
+ * @returns {string} The active language code.
  */
 export function getCurrentLanguage() {
   return currentLanguage
 }
 
 /**
- * 设置语言
- * @param {string} language - 语言代码
+ * Set the active main-process language and broadcast the change to every
+ * live renderer so they can swap their i18n too.
+ *
+ * @param {string} language Language code.
  */
 export function setLanguage(language) {
   currentLanguage = language

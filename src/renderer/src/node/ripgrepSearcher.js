@@ -99,6 +99,11 @@ const collectMatchesFromLine = (lineText, row, matcher) => {
   return lineMatches
 }
 
+// NOTE: this is GREP under the hood, not ripgrep. The class and file are
+// named for historical reasons (the project originally shelled out to rg).
+// As a result, options like `searchMaxFileSize` are accepted but ignored
+// (grep has no --max-filesize), and `noIgnore` only excludes .git rather
+// than honoring .gitignore. See README "Known Limitations".
 class RipgrepDirectorySearcher {
   constructor() {
     const initial = global.marktext?.paths?.grepBinaryPath

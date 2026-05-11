@@ -33,12 +33,18 @@ This is a fork of <a href="https://github.com/Tkaixiang/marktext">Tkiaxiang's</a
 - The sample workspace under `sample-notes/` provides quick fixtures for regressions.
 
 ### Search Improvements
-- Project search augments ripgrep results with filename matches that respect case/word/regex toggles.
+- Project search augments grep results with filename matches that respect case/word/regex toggles.
+- Search is debounced (250 ms) with a 2-character minimum, and results stream in per file instead of waiting for the whole project to be scanned.
 
 ### Under the Hood
 - TOC metadata and cursor state are cached per file for quick jumps and are kept in sync with watcher updates.
 - New-tab saves default to the selected tree folder when available, matching sidebar context.
+- `_pendingMuyaRoundtrip` keeps freshly opened files marked as saved until the editor's first real edit (instead of the import round-trip).
 
-## Existing Problems/Work in Progress
+## Known Limitations
 
-- None currently! (Previous ripgrep search issues have been resolved)
+- Project search shells out to **`grep`**, not ripgrep, despite the legacy file/class names (`ripgrepSearcher.js` / `RipgrepDirectorySearcher`). Two preferences from the ripgrep era no longer apply:
+  - `searchMaxFileSize` is silently ignored (grep has no `--max-filesize`).
+  - `searchNoIgnore` only excludes `.git`, not arbitrary `.gitignore` patterns.
+- The image-viewer modal (`ViewImage`) is disabled (#2120); ctrl-clicking an image is a no-op.
+- macOS file watcher used to force `usePolling=true` unconditionally; the preference is now honored on macOS too. FSEvents handles the common case fine — opt in via Settings only if your project lives on a network share.

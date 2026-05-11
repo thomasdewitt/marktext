@@ -117,62 +117,20 @@ class App {
   }
 
   /**
-   * Initialize main process language from preferences
+  /**
+   * Initialize main process language from preferences.
+   *
+   * The Preferences class already seeds `language` from the system locale
+   * on first run (see preferences/index.js init / _getSystemLanguage). This
+   * just installs the persisted choice into i18n for the main process.
    */
   async _initializeLanguage() {
     try {
-      let currentLanguage = this._accessor.preferences.getItem('language')
-      
-      // 如果没有设置语言，则根据系统语言自动设置
-      if (!currentLanguage) {
-        const systemLanguage = app.getLocale()
-        console.log(`System language detected: ${systemLanguage}`)
-        
-        // 支持的语言列表（根据项目实际支持的语言）
-        const supportedLanguages = ['en', 'zh-CN', 'zh-TW', 'ja', 'ko', 'fr', 'de', 'es', 'pt', 'ru']
-        
-        // 语言映射：系统语言代码 -> 应用语言代码
-        const languageMap = {
-          'zh-CN': 'zh-CN',
-          'zh-TW': 'zh-TW', 
-          'zh-HK': 'zh-TW',
-          'zh': 'zh-CN',
-          'en': 'en',
-          'en-US': 'en',
-          'en-GB': 'en',
-          'ja': 'ja',
-          'ja-JP': 'ja',
-          'ko': 'ko',
-          'ko-KR': 'ko',
-          'fr': 'fr',
-          'fr-FR': 'fr',
-          'de': 'de',
-          'de-DE': 'de',
-          'es': 'es',
-          'es-ES': 'es',
-          'pt': 'pt',
-          'pt-BR': 'pt',
-          'ru': 'ru',
-          'ru-RU': 'ru'
-        }
-        
-        currentLanguage = languageMap[systemLanguage] || 'en'
-        
-        // 如果检测到的语言不在支持列表中，使用英语
-        if (!supportedLanguages.includes(currentLanguage)) {
-          currentLanguage = 'en'
-        }
-        
-        // 保存检测到的语言设置
-        this._accessor.preferences.setItem('language', currentLanguage)
-        console.log(`Auto-detected and set language to: ${currentLanguage}`)
-      }
-      
+      const currentLanguage = this._accessor.preferences.getItem('language') || 'en'
       setLanguage(currentLanguage)
-      console.log(`Main process language initialized to: ${currentLanguage}`)
+      log.info(`Main process language initialized to: ${currentLanguage}`)
     } catch (error) {
-      console.error('Failed to initialize main process language:', error)
-      // 如果出错，使用英语作为默认语言
+      log.error('Failed to initialize main process language:', error)
       setLanguage('en')
     }
   }
@@ -187,7 +145,7 @@ class App {
     const { _args: args, _openFilesCache } = this
     const { preferences } = this._accessor
 
-    // 初始化语言设置
+    // Seed i18n with the persisted language.
     const { language } = preferences.getAll()
     if (language) {
       setLanguage(language)
@@ -483,7 +441,7 @@ class App {
     registerKeyboardListeners()
     registerSpellcheckerListeners()
 
-    // 处理语言设置请求
+    // Renderer asks main for the active language code.
     ipcMain.on('mt::get-current-language', (event) => {
       const { language } = this._accessor.preferences.getAll()
       event.reply('mt::current-language', language || 'en')
