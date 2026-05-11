@@ -120,7 +120,9 @@ const handleResponseForPrint = async (e) => {
   })
 }
 
-const handleResponseForSave = async (e, id, filename, pathname, markdown, options, defaultPath) => {
+// Exported for testing; production callers go through the ipcMain handlers
+// registered below.
+export const handleResponseForSave = async (e, id, filename, pathname, markdown, options, defaultPath) => {
   const win = BrowserWindow.fromWebContents(e.sender)
   let recommendFilename = getRecommendTitleFromMarkdownString(markdown)
   if (!recommendFilename) {
