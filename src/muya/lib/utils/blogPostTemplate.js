@@ -90,12 +90,25 @@ const today = () => {
   return `${yyyy}-${mm}-${dd}`
 }
 
+// Detect KaTeX-rendered math in the body so we can load KaTeX's CSS only
+// when the post actually has math. MarkText pre-renders math at export
+// time into <span class="katex">…</span> markup, which renders broken
+// without KaTeX's font / layout CSS.
+const hasKatex = (body) => typeof body === 'string' && /class="katex/.test(body)
+
+// CDN-pinned to the version MarkText was built against. SRI omitted on
+// purpose — the user can pin further or self-host by tweaking the file
+// after export.
+const KATEX_CSS_LINK =
+  '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">'
+
 // Render the standalone HTML page given a (sanitized) body fragment and
 // metadata. The shell mirrors thought-cloud-archive/ post structure.
 export const buildBlogPostHtml = ({ title, date, body }) => {
   const safeTitle = escapeHtmlText(title || 'Untitled')
   const safeTitleAttr = escapeHtmlAttr(title || 'Untitled')
   const safeDate = escapeHtmlText(date || today())
+  const katexLink = hasKatex(body) ? `\n    ${KATEX_CSS_LINK}` : ''
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -110,7 +123,7 @@ export const buildBlogPostHtml = ({ title, date, body }) => {
     <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 
     <!-- Stylesheet (resolved relative to this file's directory) -->
-    <link rel="stylesheet" href="thought-cloud.css">
+    <link rel="stylesheet" href="thought-cloud.css">${katexLink}
 </head>
 <body>
     <header class="site-header">

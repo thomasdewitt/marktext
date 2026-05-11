@@ -109,6 +109,22 @@ describe('blogPostTemplate.buildBlogPostHtml', () => {
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
   })
 
+  it('includes the KaTeX stylesheet only when the body contains KaTeX markup', () => {
+    const withMath = buildBlogPostHtml({
+      title: 'T',
+      date: '',
+      body: '<p>Some math: <span class="katex"><span class="katex-mathml">x</span></span>.</p>'
+    })
+    expect(withMath).toContain('katex.min.css')
+
+    const withoutMath = buildBlogPostHtml({
+      title: 'T',
+      date: '',
+      body: '<p>Just text.</p>'
+    })
+    expect(withoutMath).not.toContain('katex.min.css')
+  })
+
   it('uses the rendered body verbatim so footnote / image markup is preserved', () => {
     const body =
       '<p>See<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>.</p>' +
