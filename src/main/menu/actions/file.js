@@ -353,39 +353,55 @@ ipcMain.on('mt::close-window-confirm', async (e, unsavedFiles) => {
   }
 
   const { needSave } = userResult
-  if (needSave) {
-    try {
-      await Promise.all(
-        unsavedFiles.map((file) =>
-          handleResponseForSave(
-            e,
-            file.id,
-            file.filename,
-            file.pathname,
-            file.markdown,
-            file.options,
-            file.defaultPath
-          )
+  if (!needSave) {
+    ipcMain.emit('window-close-by-id', win.id)
+    return
+  }
+
+  // handleResponseForSave resolves to the tab id on success and to
+  // undefined on either a save error (caught and reported via
+  // mt::tab-save-failure) or a canceled save-as dialog. We must
+  // distinguish "all saved" from "some failed/canceled" — otherwise
+  // we'd close the window and silently lose the unsaved edits.
+  let saveResults = []
+  try {
+    saveResults = await Promise.all(
+      unsavedFiles.map((file) =>
+        handleResponseForSave(
+          e,
+          file.id,
+          file.filename,
+          file.pathname,
+          file.markdown,
+          file.options,
+          file.defaultPath
         )
       )
-      ipcMain.emit('window-close-by-id', win.id)
-    } catch (err) {
-      log.error('Error while saving before quit:', err)
+    )
+  } catch (err) {
+    log.error('Error while saving before quit:', err)
+  }
 
-      if (win.isDestroyed()) {
-        return
-      }
-      const { response } = await dialog.showMessageBox(win, {
-        type: 'error',
-        buttons: [t('dialog.close'), t('dialog.keepOpen')],
-        message: t('dialog.saveFailure'),
-        detail: err.message
-      })
-      if (win.id && response === 0) {
-        ipcMain.emit('window-close-by-id', win.id)
-      }
-    }
-  } else {
+  const allSaved =
+    saveResults.length === unsavedFiles.length &&
+    saveResults.every((id) => id != null)
+  if (allSaved) {
+    ipcMain.emit('window-close-by-id', win.id)
+    return
+  }
+
+  if (win.isDestroyed()) {
+    return
+  }
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'error',
+    buttons: [t('dialog.close'), t('dialog.keepOpen')],
+    defaultId: 1,
+    cancelId: 1,
+    message: t('dialog.saveFailure'),
+    noLink: true
+  })
+  if (win.id && response === 0) {
     ipcMain.emit('window-close-by-id', win.id)
   }
 })

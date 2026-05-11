@@ -58,4 +58,40 @@ describe('atomicWriteFile', () => {
 
     expect(fs.readFileSync(target, 'utf8')).toBe('deep')
   })
+
+  it('preserves the existing file mode across the rename', async () => {
+    const target = path.join(dir, 'note.md')
+    fs.writeFileSync(target, 'old')
+    fs.chmodSync(target, 0o640)
+    const beforeMode = fs.statSync(target).mode & 0o777
+
+    await atomicWriteFile(target, 'new', '.md')
+
+    const afterMode = fs.statSync(target).mode & 0o777
+    expect(afterMode).toBe(beforeMode)
+    expect(fs.readFileSync(target, 'utf8')).toBe('new')
+  })
+
+  it('rejects with EACCES when the target exists but is not writable', async () => {
+    // Process root bypasses POSIX permission bits, so skip when running
+    // as the superuser — the access() check correctly says "writable".
+    if (typeof process.getuid === 'function' && process.getuid() === 0) {
+      return
+    }
+    const target = path.join(dir, 'readonly.md')
+    fs.writeFileSync(target, 'old content')
+    fs.chmodSync(target, 0o444)
+
+    try {
+      await expect(atomicWriteFile(target, 'new content', '.md')).rejects.toMatchObject({
+        code: 'EACCES'
+      })
+      expect(fs.readFileSync(target, 'utf8')).toBe('old content')
+      // No stray temp file should remain
+      const leftovers = fs.readdirSync(dir).filter((f) => f !== 'readonly.md')
+      expect(leftovers).toEqual([])
+    } finally {
+      fs.chmodSync(target, 0o644)
+    }
+  })
 })

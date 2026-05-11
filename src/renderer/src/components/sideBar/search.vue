@@ -175,20 +175,33 @@ const search = () => {
 
   const { pathname: rootDirectoryPath } = projectTree.value
 
+  // A previous search may still be running. Mark it as superseded so its
+  // .finally() leaves UI state alone (we're about to take it over).
   if (searcherRunning.value && searcherCancelCallback) {
-    searcherCancelCallback()
+    searcherCancelCallback(true)
   }
 
   searchErrorString.value = ''
   searcherCancelCallback = null
 
-  if (!keyword.value) {
+  // Sub-min-length queries (including empty) never fire a grep, regardless
+  // of how search() was invoked (typed keystrokes, toggle clicks, or
+  // selected-text find-in-folder). Without this guard, toggles would
+  // bypass the min-length check applied in scheduleSearch and produce
+  // inconsistent behavior.
+  if (keyword.value.length < SEARCH_MIN_LENGTH) {
     searchResult.value = []
     searcherRunning.value = false
+    stopShowSearchCancelAreaTimer()
     return
   }
 
+  // canceled  -> stop accepting more grep matches (user cancel, hit the
+  //              100-file limit, or a newer search() has taken over)
+  // superseded -> a newer search() owns the UI state now; our .finally()
+  //              must not stomp on its searcherRunning / cancel timer.
   let canceled = false
+  let superseded = false
   searcherRunning.value = true
   startShowSearchCancelAreaTimer()
 
@@ -226,10 +239,7 @@ const search = () => {
       inclusions: window.fileUtils.MARKDOWN_INCLUSIONS
     })
     .then(() => {
-      // A newer search() call may have already canceled this invocation;
-      // its .then will overwrite searchResult.value once it resolves, so
-      // bail before we clobber the newer state.
-      if (canceled) return
+      if (superseded) return
 
       const {
         results: resultsWithFilenames,
@@ -248,23 +258,16 @@ const search = () => {
       }
       resultsWithFilenames.sort((a, b) => compareSearchResults(a, b, window.path))
       searchResult.value = resultsWithFilenames
-      searcherRunning.value = false
-      searcherCancelCallback = null
-      stopShowSearchCancelAreaTimer()
     })
     .catch((err) => {
-      if (canceled) return
+      if (superseded) return
 
-      canceled = true
-      if (promises.cancel) {
-        promises.cancel()
-      }
       log.error('Error while searching in directory:', err)
       if (!searchErrorString.value) {
         searchErrorString.value = err?.message || 'Search error'
       }
       const { results: fallbackResults } = appendFilenameMatches({
-        results: [],
+        results: newSearchResult,
         projectTree: projectTree.value,
         keyword: keyword.value,
         isCaseSensitive: isCaseSensitive.value,
@@ -273,17 +276,22 @@ const search = () => {
         pathApi: window.path
       })
       fallbackResults.sort((a, b) => compareSearchResults(a, b, window.path))
-      searchResult.value = fallbackResults.length ? fallbackResults : []
+      searchResult.value = fallbackResults
+    })
+    .finally(() => {
+      // Skip cleanup only when a newer search has already claimed the UI;
+      // user-cancel and the search-limit short-circuit both reach here and
+      // need the running flag, cancel callback, and timer cleared.
+      if (superseded) return
       searcherRunning.value = false
       searcherCancelCallback = null
       stopShowSearchCancelAreaTimer()
     })
 
-  // Bundle the kill-the-grep call with flipping this invocation's
-  // `canceled` so the next search's pre-check also halts our .then/.catch.
-  searcherCancelCallback = () => {
+  searcherCancelCallback = (bySupersede = false) => {
     if (canceled) return
     canceled = true
+    if (bySupersede) superseded = true
     if (promises.cancel) {
       promises.cancel()
     }

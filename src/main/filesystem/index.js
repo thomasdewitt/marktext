@@ -1,5 +1,6 @@
 import { readlinkSync, outputFile, ensureDir, rename, remove } from 'fs-extra'
 import fsPromises from 'fs/promises'
+import { constants as fsConstants } from 'fs'
 import path from 'path'
 import { isDirectory, isFile, isSymbolicLink } from 'common/filesystem'
 
@@ -52,6 +53,21 @@ export const atomicWriteFile = async (pathname, content, extension) => {
   }
   pathname = !extension || pathname.endsWith(extension) ? pathname : `${pathname}${extension}`
 
+  // A direct write to a read-only file would have failed with EACCES,
+  // but rename only needs write permission on the parent directory — so
+  // without an explicit check, we'd silently replace a read-only file
+  // and drop its mode bits in the process. Mirror the old semantics:
+  // fail when the target exists but is not user-writable, and preserve
+  // its mode across the rename.
+  let existingMode
+  try {
+    await fsPromises.access(pathname, fsConstants.W_OK)
+    const st = await fsPromises.stat(pathname)
+    existingMode = st.mode
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+  }
+
   const dir = path.dirname(pathname)
   await ensureDir(dir)
 
@@ -70,6 +86,9 @@ export const atomicWriteFile = async (pathname, content, extension) => {
     // this, a power loss after rename can leave a zero-byte target on
     // some filesystems.
     await handle.sync()
+    if (existingMode !== undefined) {
+      await handle.chmod(existingMode)
+    }
   } catch (err) {
     if (handle) await handle.close().catch(() => {})
     await remove(tempPath).catch(() => {})

@@ -3,16 +3,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   showSaveDialogMock,
+  showMessageBoxMock,
   writeMarkdownFileMock,
   existsMock,
+  ipcOnMock,
   ipcEmitMock,
   webContentsSend,
   winIsDestroyed,
   webIsDestroyed
 } = vi.hoisted(() => ({
   showSaveDialogMock: vi.fn(),
+  showMessageBoxMock: vi.fn(),
   writeMarkdownFileMock: vi.fn(),
   existsMock: vi.fn(),
+  ipcOnMock: vi.fn(),
   ipcEmitMock: vi.fn(),
   webContentsSend: vi.fn(),
   winIsDestroyed: vi.fn(() => false),
@@ -33,10 +37,10 @@ vi.mock('electron', () => ({
   },
   dialog: {
     showSaveDialog: showSaveDialogMock,
-    showMessageBox: vi.fn()
+    showMessageBox: showMessageBoxMock
   },
   shell: { openExternal: vi.fn() },
-  ipcMain: { on: vi.fn(), emit: ipcEmitMock, removeAllListeners: vi.fn() }
+  ipcMain: { on: ipcOnMock, emit: ipcEmitMock, removeAllListeners: vi.fn() }
 }))
 
 vi.mock('electron-log', () => ({
@@ -104,8 +108,10 @@ describe('handleResponseForSave', () => {
 
   beforeEach(async () => {
     vi.resetModules()
+    ipcOnMock.mockReset()
     ipcEmitMock.mockReset()
     showSaveDialogMock.mockReset()
+    showMessageBoxMock.mockReset()
     writeMarkdownFileMock.mockReset()
     existsMock.mockReset().mockResolvedValue(false)
     webContentsSend.mockReset()
@@ -205,5 +211,105 @@ describe('handleResponseForSave', () => {
     await handleResponseForSave(e, 'tab-1', null, null, '# A', {}, null)
 
     expect(writeMarkdownFileMock).toHaveBeenCalledWith('/tmp/notes.md', '# A', {})
+  })
+})
+
+describe('mt::close-window-confirm', () => {
+  const getHandler = () => {
+    const call = ipcOnMock.mock.calls.find((c) => c[0] === 'mt::close-window-confirm')
+    if (!call) throw new Error('mt::close-window-confirm handler was not registered')
+    return call[1]
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    ipcOnMock.mockReset()
+    ipcEmitMock.mockReset()
+    showSaveDialogMock.mockReset()
+    showMessageBoxMock.mockReset()
+    writeMarkdownFileMock.mockReset()
+    existsMock.mockReset().mockResolvedValue(false)
+    webContentsSend.mockReset()
+    winIsDestroyed.mockReturnValue(false)
+    webIsDestroyed.mockReturnValue(false)
+    // Import for side effects; this registers the ipcMain.on handlers.
+    await import('../../src/main/menu/actions/file')
+  })
+
+  it('closes the window when every save succeeds', async () => {
+    showMessageBoxMock.mockResolvedValue({ response: 0 }) // user picked "Save"
+    writeMarkdownFileMock.mockResolvedValue(undefined)
+    const handler = getHandler()
+
+    await handler({ sender: {} }, [
+      { id: 't1', filename: 'a.md', pathname: '/tmp/a.md', markdown: 'A', options: {} },
+      { id: 't2', filename: 'b.md', pathname: '/tmp/b.md', markdown: 'B', options: {} }
+    ])
+
+    expect(writeMarkdownFileMock).toHaveBeenCalledTimes(2)
+    expect(ipcEmitMock).toHaveBeenCalledWith('window-close-by-id', 42)
+  })
+
+  it('does NOT close the window when a save fails and the user keeps the window open', async () => {
+    showMessageBoxMock
+      .mockResolvedValueOnce({ response: 0 }) // user picked "Save"
+      .mockResolvedValueOnce({ response: 1 }) // user picked "Keep open" after failure
+    writeMarkdownFileMock
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('EACCES'))
+    const handler = getHandler()
+
+    await handler({ sender: {} }, [
+      { id: 't1', filename: 'a.md', pathname: '/tmp/a.md', markdown: 'A', options: {} },
+      { id: 't2', filename: 'b.md', pathname: '/tmp/b.md', markdown: 'B', options: {} }
+    ])
+
+    // The failed-save dialog must have been shown.
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(2)
+    // And the window MUST NOT have been closed.
+    const closeCalls = ipcEmitMock.mock.calls.filter((c) => c[0] === 'window-close-by-id')
+    expect(closeCalls).toEqual([])
+    // The renderer was notified of the failed tab.
+    expect(webContentsSend).toHaveBeenCalledWith('mt::tab-save-failure', 't2', 'EACCES')
+  })
+
+  it('closes the window after a save failure if the user explicitly opts to close anyway', async () => {
+    showMessageBoxMock
+      .mockResolvedValueOnce({ response: 0 }) // user picked "Save"
+      .mockResolvedValueOnce({ response: 0 }) // user picked "Close" after failure
+    writeMarkdownFileMock.mockRejectedValue(new Error('EACCES'))
+    const handler = getHandler()
+
+    await handler({ sender: {} }, [
+      { id: 't1', filename: 'a.md', pathname: '/tmp/a.md', markdown: 'A', options: {} }
+    ])
+
+    const closeCalls = ipcEmitMock.mock.calls.filter((c) => c[0] === 'window-close-by-id')
+    expect(closeCalls).toEqual([['window-close-by-id', 42]])
+  })
+
+  it('does nothing when the user cancels the unsaved-files dialog', async () => {
+    showMessageBoxMock.mockResolvedValue({ response: 2 }) // user picked "Cancel"
+    const handler = getHandler()
+
+    await handler({ sender: {} }, [
+      { id: 't1', filename: 'a.md', pathname: '/tmp/a.md', markdown: 'A', options: {} }
+    ])
+
+    expect(writeMarkdownFileMock).not.toHaveBeenCalled()
+    const closeCalls = ipcEmitMock.mock.calls.filter((c) => c[0] === 'window-close-by-id')
+    expect(closeCalls).toEqual([])
+  })
+
+  it('closes immediately when the user picks "Don\'t Save"', async () => {
+    showMessageBoxMock.mockResolvedValue({ response: 1 }) // "Don't Save"
+    const handler = getHandler()
+
+    await handler({ sender: {} }, [
+      { id: 't1', filename: 'a.md', pathname: '/tmp/a.md', markdown: 'A', options: {} }
+    ])
+
+    expect(writeMarkdownFileMock).not.toHaveBeenCalled()
+    expect(ipcEmitMock).toHaveBeenCalledWith('window-close-by-id', 42)
   })
 })
