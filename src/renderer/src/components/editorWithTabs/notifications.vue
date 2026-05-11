@@ -3,7 +3,6 @@
     v-if="currentNotification"
     class="editor-notifications"
     :class="currentNotification.style"
-    :style="{ 'max-width': showSideBar ? `calc(100vw - ${sideBarWidth}px` : '100vw' }"
   >
     <div class="msg">
       {{ currentNotification.msg }}
@@ -30,15 +29,12 @@
 <script setup>
 import { computed } from 'vue'
 import { useEditorStore } from '@/store/editor'
-import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
 import { t } from '../../i18n'
 
 const editorStore = useEditorStore()
-const layoutStore = useLayoutStore()
 
 const { currentFile } = storeToRefs(editorStore)
-const { showSideBar, sideBarWidth } = storeToRefs(layoutStore)
 
 const currentNotification = computed(() => {
   const notifications = currentFile.value.notifications

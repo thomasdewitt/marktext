@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="editor-with-tabs"
-    :style="{ 'max-width': showSideBar ? `calc(100vw - ${sideBarWidth}px` : '100vw' }"
-  >
+  <div class="editor-with-tabs">
     <tabs v-show="showTabBar"></tabs>
     <div class="container">
       <editor
@@ -23,8 +20,6 @@
 </template>
 
 <script setup>
-import { useLayoutStore } from '@/store/layout'
-import { storeToRefs } from 'pinia'
 import Tabs from './tabs.vue'
 import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
@@ -62,9 +57,6 @@ defineProps({
   }
 })
 
-const layoutStore = useLayoutStore()
-
-const { showSideBar, sideBarWidth } = storeToRefs(layoutStore)
 </script>
 
 <style scoped>
