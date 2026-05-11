@@ -6,6 +6,33 @@ class MouseEvent {
     this.muya = muya
     this.mouseBinding()
     this.mouseDown()
+    this.dragDetection()
+  }
+
+  // The gutter icon sits to the left of each paragraph and is
+  // contenteditable=false. When the user drag-selects text and the mouse-up
+  // lands on the icon, the browser collapses the selection — wiping the
+  // highlight. We can't suppress that from JS after the fact, so during any
+  // drag that started outside the icon we make the icon mouse-transparent.
+  // The mouse-up then falls through to the paragraph below and the
+  // selection is preserved.
+  dragDetection () {
+    const { container, eventCenter } = this.muya
+    let isDragging = false
+
+    eventCenter.attachDOMEvent(container, 'mousedown', (event) => {
+      if (!event.target.closest('.ag-front-icon-button')) {
+        isDragging = true
+        container.classList.add('ag-text-dragging')
+      }
+    })
+
+    eventCenter.attachDOMEvent(document, 'mouseup', () => {
+      if (isDragging) {
+        isDragging = false
+        container.classList.remove('ag-text-dragging')
+      }
+    })
   }
 
   mouseBinding () {
