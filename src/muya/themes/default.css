@@ -398,6 +398,24 @@ kbd {
     padding-right: 0;
   }
 
+  /* Tables shouldn't wrap their cell text inside the readable doc column —
+     let the table take its natural width and scroll horizontally within
+     its figure container instead. */
+  figure[data-role='TABLE'] {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  figure[data-role='TABLE'] > table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  figure[data-role='TABLE'] > table tr th,
+  figure[data-role='TABLE'] > table tr td {
+    white-space: nowrap;
+  }
+
   table {
     padding: 0;
     word-break: initial;
