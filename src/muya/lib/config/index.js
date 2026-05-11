@@ -371,10 +371,23 @@ export const FORMAT_TYPES = Object.freeze([
 
 export const LINE_BREAK = '\n'
 
+// DOMPurify's `html` profile strips `<iframe>` by default for XSS safety.
+// MarkText is a single-user editor over content the user authored
+// themselves, so the worst case is the user embedding a hostile iframe
+// in their own document. The convenience of embedding interactive plots
+// (Plotly, Bokeh, ...) outweighs that risk here, so iframe is re-allowed
+// in both preview and export.
+const IFRAME_TAGS = ['iframe']
+// DOMPurify allows `src`/`width`/`height` on whitelisted iframes by default
+// but strips iframe-specific attributes — re-add the ones we'd actually use.
+const IFRAME_ATTRS = ['frameborder', 'allow', 'allowfullscreen', 'sandbox', 'referrerpolicy', 'loading']
+
 export const PREVIEW_DOMPURIFY_CONFIG = Object.freeze({
   // do not forbit `class` because `code` element use class to present language
   FORBID_ATTR: ['style', 'contenteditable'],
   ALLOW_DATA_ATTR: false,
+  ADD_TAGS: IFRAME_TAGS,
+  ADD_ATTR: IFRAME_ATTRS,
   USE_PROFILES: {
     html: true,
     svg: true,
@@ -387,7 +400,8 @@ export const PREVIEW_DOMPURIFY_CONFIG = Object.freeze({
 export const EXPORT_DOMPURIFY_CONFIG = Object.freeze({
   FORBID_ATTR: ['contenteditable'],
   ALLOW_DATA_ATTR: false,
-  ADD_ATTR: ['data-align'],
+  ADD_ATTR: ['data-align', ...IFRAME_ATTRS],
+  ADD_TAGS: IFRAME_TAGS,
   USE_PROFILES: {
     html: true,
     svg: true,

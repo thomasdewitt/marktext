@@ -5,7 +5,11 @@ import { getAttributes, parseSrcAndTitle, validateEmphasize, lowerPriority } fro
 
 // const CAN_NEST_RULES = ['strong', 'em', 'link', 'del', 'a_link', 'reference_link', 'html_tag']
 // disallowed html tags in https://github.github.com/gfm/#raw-html
-const disallowedHtmlTag = /(?:title|textarea|style|xmp|iframe|noembed|noframes|script|plaintext)/i
+// `iframe` removed from the spec-default list so authors can embed
+// interactive HTML artifacts (Plotly, Bokeh, etc.) inline. Block-level
+// iframes in HTML blocks were never gated by this regex; both paths now
+// behave the same and rely on DOMPurify for actual safety.
+const disallowedHtmlTag = /(?:title|textarea|style|xmp|noembed|noframes|script|plaintext)/i
 const validateRules = Object.assign({}, inlineRules)
 delete validateRules.em
 delete validateRules.strong
