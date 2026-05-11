@@ -49,6 +49,21 @@ const clickCtrl = (ContentState) => {
         }
       }
     }
+    // If the user just finished a drag-to-select and the mouse-up landed
+    // on the gutter icon, bail entirely. Re-rendering the block (whether
+    // from opening the front menu or from the needRender path below) would
+    // wipe the highlighted selection.
+    const onFrontIcon = !!target.closest('.ag-front-icon-button')
+    const winSel = typeof window !== 'undefined' && document.getSelection
+      ? document.getSelection()
+      : null
+    const hasActiveSelection = !!winSel && !winSel.isCollapsed
+    if (onFrontIcon && hasActiveSelection) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+
     // handle front menu click
     const { start: oldStart, end: oldEnd } = this.cursor
     if (oldStart && oldEnd) {
@@ -60,13 +75,8 @@ const clickCtrl = (ContentState) => {
         const endOutBlock = this.findOutMostBlock(endBlock)
         hasSameParent = startOutBlock === endOutBlock
       }
-      // Don't open the front menu when the user is finishing a drag-to-select
-      // (mouse-up landed on the icon while a selection exists). The render
-      // triggered by opening the menu otherwise wipes the selection.
-      const hasActiveSelection =
-        oldStart.key !== oldEnd.key || oldStart.offset !== oldEnd.offset
       // show the muya-front-menu only when the cursor in the same paragraph
-      if (target.closest('.ag-front-icon-button') && hasSameParent && !hasActiveSelection) {
+      if (onFrontIcon && hasSameParent) {
         const currentBlock = this.findOutMostBlock(startBlock)
         const frontIcon = target.closest('.ag-front-icon-button')
         const rect = frontIcon.getBoundingClientRect()
