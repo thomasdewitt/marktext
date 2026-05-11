@@ -318,9 +318,18 @@ span.ag-math > .ag-math-render.ag-math-error {
 }
 
 /* Inline math */
+/*
+ * KaTeX ships with a default `.katex { font-size: 1.21em }` rule meant to
+ * match math cap-height against generic sans body text. The editor uses
+ * Open Sans by default and serif themes are common, so the 1.21x bump
+ * leaves inline math looking dramatically larger than the surrounding
+ * paragraph. Force it back to the inherited size so math sits at the
+ * same nominal size as the text it's embedded in.
+ */
 .ag-math > .ag-math-render .katex {
   vertical-align: middle;
   white-space: nowrap;
+  font-size: 1em;
 }
 
 .ag-hide.ag-ruby,
