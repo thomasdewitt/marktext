@@ -11,6 +11,12 @@ import footerHeaderCss from '../assets/styles/headerFooterStyle.css?inline'
 import { EXPORT_DOMPURIFY_CONFIG } from '../config'
 import { sanitize, unescapeHTML } from '../utils'
 import { validEmoji } from '../ui/emojis'
+import {
+  extractFrontmatter,
+  extractFirstH1,
+  stripFirstH1,
+  buildBlogPostHtml
+} from './blogPostTemplate'
 
 export const getSanitizeHtml = (markdown, options) => {
   const html = marked(markdown, options)
@@ -300,6 +306,39 @@ class ExportHtml {
   ${html}
 </body>
 </html>`
+  }
+
+  /**
+   * Generate a standalone HTML page formatted for Thomas's thought-cloud
+   * blog. Unlike `generate()`, no CSS is inlined: the page references the
+   * site's `thought-cloud.css` so style stays editable independent of the
+   * exported posts. Title and date come from the markdown's frontmatter
+   * when present (falling back to the first H1 and today's date).
+   *
+   * Image src and link href values are emitted exactly as the markdown
+   * wrote them — preserve-as-written, so paths still resolve when the
+   * exported HTML is saved alongside the source markdown's image folder.
+   */
+  async generateBlogPost() {
+    const { meta, body: strippedMarkdown } = extractFrontmatter(this.markdown)
+
+    // Temporarily swap markdown so renderHtml() works off the stripped
+    // body — frontmatter would otherwise render as a <pre class="front-matter">
+    // block in the post body.
+    const originalMarkdown = this.markdown
+    this.markdown = strippedMarkdown
+    let body
+    try {
+      body = await this.renderHtml(null)
+    } finally {
+      this.markdown = originalMarkdown
+    }
+
+    const title = meta.title || extractFirstH1(body) || 'Untitled'
+    const date = meta.date || ''
+    const bodyWithoutTitle = stripFirstH1(body)
+
+    return buildBlogPostHtml({ title, date, body: bodyWithoutTitle })
   }
 
   /**

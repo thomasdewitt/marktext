@@ -35,7 +35,7 @@ const getExportExtensionFilter = (type) => {
         extensions: ['pdf']
       }
     ]
-  } else if (type === 'styledHtml') {
+  } else if (type === 'styledHtml' || type === 'blogPost') {
     return [
       {
         name: 'Hypertext Markup Language',

@@ -146,6 +146,12 @@ export default function (keybindings, userPreference, recentlyUsedFiles) {
           }
         },
         {
+          label: t('menu.file.exportBlogPost'),
+          click(menuItem, browserWindow) {
+            actions.exportFile(browserWindow, 'blogPost')
+          }
+        },
+        {
           label: t('menu.file.exportPdf'),
           accelerator: keybindings.getAccelerator('file.export-file.pdf'),
           click(menuItem, browserWindow) {

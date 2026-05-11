@@ -182,6 +182,11 @@ class Muya {
     return new ExportHtml(markdown, this).renderHtml()
   }
 
+  exportBlogPost(options) {
+    const { markdown } = this
+    return new ExportHtml(markdown, this).generateBlogPost(options)
+  }
+
   getWordCount(markdown) {
     return wordCount(markdown)
   }

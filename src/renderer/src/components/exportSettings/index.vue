@@ -329,6 +329,13 @@ const updateTranslations = () => {
 
 const showDialog = (type) => {
   exportType.value = type
+  // Blog post exports use a fixed site shell — none of the dialog's style /
+  // theme / page / header / footer / TOC options apply, so skip the dialog
+  // entirely and emit the export with default options.
+  if (type === 'blogPost') {
+    bus.emit('export', { type })
+    return
+  }
   isPrintable.value = type !== 'styledHtml'
   if (!isPrintable.value && (activeName.value === 'header' || activeName.value === 'page')) {
     activeName.value = 'info'

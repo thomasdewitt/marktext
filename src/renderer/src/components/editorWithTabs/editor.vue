@@ -701,7 +701,7 @@ const handleFindAction = (action) => {
 const handleExport = async (options) => {
   const { type, header, footer, headerFooterStyled, htmlTitle } = options
 
-  if (!/^pdf|print|styledHtml$/.test(type)) {
+  if (!/^pdf|print|styledHtml|blogPost$/.test(type)) {
     throw new Error(`Invalid type to export: "${type}".`)
   }
 
@@ -722,6 +722,20 @@ const handleExport = async (options) => {
         log.error('Failed to export document:', err)
         notice.notify({
           title: t('editor.export.failed', { type: htmlTitle || 'html' }),
+          type: 'error',
+          message: err.message || t('editor.export.error')
+        })
+      }
+      break
+    }
+    case 'blogPost': {
+      try {
+        const content = await editor.value.exportBlogPost()
+        editorStore.EXPORT({ type, content })
+      } catch (err) {
+        log.error('Failed to export blog post:', err)
+        notice.notify({
+          title: t('editor.export.failed', { type: 'blog post' }),
           type: 'error',
           message: err.message || t('editor.export.error')
         })

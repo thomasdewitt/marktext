@@ -17,6 +17,7 @@
       "rename": "Rename",
       "export": "Export",
       "exportHtml": "Export as HTML",
+      "exportBlogPost": "Export as Blog Post",
       "exportPdf": "Export as PDF",
       "import": "Import",
       "print": "Print",

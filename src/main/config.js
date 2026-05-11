@@ -67,6 +67,7 @@ export const BLACK_LIST = Object.freeze(['$RECYCLE.BIN'])
 
 export const EXTENSION_HASN = Object.freeze({
   styledHtml: '.html',
+  blogPost: '.html',
   pdf: '.pdf'
 })
 
