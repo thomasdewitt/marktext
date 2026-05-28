@@ -37,34 +37,37 @@ const updateCtrl = ContentState => {
     const endOffset = cEnd ? cEnd.offset : focus.offset
     const NO_NEED_TOKEN_REG = /text|hard_line_break|soft_line_break/
 
-    for (const token of tokenizer(startBlock.text, {
-      labels,
-      options: this.muya.options
-    })) {
-      if (NO_NEED_TOKEN_REG.test(token.type)) continue
-      const { start, end } = token.range
-      const textLen = startBlock.text.length
-      if (
-        conflict([Math.max(0, start - 1), Math.min(textLen, end + 1)], [startOffset, startOffset])
-      ) {
-        return true
+    const hasTokenNearOffsets = (block, offsets) => {
+      for (const token of tokenizer(block.text, {
+        labels,
+        options: this.muya.options
+      })) {
+        if (NO_NEED_TOKEN_REG.test(token.type)) continue
+        const { start, end } = token.range
+        const textLen = block.text.length
+        const range = [Math.max(0, start - 1), Math.min(textLen, end + 1)]
+        if (
+          offsets.some(offset => conflict(range, [offset, offset]))
+        ) {
+          return true
+        }
       }
-    }
-    for (const token of tokenizer(endBlock.text, {
-      labels,
-      options: this.muya.options
-    })) {
-      if (NO_NEED_TOKEN_REG.test(token.type)) continue
-      const { start, end } = token.range
-      const textLen = endBlock.text.length
-      if (
-        conflict([Math.max(0, start - 1), Math.min(textLen, end + 1)], [endOffset, endOffset])
-      ) {
-        return true
-      }
+
+      return false
     }
 
-    return false
+    if (startBlock === endBlock) {
+      const offsets = startOffset === endOffset
+        ? [startOffset]
+        : [startOffset, endOffset]
+
+      return hasTokenNearOffsets(startBlock, offsets)
+    }
+
+    return (
+      hasTokenNearOffsets(startBlock, [startOffset]) ||
+      hasTokenNearOffsets(endBlock, [endOffset])
+    )
   }
 
   /**

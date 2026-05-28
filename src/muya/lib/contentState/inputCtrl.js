@@ -277,26 +277,29 @@ const inputCtrl = ContentState => {
       }
     }
 
-    // show quick insert
-    const rect = paragraph.getBoundingClientRect()
     const checkQuickInsert = this.checkQuickInsert(block)
-    const reference = this.getPositionReference()
-    reference.getBoundingClientRect = function () {
-      const { x, y, left, top, height, bottom } = rect
+    if (checkQuickInsert) {
+      const rect = paragraph.getBoundingClientRect()
+      const reference = this.getPositionReference()
+      reference.getBoundingClientRect = function () {
+        const { x, y, left, top, height, bottom } = rect
 
-      return Object.assign({}, {
-        left,
-        x,
-        top,
-        y,
-        bottom,
-        height,
-        width: 0,
-        right: left
-      })
+        return Object.assign({}, {
+          left,
+          x,
+          top,
+          y,
+          bottom,
+          height,
+          width: 0,
+          right: left
+        })
+      }
+
+      this.muya.eventCenter.dispatch('muya-quick-insert', reference, block, true)
+    } else {
+      this.muya.eventCenter.dispatch('muya-quick-insert', null, block, false)
     }
-
-    this.muya.eventCenter.dispatch('muya-quick-insert', reference, block, !!checkQuickInsert)
 
     this.cursor = { start, end }
 
