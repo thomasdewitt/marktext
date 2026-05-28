@@ -1,9 +1,16 @@
 // Template + frontmatter parsing for the "Export as Blog Post" feature.
 //
-// The output is a standalone HTML page that drops directly into Thomas's
-// thought-cloud-archive/ directory: it links to thought-cloud.css (next to
-// the file) and uses ../ paths for the site nav. No CSS is inlined so the
-// site stylesheet remains the single source of truth.
+// The output is a standalone HTML page shaped exactly like a post on
+// Thomas's personal site: it drops in as thought-cloud/<slug>/index.html.
+// It links the site assets one directory up (../post.css and the post
+// scripts) and points the nav two levels up (../../) at the site root, with
+// the Thought Cloud index one level up (../). No CSS is inlined so the site
+// stylesheet stays the single source of truth.
+//
+// The post's date / type / word-count come from the site's data.js, keyed
+// by slug, via the post-meta-strip — so a freshly exported post shows no
+// meta strip until its slug is added to data.js. An HTML comment carrying
+// the slug and date is emitted next to the strip to make that wiring easy.
 //
 // Image references and other links are emitted exactly as the markdown
 // wrote them — relative paths keep working as long as the saved HTML lives
@@ -90,6 +97,27 @@ const today = () => {
   return `${yyyy}-${mm}-${dd}`
 }
 
+// Derive a URL slug from a title. Mirrors the personal-website slugify
+// (post-meta.js): lowercase, drop punctuation, spaces → hyphens, collapse
+// runs, trim. Used as the data-slug fallback and as the directory name the
+// exported index.html is meant to live in.
+export const slugify = (text) =>
+  String(text || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '') // drop punctuation
+    .replace(/\s+/g, '-') // spaces → hyphens
+    .replace(/-+/g, '-') // collapse runs
+    .replace(/^-|-$/g, '') // trim leading/trailing
+
+// Make a string safe to sit inside an HTML comment: comments can't contain
+// `--`, so collapse hyphen runs, and strip angle brackets so nothing can
+// close or reopen a tag. ISO dates (single hyphens) pass through unchanged.
+const sanitizeForComment = (str) =>
+  String(str)
+    .replace(/[<>]/g, '')
+    .replace(/--+/g, '-')
+
 // Detect KaTeX-rendered math in the body so we can load KaTeX's CSS only
 // when the post actually has math. MarkText pre-renders math at export
 // time into <span class="katex">…</span> markup, which renders broken
@@ -102,17 +130,52 @@ const hasKatex = (body) => typeof body === 'string' && /class="katex/.test(body)
 const KATEX_CSS_LINK =
   '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">'
 
+// Google Analytics measurement id used across the personal site. Kept here
+// so exported posts report under the same property as hand-written ones.
+const GA_MEASUREMENT_ID = 'G-GZJYHFEXQE'
+
+// Asset references for the post shell, copied verbatim from a live
+// thought-cloud/<slug>/index.html. The ?v= cache-busting suffixes must
+// track the personal-website repo — re-copy this block whenever the site
+// bumps a version, otherwise exported posts pin stale assets.
+const HEAD_ASSETS = `    <!-- Stylesheet -->
+    <link rel="stylesheet" href="../post.css?v=2.6">
+    <script defer src="../footnotes.js?v=2"></script>
+    <script defer src="../data.js?v=1.3"></script>
+    <script defer src="../post-meta.js?v=1.4"></script>
+    <script defer src="../scores.js?v=1.2"></script>
+    <script defer src="../cloud-map.js?v=1.6"></script>
+    <script defer src="../cloud-hud.js?v=1.6"></script>
+    <script defer src="../post-footer.js?v=1.2"></script>`
+
 // Render the standalone HTML page given a (sanitized) body fragment and
-// metadata. The shell mirrors thought-cloud-archive/ post structure.
-export const buildBlogPostHtml = ({ title, date, body }) => {
+// metadata. The shell is byte-for-byte the site's thought-cloud/<slug>/
+// post structure (only the title, breadcrumb, slug, and body differ).
+export const buildBlogPostHtml = ({ title, date, slug, body }) => {
   const safeTitle = escapeHtmlText(title || 'Untitled')
   const safeTitleAttr = escapeHtmlAttr(title || 'Untitled')
-  const safeDate = escapeHtmlText(date || today())
+  const postSlug = slug || slugify(title)
+  const slugAttr = escapeHtmlAttr(postSlug)
+  // The site renders date/type/word-count from data.js via the meta strip,
+  // so a freshly exported post has no inline date. Carry the values in an
+  // HTML comment so adding the data.js entry is copy-paste.
+  const metaComment = `<!-- data.js entry needed — slug="${sanitizeForComment(
+    postSlug
+  )}" date="${sanitizeForComment(date || today())}" -->`
   const katexLink = hasKatex(body) ? `\n    ${KATEX_CSS_LINK}` : ''
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${GA_MEASUREMENT_ID}');
+    </script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${safeTitleAttr} - Thought Cloud</title>
@@ -122,42 +185,36 @@ export const buildBlogPostHtml = ({ title, date, body }) => {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 
-    <!-- Stylesheet (resolved relative to this file's directory) -->
-    <link rel="stylesheet" href="thought-cloud.css">${katexLink}
+${HEAD_ASSETS}${katexLink}
 </head>
 <body>
     <header class="site-header">
         <nav class="site-nav">
             <div class="nav-item">
-                <a href="../index.html" class="nav-link">Thomas DeWitt</a>
-            </div>
-            <div class="nav-item">
-                <a href="../about.html" class="nav-link">About</a>
-            </div>
-            <div class="nav-item">
-                <a href="../cv.html" class="nav-link">CV</a>
-            </div>
-            <div class="nav-item">
-                <a href="../visuals/index.html" class="nav-link">Visuals</a>
-            </div>
-            <div class="nav-item">
-                <a href="../tools/index.html" class="nav-link">Tools</a>
+                <a href="../../index.html" class="nav-link">Thomas DeWitt</a>
             </div>
             <div class="nav-item static-breadcrumb">
-                <a href="index.html" class="nav-link active"><em>Thought Cloud</em></a>
+                <a href="../" class="nav-link active"><em>Thought Cloud</em></a>
                 <span class="breadcrumb-divider">/</span>
                 <span class="breadcrumb-current">${safeTitle}</span>
             </div>
             <div class="nav-item">
-                <a href="../ceramics/index.html" class="nav-link">Ceramics</a>
+                <a href="../../about.html" class="nav-link">About</a>
+            </div>
+            <div class="nav-item">
+                <a href="../../cv.html" class="nav-link">CV</a>
+            </div>
+            <div class="nav-item">
+                <a href="../../ceramics/index.html" class="nav-link">Ceramics</a>
             </div>
         </nav>
     </header>
 
     <main class="content">
         <header class="article-header">
+            ${metaComment}
+            <div class="post-meta-strip above" data-slug="${slugAttr}"></div>
             <h1 class="article-title">${safeTitle}</h1>
-            <p class="article-date">${safeDate}</p>
         </header>
         <div class="article-body">
             <div class="body markup" dir="auto">${body}</div>

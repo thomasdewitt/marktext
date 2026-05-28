@@ -3,6 +3,7 @@ import {
   extractFrontmatter,
   extractFirstH1,
   stripFirstH1,
+  slugify,
   buildBlogPostHtml
 } from '../../src/muya/lib/utils/blogPostTemplate'
 
@@ -82,27 +83,90 @@ describe('blogPostTemplate.stripFirstH1', () => {
   })
 })
 
+describe('blogPostTemplate.slugify', () => {
+  it('lowercases, drops punctuation, and hyphenates spaces', () => {
+    expect(slugify('Clouds, their edges, and how to define them')).toBe(
+      'clouds-their-edges-and-how-to-define-them'
+    )
+  })
+
+  it('collapses hyphen runs and trims leading/trailing hyphens', () => {
+    expect(slugify('  --Hello---World!!  ')).toBe('hello-world')
+  })
+
+  it('handles empty / nullish input', () => {
+    expect(slugify('')).toBe('')
+    expect(slugify(null)).toBe('')
+    expect(slugify(undefined)).toBe('')
+  })
+})
+
 describe('blogPostTemplate.buildBlogPostHtml', () => {
   it('produces a standalone HTML document referencing the site stylesheet', () => {
     const html = buildBlogPostHtml({
       title: 'Hello',
       date: '2026-05-11',
+      slug: 'hello',
       body: '<p>body</p>'
     })
     expect(html).toContain('<!DOCTYPE html>')
-    expect(html).toContain('<link rel="stylesheet" href="thought-cloud.css">')
+    // Stylesheet + post scripts live one directory up, with cache-busting suffixes.
+    expect(html).toContain('<link rel="stylesheet" href="../post.css?v=2.6">')
+    expect(html).toContain('<script defer src="../post-meta.js?v=1.4"></script>')
+    expect(html).toContain('<script defer src="../footnotes.js?v=2"></script>')
     expect(html).toContain('<title>Hello - Thought Cloud</title>')
     expect(html).toContain('<h1 class="article-title">Hello</h1>')
-    expect(html).toContain('<p class="article-date">2026-05-11</p>')
     expect(html).toContain('<div class="body markup" dir="auto"><p>body</p></div>')
-    // No CSS should be inlined — only the external link to thought-cloud.css.
+    // No CSS should be inlined — only the external link to post.css.
     expect(html).not.toMatch(/<style/i)
+  })
+
+  it('emits the post-meta-strip with the slug and drops the inline date', () => {
+    const html = buildBlogPostHtml({
+      title: 'Hello',
+      date: '2026-05-11',
+      slug: 'hello',
+      body: '<p>body</p>'
+    })
+    expect(html).toContain('<div class="post-meta-strip above" data-slug="hello"></div>')
+    // Date now comes from data.js via the strip — no standalone date paragraph.
+    expect(html).not.toContain('class="article-date"')
+    // ...but it's preserved in an HTML comment to ease the data.js wiring.
+    expect(html).toContain('<!-- data.js entry needed — slug="hello" date="2026-05-11" -->')
+  })
+
+  it('uses the site nav structure (two levels up, breadcrumb second, no Visuals/Tools)', () => {
+    const html = buildBlogPostHtml({ title: 'Hello', date: '', slug: 'hello', body: '<p>x</p>' })
+    expect(html).toContain('<a href="../../index.html" class="nav-link">Thomas DeWitt</a>')
+    expect(html).toContain('<a href="../" class="nav-link active"><em>Thought Cloud</em></a>')
+    expect(html).toContain('<a href="../../about.html" class="nav-link">About</a>')
+    expect(html).toContain('<a href="../../ceramics/index.html" class="nav-link">Ceramics</a>')
+    expect(html).not.toContain('Visuals')
+    expect(html).not.toContain('Tools')
+    // Breadcrumb sits immediately after the Thomas DeWitt nav item.
+    expect(html.indexOf('static-breadcrumb')).toBeLessThan(html.indexOf('About'))
+  })
+
+  it('loads Google Analytics under the site measurement id', () => {
+    const html = buildBlogPostHtml({ title: 'Hello', date: '', slug: 'hello', body: '<p>x</p>' })
+    expect(html).toContain('https://www.googletagmanager.com/gtag/js?id=G-GZJYHFEXQE')
+    expect(html).toContain("gtag('config', 'G-GZJYHFEXQE')")
+  })
+
+  it('falls back to a slug derived from the title when none is supplied', () => {
+    const html = buildBlogPostHtml({
+      title: 'Clouds, their edges',
+      date: '',
+      body: '<p>x</p>'
+    })
+    expect(html).toContain('data-slug="clouds-their-edges"')
   })
 
   it('escapes title-derived content used in HTML text positions', () => {
     const html = buildBlogPostHtml({
       title: '<script>alert(1)</script>',
       date: '2026-05-11',
+      slug: 'attack',
       body: '<p>x</p>'
     })
     expect(html).not.toContain('<script>alert(1)</script>')

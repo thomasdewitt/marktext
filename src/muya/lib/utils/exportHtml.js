@@ -15,6 +15,7 @@ import {
   extractFrontmatter,
   extractFirstH1,
   stripFirstH1,
+  slugify,
   buildBlogPostHtml
 } from './blogPostTemplate'
 
@@ -311,9 +312,15 @@ class ExportHtml {
   /**
    * Generate a standalone HTML page formatted for Thomas's thought-cloud
    * blog. Unlike `generate()`, no CSS is inlined: the page references the
-   * site's `thought-cloud.css` so style stays editable independent of the
-   * exported posts. Title and date come from the markdown's frontmatter
-   * when present (falling back to the first H1 and today's date).
+   * site's `../post.css` (and post scripts) so style stays editable
+   * independent of the exported posts. The page is shaped to drop in as
+   * thought-cloud/<slug>/index.html on the personal site.
+   *
+   * Title and date come from the markdown's frontmatter when present
+   * (title falls back to the first H1, date to today). The slug comes from
+   * a `slug` frontmatter field when present, otherwise it's derived from
+   * the title — it feeds the post-meta-strip's data-slug (and is the
+   * intended directory name).
    *
    * Image src and link href values are emitted exactly as the markdown
    * wrote them — preserve-as-written, so paths still resolve when the
@@ -336,9 +343,10 @@ class ExportHtml {
 
     const title = meta.title || extractFirstH1(body) || 'Untitled'
     const date = meta.date || ''
+    const slug = meta.slug || slugify(title)
     const bodyWithoutTitle = stripFirstH1(body)
 
-    return buildBlogPostHtml({ title, date, body: bodyWithoutTitle })
+    return buildBlogPostHtml({ title, date, slug, body: bodyWithoutTitle })
   }
 
   /**
