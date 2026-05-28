@@ -532,6 +532,45 @@ class Selection {
     this.select(anchorNode, anchorOffset)
     // Secondly, set the focus node and focus offset.
     this.setFocus(focusNode, focusOffset)
+    // Finally, keep the caret in view horizontally. Re-rendering a code/HTML
+    // block rebuilds the line's inner spans, which momentarily collapses the
+    // scroll container's width and makes the browser clamp scrollLeft back to
+    // 0 — yanking the view to the far left while the caret sits off-screen.
+    this.scrollCaretIntoHorizontalView()
+  }
+
+  // After the caret is restored programmatically (which, unlike user typing,
+  // does not auto-scroll), nudge the nearest horizontally-scrollable ancestor
+  // just enough to keep the caret visible. No-op for normal wrapping prose,
+  // which never overflows on the x axis; it only bites for unwrapped code/HTML
+  // lines (and other x-scrolling blocks such as wide tables).
+  scrollCaretIntoHorizontalView() {
+    const sel = this.doc.getSelection()
+    if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return
+    const range = sel.getRangeAt(0)
+    const rects = range.getClientRects()
+    if (!rects || rects.length === 0) return
+    const caret = rects[0]
+
+    // Walk up to the nearest ancestor that can actually scroll horizontally.
+    let node = range.startContainer
+    let scroller = node && node.nodeType === 3 ? node.parentElement : node
+    while (scroller && scroller !== this.doc.body) {
+      if (scroller.scrollWidth - scroller.clientWidth > 1) {
+        const overflowX = getComputedStyle(scroller).overflowX
+        if (overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden') break
+      }
+      scroller = scroller.parentElement
+    }
+    if (!scroller || scroller === this.doc.body) return
+
+    const box = scroller.getBoundingClientRect()
+    const PADDING = 8
+    if (caret.right > box.right - PADDING) {
+      scroller.scrollLeft += caret.right - (box.right - PADDING)
+    } else if (caret.left < box.left + PADDING) {
+      scroller.scrollLeft -= (box.left + PADDING) - caret.left
+    }
   }
 
   isValidCursorNode(node) {
