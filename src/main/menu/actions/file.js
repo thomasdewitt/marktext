@@ -27,6 +27,19 @@ const safeSend = (win, ...args) => {
   }
 }
 
+// The recommend title comes from the first markdown heading (see
+// getRecommendTitleFromMarkdownString) and is completely unsanitized: it may
+// contain path separators like "/" or "\" which would make path.join() escape
+// the project folder into arbitrary (auto-created) subdirectories. Reduce it to
+// a single, safe filename component.
+const sanitizeRecommendFilename = (name) => {
+  const cleaned = String(name || '')
+    .replace(/[/\\]+/g, '-') // no path separators
+    .replace(/^\.+/, '') // no leading dots (hidden/relative paths)
+    .trim()
+  return cleaned || 'Untitled'
+}
+
 const getExportExtensionFilter = (type) => {
   if (type === 'pdf') {
     return [
@@ -137,12 +150,25 @@ export const handleResponseForSave = async (e, id, filename, pathname, markdown,
   let filePath = pathname
 
   if (!filePath) {
-    // Auto-save to defaultPath if it exists (project folder is open)
+    const safeName = sanitizeRecommendFilename(recommendFilename)
+
+    // Auto-save to the open project folder without a dialog, but ONLY when doing
+    // so won't silently clobber an existing file. If the target already exists,
+    // fall through to the save dialog so the user can confirm or pick another
+    // name instead of destroying the prior file's content with no prompt.
+    let autoSavePath = null
     if (defaultPath && await exists(defaultPath)) {
-      filePath = path.join(defaultPath, `${recommendFilename}.md`)
+      const candidate = path.join(defaultPath, `${safeName}.md`)
+      if (!(await exists(candidate))) {
+        autoSavePath = candidate
+      }
+    }
+
+    if (autoSavePath) {
+      filePath = autoSavePath
     } else {
       const { filePath: dialogPath, canceled } = await dialog.showSaveDialog(win, {
-        defaultPath: path.join(defaultPath || getPath('documents'), `${recommendFilename}.md`)
+        defaultPath: path.join(defaultPath || getPath('documents'), `${safeName}.md`)
       })
 
       if (dialogPath && !canceled) {
@@ -311,6 +337,14 @@ ipcMain.on(
 
     if (filePath && !canceled) {
       filePath = path.resolve(filePath)
+
+      // `writeMarkdownFile` appends `.md` on disk when the chosen name has no
+      // extension. Mirror that here so the tab pathname, filesystem watcher,
+      // and recently-used entry all point at the file that is actually written
+      // instead of the extension-less name the save dialog returned.
+      if (!path.extname(filePath)) {
+        filePath = `${filePath}.md`
+      }
 
       writeMarkdownFile(filePath, markdown, options)
         .then(() => {

@@ -124,3 +124,50 @@ describe('Watcher ignore logic', () => {
     expect(options.usePolling).toBe(false)
   })
 })
+
+describe('isIgnoredBelowRoot', () => {
+  let isIgnoredBelowRoot
+
+  beforeEach(async () => {
+    vi.resetModules()
+    ;({ isIgnoredBelowRoot } = await import('../../src/main/filesystem/watcher'))
+  })
+
+  it('does NOT ignore a project living under a hidden ancestor folder', () => {
+    // Regression: a dot-directory in the ancestor path (~/.dotfiles) must not
+    // cause the whole watched tree to be ignored.
+    const root = '/Users/thomas/.dotfiles/notes'
+    expect(isIgnoredBelowRoot(root, root)).toBe(false)
+    expect(isIgnoredBelowRoot('/Users/thomas/.dotfiles/notes/todo.md', root)).toBe(false)
+    expect(isIgnoredBelowRoot('/Users/thomas/.dotfiles/notes/sub/todo.md', root)).toBe(false)
+  })
+
+  it('does NOT ignore projects under ~/.config', () => {
+    const root = '/Users/thomas/.config/mynotes'
+    expect(isIgnoredBelowRoot('/Users/thomas/.config/mynotes/a.md', root)).toBe(false)
+  })
+
+  it('still ignores dot-entries BELOW the watched root', () => {
+    const root = '/Users/thomas/.dotfiles/notes'
+    expect(isIgnoredBelowRoot('/Users/thomas/.dotfiles/notes/.git', root)).toBe(true)
+    expect(isIgnoredBelowRoot('/Users/thomas/.dotfiles/notes/.git/config', root)).toBe(true)
+    expect(isIgnoredBelowRoot('/Users/thomas/.dotfiles/notes/sub/.hidden.md', root)).toBe(true)
+  })
+
+  it('still ignores node_modules and asar archives below the root', () => {
+    const root = '/tmp/project'
+    expect(isIgnoredBelowRoot('/tmp/project/node_modules/foo/index.js', root)).toBe(true)
+    expect(isIgnoredBelowRoot('/tmp/project/app.asar', root)).toBe(true)
+  })
+
+  it('does not ignore normal files below a plain root', () => {
+    const root = '/tmp/project'
+    expect(isIgnoredBelowRoot('/tmp/project/readme.md', root)).toBe(false)
+    expect(isIgnoredBelowRoot('/tmp/project/src/main.js', root)).toBe(false)
+  })
+
+  it('does not ignore paths outside the watched root', () => {
+    const root = '/tmp/project'
+    expect(isIgnoredBelowRoot('/tmp/.other/file.md', root)).toBe(false)
+  })
+})

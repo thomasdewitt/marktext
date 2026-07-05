@@ -19,6 +19,36 @@ const EVENT_NAME = {
   file: 'mt::update-file'
 }
 
+// Matches a path segment that should always be ignored: a dot-entry (e.g. `.git`),
+// `node_modules`, or an `*.asar` archive. The segment must be at the start of the
+// tested string or follow a path separator.
+const IGNORED_SEGMENT_RE = /(?:^|[/\\])(?:\..|node_modules|(?:.+\.asar))/
+
+/**
+ * Decide whether a path should be ignored by the watcher because it (or a
+ * descendant segment) is a dotfile/dotfolder, node_modules, or an asar archive.
+ *
+ * Crucially this only considers the portion of `pathname` BELOW the watched
+ * root. Matching the raw absolute path caused entire projects living under a
+ * hidden ancestor folder (e.g. `~/.dotfiles/notes` or anything under
+ * `~/.config`) to be ignored wholesale, leaving the file tree empty. Only
+ * dot-entries beneath the watched root should be ignored, never ancestors.
+ *
+ * @param {string} pathname The absolute path chokidar is asking about.
+ * @param {string} watchPath The absolute root that is being watched.
+ * @returns {boolean}
+ */
+export const isIgnoredBelowRoot = (pathname, watchPath) => {
+  const relative = path.relative(watchPath, pathname)
+  // The watched root itself (relative === '') or any path outside of it
+  // (relative starts with '..') must never be ignored on account of an
+  // ancestor's name.
+  if (!relative || relative === '..' || relative.startsWith('..' + path.sep)) {
+    return false
+  }
+  return IGNORED_SEGMENT_RE.test(relative)
+}
+
 // Guard against sending IPC to a destroyed window (race with async watcher callbacks)
 const safeSend = (win, ...args) => {
   if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
@@ -169,10 +199,10 @@ class Watcher {
         // This function is called twice, once with a single argument (the path),
         // second time with two arguments (the path and the "fs.Stats" object of that path).
         if (!fileInfo) {
-          return /(?:^|[/\\])(?:\..|node_modules|(?:.+\.asar))/.test(pathname)
+          return isIgnoredBelowRoot(pathname, watchPath)
         }
 
-        if (/(?:^|[/\\])(?:\..|node_modules|(?:.+\.asar))/.test(pathname)) {
+        if (isIgnoredBelowRoot(pathname, watchPath)) {
           return true
         }
 
