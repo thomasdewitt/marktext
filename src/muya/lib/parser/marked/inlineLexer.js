@@ -119,16 +119,22 @@ InlineLexer.prototype.output = function (src) {
     cap = this.rules.link.exec(src)
     if (cap && lowerPriority(src, cap[0].length, this.highPriorityLinkRules)) {
       const trimmedUrl = cap[2].trim()
+      // A valueless `return` here would abort the entire inline render and
+      // yield `undefined` (this branch was ported from marked's Tokenizer,
+      // where returning meant "not a link token"). Instead, mark the link as
+      // invalid and fall through so the remaining rules (ultimately the text
+      // rule) treat it as plain text, preserving the surrounding content.
+      let isValidLink = true
       if (!this.options.pedantic && trimmedUrl.startsWith('<')) {
         // commonmark requires matching angle brackets
         if (!trimmedUrl.endsWith('>')) {
-          return
-        }
-
-        // ending angle bracket cannot be escaped
-        const rtrimSlash = rtrim(trimmedUrl.slice(0, -1), '\\')
-        if ((trimmedUrl.length - rtrimSlash.length) % 2 === 0) {
-          return
+          isValidLink = false
+        } else {
+          // ending angle bracket cannot be escaped
+          const rtrimSlash = rtrim(trimmedUrl.slice(0, -1), '\\')
+          if ((trimmedUrl.length - rtrimSlash.length) % 2 === 0) {
+            isValidLink = false
+          }
         }
       } else {
         // find closing parenthesis
@@ -141,37 +147,39 @@ InlineLexer.prototype.output = function (src) {
           cap[3] = ''
         }
       }
-      src = src.substring(cap[0].length)
-      lastChar = cap[0].charAt(cap[0].length - 1)
-      href = cap[2]
-      if (this.options.pedantic) {
-        // split pedantic href and title
-        link = /^([^'"]*[^\s])\s+(['"])(.*)\2/.exec(href)
+      if (isValidLink) {
+        src = src.substring(cap[0].length)
+        lastChar = cap[0].charAt(cap[0].length - 1)
+        href = cap[2]
+        if (this.options.pedantic) {
+          // split pedantic href and title
+          link = /^([^'"]*[^\s])\s+(['"])(.*)\2/.exec(href)
 
-        if (link) {
-          href = link[1]
-          title = link[3]
-        }
-      } else {
-        title = cap[3] ? cap[3].slice(1, -1) : ''
-      }
-      href = href.trim()
-      if (href.startsWith('<')) {
-        if (this.options.pedantic && !trimmedUrl.endsWith('>')) {
-          // pedantic allows starting angle bracket without ending angle bracket
-          href = href.slice(1)
+          if (link) {
+            href = link[1]
+            title = link[3]
+          }
         } else {
-          href = href.slice(1, -1)
+          title = cap[3] ? cap[3].slice(1, -1) : ''
         }
-      }
+        href = href.trim()
+        if (href.startsWith('<')) {
+          if (this.options.pedantic && !trimmedUrl.endsWith('>')) {
+            // pedantic allows starting angle bracket without ending angle bracket
+            href = href.slice(1)
+          } else {
+            href = href.slice(1, -1)
+          }
+        }
 
-      this.inLink = true
-      out += this.outputLink(cap, {
-        href: this.escapes(href),
-        title: this.escapes(title)
-      })
-      this.inLink = false
-      continue
+        this.inLink = true
+        out += this.outputLink(cap, {
+          href: this.escapes(href),
+          title: this.escapes(title)
+        })
+        this.inLink = false
+        continue
+      }
     }
 
     // reflink, nolink
@@ -194,12 +202,34 @@ InlineLexer.prototype.output = function (src) {
 
     // math
     if (math) {
-      cap = this.rules.math.exec(src)
+      // single-line display math `$$...$$` must be tried before inline math
+      cap = this.rules.displayMath.exec(src)
       if (cap) {
         src = src.substring(cap[0].length)
         lastChar = cap[0].charAt(cap[0].length - 1)
         text = cap[1]
-        out += this.renderer.inlineMath(text)
+        out += this.renderer.inlineMath(text, true)
+        continue
+      } else {
+        cap = this.rules.math.exec(src)
+        if (cap) {
+          src = src.substring(cap[0].length)
+          lastChar = cap[0].charAt(cap[0].length - 1)
+          text = cap[1]
+          out += this.renderer.inlineMath(text)
+          continue
+        }
+      }
+    }
+
+    // equation reference \eqref{key} / \ref{key} in prose
+    if (math) {
+      cap = this.rules.eqRef.exec(src)
+      if (cap) {
+        src = src.substring(cap[0].length)
+        lastChar = cap[0].charAt(cap[0].length - 1)
+        out += this.renderer.eqRef(cap[1], cap[2])
+        continue
       }
     }
 
@@ -211,6 +241,7 @@ InlineLexer.prototype.output = function (src) {
         lastChar = cap[0].charAt(cap[0].length - 1)
         text = cap[0]
         out += this.renderer.emoji(text, cap[2])
+        continue
       }
     }
 
@@ -223,6 +254,7 @@ InlineLexer.prototype.output = function (src) {
         const content = cap[2]
         const marker = cap[1]
         out += this.renderer.script(content, marker)
+        continue
       }
     }
 

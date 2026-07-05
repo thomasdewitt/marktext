@@ -148,6 +148,25 @@ const tokenizerFac = (src, beginRules, inlineRules, pos = 0, top, labels, option
       pos = pos + backTo[0].length
       continue
     }
+    // equation reference \eqref{key} / \ref{key}
+    const eqRefTo = inlineRules.eq_ref.exec(src)
+    if (eqRefTo) {
+      pushPending()
+      tokens.push({
+        type: 'eq_ref',
+        raw: eqRefTo[0],
+        marker: eqRefTo[1],
+        parent: tokens,
+        content: eqRefTo[2],
+        range: {
+          start: pos,
+          end: pos + eqRefTo[0].length
+        }
+      })
+      src = src.substring(eqRefTo[0].length)
+      pos = pos + eqRefTo[0].length
+      continue
+    }
     // strong | em
     const emRules = ['strong', 'em']
     let inChunk
@@ -180,8 +199,8 @@ const tokenizerFac = (src, beginRules, inlineRules, pos = 0, top, labels, option
     }
     if (inChunk) continue
 
-    // strong | em | emoji | inline_code | del | inline_math
-    const chunks = ['inline_code', 'del', 'emoji', 'inline_math']
+    // strong | em | emoji | inline_code | del | display_math | inline_math
+    const chunks = ['inline_code', 'del', 'emoji', 'display_math', 'inline_math']
     for (const rule of chunks) {
       const to = inlineRules[rule].exec(src)
       if (to && isLengthEven(to[3])) {
@@ -193,7 +212,7 @@ const tokenizerFac = (src, beginRules, inlineRules, pos = 0, top, labels, option
           end: pos + to[0].length
         }
         const marker = to[1]
-        if (rule === 'inline_code' || rule === 'emoji' || rule === 'inline_math') {
+        if (rule === 'inline_code' || rule === 'emoji' || rule === 'inline_math' || rule === 'display_math') {
           tokens.push({
             type: rule,
             raw: to[0],
@@ -329,7 +348,7 @@ const tokenizerFac = (src, beginRules, inlineRules, pos = 0, top, labels, option
     }
 
     const rLinkTo = inlineRules.reference_link.exec(src)
-    if (rLinkTo && labels.has(rLinkTo[3] || rLinkTo[1]) && isLengthEven(rLinkTo[2]) && isLengthEven(rLinkTo[4])) {
+    if (rLinkTo && labels.has((rLinkTo[3] || rLinkTo[1]).toLowerCase()) && isLengthEven(rLinkTo[2]) && isLengthEven(rLinkTo[4])) {
       pushPending()
       tokens.push({
         type: 'reference_link',
@@ -355,7 +374,7 @@ const tokenizerFac = (src, beginRules, inlineRules, pos = 0, top, labels, option
     }
 
     const rImageTo = inlineRules.reference_image.exec(src)
-    if (rImageTo && labels.has(rImageTo[3] || rImageTo[1]) && isLengthEven(rImageTo[2]) && isLengthEven(rImageTo[4])) {
+    if (rImageTo && labels.has((rImageTo[3] || rImageTo[1]).toLowerCase()) && isLengthEven(rImageTo[2]) && isLengthEven(rImageTo[4])) {
       pushPending()
 
       tokens.push({

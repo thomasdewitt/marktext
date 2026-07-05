@@ -10,6 +10,8 @@ import hardLineBreak from './hardLineBreak'
 import softLineBreak from './softLineBreak'
 import codeFense from './codeFense'
 import inlineMath from './inlineMath'
+import displayMath from './displayMath'
+import eqRef from './eqRef'
 import autoLink from './autoLink'
 import autoLinkExtension from './autoLinkExtension'
 import loadImageAsync from './loadImageAsync'
@@ -43,6 +45,8 @@ export default {
   softLineBreak,
   codeFense,
   inlineMath,
+  displayMath,
+  eqRef,
   autoLink,
   autoLinkExtension,
   loadImageAsync,

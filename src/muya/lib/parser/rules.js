@@ -34,7 +34,11 @@ export const inlineRules = {
   backlash: /^(\\)([\\`*{}\[\]()#+\-.!_>~:\|\<\>$]{1})/,
 
   // Markdown extensions (not belongs to GFM and Commonmark)
-  inline_math: /^(\$)([^\$]*?[^\$\\])(\\*)\1(?!\1)/
+  // Single-line display math `$$...$$` must be checked before `inline_math`.
+  display_math: /^(\$\$)([^\$]*?[^\$\\])(\\*)\1(?!\$)/,
+  inline_math: /^(\$)([^\$]*?[^\$\\])(\\*)\1(?!\1)/,
+  // LaTeX-style equation reference in prose: \eqref{key} or \ref{key}
+  eq_ref: /^(\\eqref|\\ref)\{([^{}\s]+)\}/
 }
 
 // Markdown extensions (not belongs to GFM and Commonmark)

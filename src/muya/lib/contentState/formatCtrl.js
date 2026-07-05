@@ -225,11 +225,26 @@ const formatCtrl = ContentState => {
       })
       : neighbors
 
+    // Only the cursor endpoint that actually lives in THIS block may have its
+    // offset adjusted by this block's tokens. When clearing format across
+    // multiple blocks, `start` belongs to the first block and `end` to the last;
+    // feeding an out-of-block offset to getOffset() computes a bogus delta that
+    // corrupts the other block's cursor (e.g. wrapping [0,0] and emitting stray
+    // empty markers in the end block).
+    const startInBlock = start.key === key
+    const endInBlock = end.key === key
     for (const neighbor of neighbors) {
-      clearFormat(neighbor, { start, end })
+      clearFormat(neighbor, {
+        start: startInBlock ? start : null,
+        end: endInBlock ? end : null
+      })
     }
-    start.offset += start.delata
-    end.offset += end.delata
+    if (startInBlock) {
+      start.offset += start.delata
+    }
+    if (endInBlock) {
+      end.offset += end.delata
+    }
     block.text = generator(tokens)
   }
 

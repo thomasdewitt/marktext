@@ -16,12 +16,20 @@ class MouseEvent {
   // drag that started outside the icon we make the icon mouse-transparent.
   // The mouse-up then falls through to the paragraph below and the
   // selection is preserved.
+  //
+  // The guard must match `.ag-front-icon` — the container that holds BOTH the
+  // paragraph/front-menu button (.ag-front-icon-button) and the heading
+  // copy-link icon (.ag-copy-header-link) — because that is exactly the
+  // element the CSS disables with `.ag-text-dragging .ag-front-icon`. Guarding
+  // on the narrower `.ag-front-icon-button` alone let a plain click on the
+  // copy-link icon set `ag-text-dragging`, which then made that very icon
+  // pointer-events:none, so the click fell through and never copied the anchor.
   dragDetection () {
     const { container, eventCenter } = this.muya
     let isDragging = false
 
     eventCenter.attachDOMEvent(container, 'mousedown', (event) => {
-      if (!event.target.closest('.ag-front-icon-button')) {
+      if (!event.target.closest('.ag-front-icon')) {
         isDragging = true
         container.classList.add('ag-text-dragging')
       }

@@ -6,11 +6,12 @@ import { htmlToVNode } from '../snabbdom'
 
 import 'katex/dist/katex.min.css'
 
+// Render single-line display math `$$...$$` (KaTeX displayMode) inline in a paragraph.
 export default function displayMath (h, cursor, block, token, outerClass) {
   const className = this.getClassName(outerClass, block, token, cursor)
   const mathSelector = className === CLASS_OR_ID.AG_HIDE
-    ? `span.${className}.${CLASS_OR_ID.AG_MATH}`
-    : `span.${CLASS_OR_ID.AG_MATH}`
+    ? `span.${className}.${CLASS_OR_ID.AG_MATH}.${CLASS_OR_ID.AG_DISPLAY_MATH}`
+    : `span.${CLASS_OR_ID.AG_MATH}.${CLASS_OR_ID.AG_DISPLAY_MATH}`
 
   const { start, end } = token.range
   const { marker } = token
@@ -23,10 +24,10 @@ export default function displayMath (h, cursor, block, token, outerClass) {
 
   const { loadMathMap } = this
 
-  const displayMode = false
-  // resolve \eqref / \ref (and strip stray \label — \tag is illegal in
-  // inline math, so no tag is injected here)
-  const resolvedMath = resolveEquation(math, this.eqLabels, { injectTag: false })
+  const displayMode = true
+  // resolve \label / \eqref / \ref before KaTeX sees the source; the
+  // resolved text is part of the cache key so number changes re-render
+  const resolvedMath = resolveEquation(math, this.eqLabels)
   const key = `${resolvedMath}_${type}`
   let mathVnode = null
   let previewSelector = `span.${CLASS_OR_ID.AG_MATH_RENDER}`

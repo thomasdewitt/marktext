@@ -530,7 +530,7 @@ const pasteCtrl = (ContentState) => {
             startBlock.text += lines[0]
             if (lines.length > 1) {
               const pBlock = this.createBlockP(lines.slice(1).join('\n'))
-              this.insertAfter(parent, pBlock)
+              this.insertAfter(pBlock, parent)
               target = pBlock
             }
           } else {

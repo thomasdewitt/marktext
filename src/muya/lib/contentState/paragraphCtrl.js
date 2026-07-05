@@ -657,9 +657,9 @@ const paragraphCtrl = (ContentState) => {
     }
 
     if (needDispatchChange) {
-      // this.muya.dispatchSelectionChange()
-      // this.muya.dispatchSelectionFormats()
-      // this.muya.dispatchChange()
+      this.muya.dispatchSelectionChange()
+      this.muya.dispatchSelectionFormats()
+      this.muya.dispatchChange()
     }
   }
 

@@ -28,6 +28,8 @@ This is a fork of <a href="https://github.com/Tkaixiang/marktext">Tkiaxiang's</a
 - Clicking TOC headings or search hits jumps reliably using Muya’s line-based cursor, even for unopened files.
 
 ### Editor & UI Enhancements
+- Single-line display math `$$...$$` now renders (KaTeX display mode, centered on its own line when the cursor leaves it). Previously only `$...$` inline math and multi-line `$$` blocks worked.
+- LaTeX-style equation numbering: put `\label{eq:key}` inside display math (single-line `$$...$$` or multi-line `$$` blocks) and the equation is auto-numbered in document order, with the number rendered at the right margin like LaTeX. Reference it with `\eqref{eq:key}` → (1) or `\ref{eq:key}` → 1, in prose or inside math (forward references work). Only labeled equations get numbers; `\tag{...}` still works as a manual override. Caveat: KaTeX has no counters, so numbers are resolved by MarkText before rendering — after inserting/reordering labeled equations, numbers in untouched paragraphs refresh on the next full render (e.g. reopening the file); exports are always correct.
 - Pasting is forced to plain text to prevent rich-text HTML from leaking into documents.
 - The title-bar filename (all platforms) is non-draggable and launches the rename flow on click.
 - The sample workspace under `sample-notes/` provides quick fixtures for regressions.

@@ -337,6 +337,7 @@ const tableDragBarCtrl = ContentState => {
           })
         }
       }
+      this.muya.dispatchChange()
       if (key) {
         this.cursor = {
           start: {

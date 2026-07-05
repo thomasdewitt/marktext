@@ -36,7 +36,7 @@ const parseSelector = (str = '') => {
   return { tag, id, className, isVoid }
 }
 
-const BOTH_SIDES_FORMATS = ['strong', 'em', 'inline_code', 'image', 'link', 'reference_image', 'reference_link', 'emoji', 'del', 'html_tag', 'inline_math']
+const BOTH_SIDES_FORMATS = ['strong', 'em', 'inline_code', 'image', 'link', 'reference_image', 'reference_link', 'emoji', 'del', 'html_tag', 'inline_math', 'display_math']
 
 const tabCtrl = ContentState => {
   ContentState.prototype.findNextCell = function (block) {
@@ -221,7 +221,7 @@ const tabCtrl = ContentState => {
               break
             }
           }
-          if (!startTabSize) startTabSize = -1 * i
+          if (startTabSize === null) startTabSize = -1 * i
           return line.substr(i)
         }
       } else {
@@ -274,7 +274,8 @@ const tabCtrl = ContentState => {
             case 'inline_code':
             case 'emoji':
             case 'del':
-            case 'inline_math': {
+            case 'inline_math':
+            case 'display_math': {
               if (marker && offset === end - marker.length) {
                 result = {
                   offset: marker.length

@@ -677,3 +677,104 @@ describe('edge case documents', () => {
     expect(result).toContain('$e^{i\\pi} + 1 = 0$')
   })
 })
+
+// ─── Diagram container indentation regression ─────────────────────────────────
+
+describe('diagram containers preserve enclosing indentation', () => {
+  it('keeps a mermaid diagram inside a blockquote', () => {
+    const cs = createContentState()
+    const md = '> ```mermaid\n> graph LR\n> ```\n'
+    const result = roundTrip(cs, md)
+    // The blockquote prefix must survive on every fenced line.
+    expect(result).toContain('> ```mermaid')
+    expect(result).toContain('> graph LR')
+    // The fence must not be dedented out of the blockquote.
+    expect(result).not.toMatch(/^```mermaid/m)
+  })
+
+  it('keeps a mermaid diagram inside a list item', () => {
+    const cs = createContentState()
+    const md = '- item\n\n  ```mermaid\n  graph LR\n  ```\n'
+    const result = roundTrip(cs, md)
+    // The diagram fence stays indented under the list item.
+    expect(result).toContain('  ```mermaid')
+    expect(result).toContain('  graph LR')
+    // It must not be dedented to column 0 (which would break the list).
+    expect(result).not.toMatch(/^```mermaid/m)
+  })
+
+  it('leaves a top-level diagram unindented', () => {
+    const cs = createContentState()
+    const md = '```mermaid\ngraph LR\n```\n'
+    const result = roundTrip(cs, md)
+    expect(result).toMatch(/^```mermaid/m)
+    expect(result).toContain('graph LR')
+  })
+})
+
+// ─── Paste-into-heading regression ────────────────────────────────────────────
+
+describe('pasting multi-line text into an ATX heading', () => {
+  /** Drive pasteHandler with plain-text clipboard content, stubbing DOM-only helpers. */
+  async function pastePlainText (cs, text) {
+    // Stub helpers that require a real DOM / rendering pipeline.
+    cs.standardizeHTML = async () => ''
+    cs.pasteImage = async () => null
+    cs.partialRender = vi.fn()
+    cs.checkInlineUpdate = vi.fn()
+    cs.muya.dispatchSelectionFormats = vi.fn()
+
+    const event = {
+      preventDefault () {},
+      stopPropagation () {},
+      clipboardData: {
+        getData: (kind) => (kind === 'text/plain' ? text : '')
+      }
+    }
+    await cs.pasteHandler(event)
+  }
+
+  function collectKeys (blocks, acc = []) {
+    for (const b of blocks) {
+      acc.push(b.key)
+      if (b.children && b.children.length) collectKeys(b.children, acc)
+    }
+    return acc
+  }
+
+  it('appends the first line and keeps subsequent lines as a new paragraph', async () => {
+    const cs = createContentState()
+    cs.importMarkdown('# Title\n')
+
+    const heading = cs.getBlocks()[0]
+    expect(heading.type).toBe('h1')
+    const span = heading.children[0]
+    setCursorAtEnd(cs, span)
+
+    await pastePlainText(cs, 'first line\nsecond line')
+
+    const blocks = cs.getBlocks()
+    // The heading must not be duplicated in the tree (the reversed-arg bug
+    // re-inserted the existing heading at document index 0).
+    expect(blocks.length).toBe(2)
+    expect(blocks[0].type).toBe('h1')
+    expect(blocks[1].type).toBe('p')
+
+    // First line is merged into the heading, the rest becomes a new paragraph.
+    const md = exportMarkdown(cs)
+    expect(md).toContain('# Titlefirst line')
+    expect(md).toContain('second line')
+
+    // The pasted second line must actually be reachable in the tree, not lost.
+    const allText = getAllTextBlocks(cs).map((b) => b.text).join('\n')
+    expect(allText).toContain('second line')
+
+    // Sibling links between the heading and new paragraph must be consistent.
+    expect(blocks[0].nextSibling).toBe(blocks[1].key)
+    expect(blocks[1].preSibling).toBe(blocks[0].key)
+
+    // No duplicate keys anywhere in the tree.
+    const keys = collectKeys(blocks)
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+})

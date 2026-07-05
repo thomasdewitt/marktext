@@ -1,6 +1,7 @@
 import loadRenderer from '../../renderers'
 import { CLASS_OR_ID, PREVIEW_DOMPURIFY_CONFIG } from '../../config'
 import { conflict, mixins, camelToSnake, sanitize } from '../../utils'
+import { collectEqLabelsFromTex } from '../../utils/eqLabels'
 import { patch, toVNode, toHTML, h } from './snabbdom'
 import { beginRules } from '../rules'
 import renderInlines from './renderInlines'
@@ -17,6 +18,7 @@ class StateRender {
     this.diagramCache = new Map()
     this.tokenCache = new Map()
     this.labels = new Map()
+    this.eqLabels = new Map()
     this.urlMap = new Map()
     this.renderingTable = null
     this.renderingRowContainer = null
@@ -27,12 +29,29 @@ class StateRender {
     this.container = container
   }
 
-  // collect link reference definition
+  // collect link reference definition and equation labels
   collectLabels(blocks) {
     this.labels.clear()
+    this.eqLabels.clear()
+
+    // non-anchored version of inlineRules.display_math for scanning
+    const DISPLAY_MATH_SCAN_REG = /\$\$([^$]*?[^$\\])\$\$(?!\$)/g
+    let eqCounter = 0
 
     const travel = (block) => {
-      const { text, children } = block
+      const { text, children, type, functionType } = block
+      // Multi-line math block: latex lives in figure > pre > code > codeContent.
+      // Handle at figure level (document order) and don't recurse, so the
+      // codeContent leaf is not scanned twice.
+      if (type === 'figure' && functionType === 'multiplemath') {
+        const codeContent = block.children[0] &&
+          block.children[0].children[0] &&
+          block.children[0].children[0].children[0]
+        if (codeContent && codeContent.text) {
+          eqCounter = collectEqLabelsFromTex(codeContent.text, this.eqLabels, eqCounter)
+        }
+        return
+      }
       if (children && children.length) {
         children.forEach((c) => travel(c))
       } else if (text) {
@@ -44,6 +63,14 @@ class StateRender {
               href: tokens[6],
               title: tokens[10] || ''
             })
+          }
+        }
+        // Single-line display math `$$...$$` in regular text (not code blocks)
+        if (functionType !== 'codeContent' && functionType !== 'languageInput') {
+          let dm
+          DISPLAY_MATH_SCAN_REG.lastIndex = 0
+          while ((dm = DISPLAY_MATH_SCAN_REG.exec(text))) {
+            eqCounter = collectEqLabelsFromTex(dm[1], this.eqLabels, eqCounter)
           }
         }
       }

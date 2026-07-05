@@ -211,7 +211,8 @@ const inputCtrl = ContentState => {
         } else {
           /* eslint-disable no-useless-escape */
           // Not Unicode aware, since things like \p{Alphabetic} or \p{L} are not supported yet
-          const isInInlineMath = this.checkCursorInTokenType(block.functionType, text, offset, 'inline_math')
+          const isInInlineMath = this.checkCursorInTokenType(block.functionType, text, offset, 'inline_math') ||
+            this.checkCursorInTokenType(block.functionType, text, offset, 'display_math')
           const isInInlineCode = this.checkCursorInTokenType(block.functionType, text, offset, 'inline_code')
           if (
             // Issue 2566: Do not complete markdown syntax if the previous character is
