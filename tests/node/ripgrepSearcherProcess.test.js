@@ -68,6 +68,43 @@ describe('RipgrepDirectorySearcher process integration', () => {
     expect(searchedCounts).toEqual([1])
   })
 
+  it('keeps colon-digit-colon content in the match, not the file path', async () => {
+    const child = createMockChild()
+    spawnMock.mockReturnValue(child)
+
+    const { default: RipgrepDirectorySearcher } = await import('../../src/renderer/src/node/ripgrepSearcher')
+    const searcher = new RipgrepDirectorySearcher()
+
+    const matches = []
+    const promise = searcher.searchInDirectory('/tmp/project', 'call', {
+      didMatch: (event) => matches.push(event),
+      didSearchPaths: () => {},
+      isRegexp: false,
+      isCaseSensitive: false,
+      isWholeWord: false,
+      followSymlinks: false,
+      includeHidden: false,
+      noIgnore: false,
+      inclusions: [],
+      exclusions: []
+    }, { num: 0 })
+
+    // Content contains a "10:30:" run that a greedy parser would fold into
+    // the file path, yielding a bogus path like "/tmp/project/notes.md:3:Meeting 10".
+    child.stdout.emit('data', '/tmp/project/notes.md:3:Meeting 10:30: call Bob about the demo\n')
+    child.emit('close', 0, null)
+    await promise
+
+    expect(matches).toHaveLength(1)
+    expect(matches[0].filePath).toBe('/tmp/project/notes.md')
+    expect(matches[0].matches).toHaveLength(1)
+    const [firstMatch] = matches[0].matches
+    expect(firstMatch.lineText).toBe('Meeting 10:30: call Bob about the demo')
+    expect(firstMatch.matchText).toBe('call')
+    // Row is 0-indexed (line 3 -> row 2); column is the offset of "call".
+    expect(firstMatch.range).toEqual([[2, 15], [2, 19]])
+  })
+
   it('resolves cleanly when grep exits with code 1 and no results', async () => {
     const child = createMockChild()
     spawnMock.mockReturnValue(child)

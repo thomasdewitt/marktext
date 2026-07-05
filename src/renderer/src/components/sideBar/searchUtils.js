@@ -2,6 +2,15 @@ const DATE_FILENAME_REG = /^(\d{1,2})-(\d{1,2})-(\d{2})(?:\s+([^.]+))?(?:\.md)?$
 
 export const escapeRegExp = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+// Reads the editor's current selection off the tab's searchMatches state so
+// 'Find in Folder' can pre-fill the query. The selected text lives on the
+// `value` field (set by SELECTION_CHANGE); guard against no open tab, where
+// searchMatches is undefined.
+export const getSelectedText = (searchMatches) => {
+  const value = searchMatches?.value
+  return typeof value === 'string' ? value : ''
+}
+
 export const parseDateFromFilename = (name) => {
   const trimmed = name?.trim()
   if (!trimmed) {

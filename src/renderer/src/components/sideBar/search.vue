@@ -78,7 +78,7 @@ import bus from '../../bus'
 import log from 'electron-log'
 import SearchResultItem from './searchResultItem.vue'
 import RipgrepDirectorySearcher from '../../node/ripgrepSearcher'
-import { appendFilenameMatches, compareSearchResults } from './searchUtils'
+import { appendFilenameMatches, compareSearchResults, getSelectedText } from './searchUtils'
 import FindCaseIcon from '@/assets/icons/searchIcons/iconCase.svg'
 import FindWordIcon from '@/assets/icons/searchIcons/iconWord.svg'
 import FindRegexIcon from '@/assets/icons/searchIcons/iconRegex.svg'
@@ -307,7 +307,7 @@ const handleFindInFolder = (executeSearch = true) => {
   nextTick(() => {
     if (searchEl.value) {
       searchEl.value.focus()
-      const { selectedText } = searchMatches.value
+      const selectedText = getSelectedText(searchMatches.value)
       if (selectedText) {
         keyword.value = selectedText
         if (executeSearch) {

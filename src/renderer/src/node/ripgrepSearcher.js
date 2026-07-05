@@ -34,7 +34,11 @@ const resolveExistingPath = (...candidates) => {
 const escapeRegExp = (pattern) => pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const parseGrepResultLine = (line) => {
-  const match = line.match(/^(.*):(\d+):(.*)$/)
+  // grep -H -n prints `path:line:content`. Match only the first two colons:
+  // a lazy path group stops at the first `:<digits>:` boundary so extra
+  // colons inside the content (for example "Meeting 10:30: call Bob") stay
+  // in the content instead of being greedily consumed into the file path.
+  const match = line.match(/^(.*?):(\d+):(.*)$/)
   if (!match) {
     return null
   }
