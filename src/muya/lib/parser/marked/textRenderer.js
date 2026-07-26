@@ -23,6 +23,10 @@ TextRenderer.prototype.inlineMath = function (math, displayMode) {
   return math
 }
 
+TextRenderer.prototype.eqRef = function (cmd, key) {
+  return `${cmd}{${key}}`
+}
+
 TextRenderer.prototype.emoji = function (text, emoji) {
   return emoji
 }

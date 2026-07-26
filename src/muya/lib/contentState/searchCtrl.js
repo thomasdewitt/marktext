@@ -72,8 +72,11 @@ const searchCtrl = ContentState => {
         this.replaceOne(matches[index], replaceValue)
       } else {
         // replace all
-        for (const match of matches) {
-          this.replaceOne(match, replaceValue)
+        // Iterate right-to-left so that earlier replacements do not invalidate
+        // the stored (pre-replacement) offsets of later matches within the same
+        // block when the replacement length differs from the match length.
+        for (let i = matches.length - 1; i >= 0; i--) {
+          this.replaceOne(matches[i], replaceValue)
         }
       }
       const highlightIndex = index < matches.length - 1 ? index : index - 1

@@ -52,6 +52,14 @@ const deleteCtrl = ContentState => {
         if (nextBlock.functionType === 'codeContent' && startBlock.functionType === 'languageInput') {
           return
         }
+        // if forward-deleting into a fenced code block's language input (e.g. a
+        // paragraph immediately before a code block), do nothing. Merging text
+        // into the languageInput would otherwise leave `pre` with only its code
+        // child, causing isOnlyRemoveableChild to walk up and delete the whole
+        // code block.
+        if (nextBlock.functionType === 'languageInput') {
+          return
+        }
 
         startBlock.text += nextBlock.text
 

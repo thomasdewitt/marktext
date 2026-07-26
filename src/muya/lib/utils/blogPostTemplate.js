@@ -87,6 +87,39 @@ export const stripFirstH1 = (html) => {
   return html.replace(/<h1\b[^>]*>[\s\S]*?<\/h1>\s*/i, '')
 }
 
+// Remove the first <h1> only when it is the *leading* element of the body
+// (ignoring whitespace). This is the document-title position: the heading a
+// `# Title` at the very top of the markdown renders to. A stray H1 that
+// appears later — a section heading — is left untouched so its content is
+// never silently dropped from the exported page.
+export const stripLeadingH1 = (html) => {
+  if (typeof html !== 'string') return html
+  return html.replace(/^\s*<h1\b[^>]*>[\s\S]*?<\/h1>\s*/i, '')
+}
+
+// Decide the page title, date, and body for a blog-post export given the
+// parsed frontmatter `meta` and the rendered HTML `body`.
+//
+// The first <h1> of the body is removed only when it is the heading being
+// promoted to the page title, so it isn't duplicated by the article-header.
+// Concretely:
+//   - When frontmatter supplies a title, every H1 in the body is genuine
+//     content and is preserved verbatim. (Previously the first H1 was
+//     stripped unconditionally, silently deleting an unrelated section
+//     heading whenever the title came from frontmatter.)
+//   - When there is no frontmatter title, the title falls back to the first
+//     H1, and only a *leading* H1 (the document-title position) is stripped;
+//     a mid-document H1 that was merely used as a title fallback stays in the
+//     body rather than being deleted.
+export const resolveBlogPost = (meta, body) => {
+  const safeBody = typeof body === 'string' ? body : ''
+  const frontmatterTitle = meta && meta.title
+  const title = frontmatterTitle || extractFirstH1(safeBody) || 'Untitled'
+  const date = (meta && meta.date) || ''
+  const resolvedBody = frontmatterTitle ? safeBody : stripLeadingH1(safeBody)
+  return { title, date, body: resolvedBody }
+}
+
 // ISO date (YYYY-MM-DD) — kept simple so the user can always rewrite it
 // in the frontmatter when a specific phrasing is wanted.
 const today = () => {

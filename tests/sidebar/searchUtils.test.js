@@ -5,8 +5,28 @@ import {
   buildFilenameRegex,
   collectProjectFiles,
   compareSearchResults,
+  getSelectedText,
   parseDateFromFilename
 } from '../../src/renderer/src/components/sideBar/searchUtils'
+
+describe('getSelectedText (Find in Folder pre-fill)', () => {
+  it('reads the current selection off the searchMatches.value field', () => {
+    // SELECTION_CHANGE stores the selected text on `value`, not `selectedText`.
+    const searchMatches = { matches: [], index: -1, value: 'hello world' }
+    expect(getSelectedText(searchMatches)).toBe('hello world')
+  })
+
+  it('returns empty string (no throw) when no tab is open', () => {
+    expect(() => getSelectedText(undefined)).not.toThrow()
+    expect(getSelectedText(undefined)).toBe('')
+    expect(getSelectedText(null)).toBe('')
+  })
+
+  it('returns empty string when there is no selection', () => {
+    expect(getSelectedText({ matches: [], index: -1 })).toBe('')
+    expect(getSelectedText({ matches: [], index: -1, value: '' })).toBe('')
+  })
+})
 
 describe('searchUtils', () => {
   it('parses journal date filenames', () => {

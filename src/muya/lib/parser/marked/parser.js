@@ -3,6 +3,7 @@ import InlineLexer from './inlineLexer'
 import Slugger from './slugger'
 import TextRenderer from './textRenderer'
 import defaultOptions from './options'
+import { unescape } from './utils'
 
 /**
  * Parsing & Compiling

@@ -216,6 +216,14 @@ export const useEditorStore = defineStore('editor', {
         tab.history = oldHistory
       }
 
+      // Handing the reloaded markdown to Muya triggers an import/export
+      // round-trip that can normalise the text (whitespace, list indentation,
+      // heading spacing, etc.). Suppress the false "unsaved" mark on that first
+      // change event, exactly like NEW_TAB_WITH_CONTENT does on file-open —
+      // otherwise the reloaded tab is marked dirty and (with autosave) silently
+      // rewrites the on-disk file with Muya's normalised formatting.
+      tab._pendingMuyaRoundtrip = true
+
       if (isMixedLineEndings) {
         this.pushTabNotification({
           tabId: tab.id,
@@ -788,31 +796,67 @@ export const useEditorStore = defineStore('editor', {
 
       const normalizedSrc = window.path.normalize(src)
       const normalizedDest = window.path.normalize(dest)
-      const filename = window.path.basename(normalizedDest)
-      const dirname = window.path.dirname(normalizedDest)
+      const sep = window.path.sep
+      const srcPrefix = normalizedSrc.endsWith(sep) ? normalizedSrc : normalizedSrc + sep
 
-      const tab = this.tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, normalizedSrc))
+      // Map an old path to its new path when it is the renamed entry itself
+      // (a file rename) or lives inside the renamed directory (a directory
+      // rename). Returns null for unrelated paths. This keeps open tabs of
+      // files inside a renamed folder pointing at their real on-disk location,
+      // so saving no longer resurrects the old directory.
+      const remap = (pathname) => {
+        if (!pathname) {
+          return null
+        }
+        const normalized = window.path.normalize(pathname)
+        if (window.fileUtils.isSamePathSync(normalized, normalizedSrc)) {
+          return normalizedDest
+        }
+        if (normalized.startsWith(srcPrefix)) {
+          return normalizedDest + sep + normalized.slice(srcPrefix.length)
+        }
+        return null
+      }
 
-      if (tab) {
-        tab.filename = filename
-        tab.pathname = normalizedDest
-        tab.isSaved = true
-        if (tab.tocList && Array.isArray(tab.tocList)) {
-          const cacheKey = window.path.normalize(normalizedDest)
-          this.fileTocCache[cacheKey] = tab.tocList
+      for (const tab of this.tabs) {
+        const newPathname = remap(tab.pathname)
+        if (!newPathname) {
+          continue
+        }
+        const isExactRename = window.fileUtils.isSamePathSync(
+          window.path.normalize(tab.pathname),
+          normalizedSrc
+        )
+        tab.filename = window.path.basename(newPathname)
+        tab.pathname = newPathname
+        // Only a direct file rename is a "no content change" event; descendant
+        // tabs of a renamed directory must keep their unsaved state so pending
+        // edits are still written (to the new path) on save.
+        if (isExactRename) {
+          tab.isSaved = true
+          if (tab.tocList && Array.isArray(tab.tocList)) {
+            this.fileTocCache[window.path.normalize(newPathname)] = tab.tocList
+          }
         }
       }
 
-      if (this.currentFile && window.fileUtils.isSamePathSync(this.currentFile.pathname || '', normalizedSrc)) {
-        this.currentFile.filename = filename
-        this.currentFile.pathname = normalizedDest
-        window.DIRNAME = dirname
+      if (this.currentFile) {
+        const newCurrentPathname = remap(this.currentFile.pathname || '')
+        if (newCurrentPathname) {
+          this.currentFile.filename = window.path.basename(newCurrentPathname)
+          this.currentFile.pathname = newCurrentPathname
+          window.DIRNAME = window.path.dirname(newCurrentPathname)
+        }
       }
 
-      const cacheSrcKey = window.path.normalize(normalizedSrc)
-      if (this.fileTocCache[cacheSrcKey]) {
-        this.fileTocCache[normalizedDest] = this.fileTocCache[cacheSrcKey]
-        delete this.fileTocCache[cacheSrcKey]
+      // Remap cached TOC entries for the renamed file or any file under the
+      // renamed directory.
+      for (const cacheKey of Object.keys(this.fileTocCache)) {
+        const newCacheKey = remap(cacheKey)
+        if (newCacheKey && newCacheKey !== cacheKey) {
+          this.fileTocCache[newCacheKey] = this.fileTocCache[cacheKey]
+          delete this.fileTocCache[cacheKey]
+        }
       }
 
       this.SCHEDULE_REBUILD_COMPOSITE_TOC()
@@ -1387,7 +1431,9 @@ export const useEditorStore = defineStore('editor', {
       } else if (id !== 'muya' && currentId !== id) {
         for (const tab of this.tabs) {
           if (tab.id && tab.id === id) {
-            tab.markdown = adjustTrailingNewlines(markdown, tab.trimTrailingNewline)
+            const oldTabMarkdown = tab.markdown
+            const newTabMarkdown = adjustTrailingNewlines(markdown, tab.trimTrailingNewline)
+            tab.markdown = newTabMarkdown
             if (cursor) tab.cursor = cursor
             if (history) tab.history = history
             if (Array.isArray(toc)) {
@@ -1395,6 +1441,23 @@ export const useEditorStore = defineStore('editor', {
               if (tab.pathname) {
                 const normalizedPath = window.path.normalize(tab.pathname)
                 this.fileTocCache[normalizedPath] = toc
+              }
+            }
+            // A commit for a non-current tab (e.g. source-code mode flushing its
+            // pending edit on tab switch) still changes the buffer relative to
+            // disk, so mark it dirty and schedule an autosave just like the
+            // current-file path below. Without this the edit is silently lost.
+            if (newTabMarkdown !== oldTabMarkdown) {
+              tab.isSaved = false
+              if (tab.pathname && autoSave) {
+                const options = getOptionsFromState(tab)
+                this.HANDLE_AUTO_SAVE({
+                  id: tab.id,
+                  filename: tab.filename,
+                  pathname: tab.pathname,
+                  markdown: newTabMarkdown,
+                  options
+                })
               }
             }
             break
@@ -1612,7 +1675,9 @@ export const useEditorStore = defineStore('editor', {
         if (lineEnding !== oldLineEnding) {
           this.currentFile.lineEnding = lineEnding
           this.currentFile.adjustLineEndingOnSave = lineEnding !== 'lf'
-          this.currentFile.isSaved = true
+          // The new line ending only exists in memory until the next save, so
+          // flag the file dirty rather than clobbering the existing save state.
+          this.currentFile.isSaved = false
           this.UPDATE_LINE_ENDING_MENU()
         }
       })
@@ -1624,7 +1689,8 @@ export const useEditorStore = defineStore('editor', {
         if (encoding !== encodingName) {
           this.currentFile.encoding.encoding = encodingName
           this.currentFile.encoding.isBom = false
-          this.currentFile.isSaved = true
+          // The new encoding only exists in memory until the next save.
+          this.currentFile.isSaved = false
         }
       })
     },
@@ -1634,7 +1700,8 @@ export const useEditorStore = defineStore('editor', {
         const { trimTrailingNewline } = this.currentFile
         if (trimTrailingNewline !== value) {
           this.currentFile.trimTrailingNewline = value
-          this.currentFile.isSaved = true
+          // The new final-newline setting only exists in memory until the next save.
+          this.currentFile.isSaved = false
         }
       })
     },

@@ -3,6 +3,8 @@ import {
   extractFrontmatter,
   extractFirstH1,
   stripFirstH1,
+  stripLeadingH1,
+  resolveBlogPost,
   slugify,
   buildBlogPostHtml
 } from '../../src/muya/lib/utils/blogPostTemplate'
@@ -98,6 +100,67 @@ describe('blogPostTemplate.slugify', () => {
     expect(slugify('')).toBe('')
     expect(slugify(null)).toBe('')
     expect(slugify(undefined)).toBe('')
+  })
+})
+
+describe('blogPostTemplate.stripLeadingH1', () => {
+  it('removes an H1 that is the leading element', () => {
+    expect(stripLeadingH1('<h1 id="t">Title</h1>\n<p>body</p>')).toBe('<p>body</p>')
+  })
+
+  it('leaves a mid-document H1 in place', () => {
+    const html = '<p>intro</p><h1>Background</h1><p>more</p>'
+    expect(stripLeadingH1(html)).toBe(html)
+  })
+
+  it('tolerates leading whitespace before the H1', () => {
+    expect(stripLeadingH1('  \n<h1>T</h1><p>x</p>')).toBe('<p>x</p>')
+  })
+})
+
+describe('blogPostTemplate.resolveBlogPost', () => {
+  it('preserves a body section H1 when the title comes from frontmatter', () => {
+    // Regression: the first H1 was previously stripped unconditionally, which
+    // silently deleted an unrelated section heading on the frontmatter path.
+    const body = '<p>Intro paragraph</p><h1 id="bg">Background</h1><p>more text</p>'
+    const { title, body: resolved } = resolveBlogPost({ title: 'My Post' }, body)
+    expect(title).toBe('My Post')
+    expect(resolved).toBe(body)
+    expect(resolved).toContain('Background')
+  })
+
+  it('also preserves a leading body H1 when frontmatter supplies the title', () => {
+    const body = '<h1 id="s">Section</h1><p>text</p>'
+    const { title, body: resolved } = resolveBlogPost(
+      { title: 'Front Title', date: '2026-01-02' },
+      body
+    )
+    expect(title).toBe('Front Title')
+    expect(resolved).toBe(body)
+  })
+
+  it('strips a leading H1 promoted to the title when no frontmatter title exists', () => {
+    const body = '<h1 id="t">Real Title</h1><p>body</p>'
+    const { title, body: resolved } = resolveBlogPost({}, body)
+    expect(title).toBe('Real Title')
+    expect(resolved).toBe('<p>body</p>')
+  })
+
+  it('keeps a mid-document fallback H1 in the body instead of deleting it', () => {
+    const body = '<p>Intro paragraph</p><h1 id="bg">Background</h1><p>more text</p>'
+    const { title, body: resolved } = resolveBlogPost({}, body)
+    expect(title).toBe('Background')
+    // The heading is used as the fallback title but must not vanish from body.
+    expect(resolved).toContain('Background')
+    expect(resolved).toBe(body)
+  })
+
+  it('falls back to Untitled and tolerates non-string bodies', () => {
+    expect(resolveBlogPost({}, null)).toEqual({
+      title: 'Untitled',
+      date: '',
+      body: ''
+    })
   })
 })
 

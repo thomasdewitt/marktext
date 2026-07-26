@@ -1,5 +1,4 @@
-import htmlTags from 'html-tags'
-import { voidHtmlTags } from 'html-tags'
+import htmlTags, { voidHtmlTags } from 'html-tags'
 import { generateKeyHash, genUpper2LowerKeyHash } from '../utils/hash'
 import { getLongUniqueId } from '../utils/random'
 
@@ -259,6 +258,8 @@ export const CLASS_OR_ID = Object.freeze(
     'AG_MATH',
     'AG_MATH_TEXT',
     'AG_MATH_RENDER',
+    'AG_DISPLAY_MATH',
+    'AG_EQ_REF',
     'AG_RUBY',
     'AG_RUBY_TEXT',
     'AG_RUBY_RENDER',
@@ -322,7 +323,7 @@ export const DEFAULT_TURNDOWN_CONFIG = Object.freeze({
   strongDelimiter: '**', // ** or __
   linkStyle: 'inlined',
   linkReferenceStyle: 'full',
-  blankReplacement(content, node, options) {
+  blankReplacement (content, node, options) {
     if (node && node.classList.contains('ag-soft-line-break')) {
       return LINE_BREAK
     } else if (node && node.classList.contains('ag-hard-line-break')) {

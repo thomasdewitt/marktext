@@ -1,0 +1,61 @@
+import katex from 'katex'
+import 'katex/dist/contrib/mhchem.min.js'
+import { CLASS_OR_ID } from '../../../config'
+import { resolveEquation } from '../../../utils/eqLabels'
+import { htmlToVNode } from '../snabbdom'
+
+import 'katex/dist/katex.min.css'
+
+// Render single-line display math `$$...$$` (KaTeX displayMode) inline in a paragraph.
+export default function displayMath (h, cursor, block, token, outerClass) {
+  const className = this.getClassName(outerClass, block, token, cursor)
+  const mathSelector = className === CLASS_OR_ID.AG_HIDE
+    ? `span.${className}.${CLASS_OR_ID.AG_MATH}.${CLASS_OR_ID.AG_DISPLAY_MATH}`
+    : `span.${CLASS_OR_ID.AG_MATH}.${CLASS_OR_ID.AG_DISPLAY_MATH}`
+
+  const { start, end } = token.range
+  const { marker } = token
+
+  const startMarker = this.highlight(h, block, start, start + marker.length, token)
+  const endMarker = this.highlight(h, block, end - marker.length, end, token)
+  const content = this.highlight(h, block, start + marker.length, end - marker.length, token)
+
+  const { content: math, type } = token
+
+  const { loadMathMap } = this
+
+  const displayMode = true
+  // resolve \label / \eqref / \ref before KaTeX sees the source; the
+  // resolved text is part of the cache key so number changes re-render
+  const resolvedMath = resolveEquation(math, this.eqLabels)
+  const key = `${resolvedMath}_${type}`
+  let mathVnode = null
+  let previewSelector = `span.${CLASS_OR_ID.AG_MATH_RENDER}`
+  if (loadMathMap.has(key)) {
+    mathVnode = loadMathMap.get(key)
+  } else {
+    try {
+      const html = katex.renderToString(resolvedMath, {
+        displayMode
+      })
+      mathVnode = htmlToVNode(html)
+      loadMathMap.set(key, mathVnode)
+    } catch (err) {
+      mathVnode = '< Invalid Mathematical Formula >'
+      previewSelector += `.${CLASS_OR_ID.AG_MATH_ERROR}`
+    }
+  }
+
+  return [
+    h(`span.${className}.${CLASS_OR_ID.AG_MATH_MARKER}`, startMarker),
+    h(mathSelector, [
+      h(`span.${CLASS_OR_ID.AG_INLINE_RULE}.${CLASS_OR_ID.AG_MATH_TEXT}`, {
+        attrs: { spellcheck: 'false' }
+      }, content),
+      h(previewSelector, {
+        attrs: { contenteditable: 'false' }
+      }, mathVnode)
+    ]),
+    h(`span.${className}.${CLASS_OR_ID.AG_MATH_MARKER}`, endMarker)
+  ]
+}

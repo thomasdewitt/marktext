@@ -332,6 +332,34 @@ span.ag-math > .ag-math-render.ag-math-error {
   font-size: 1em;
 }
 
+/* Single-line display math `$$...$$` */
+/* When the cursor leaves the equation (ag-hide), render it as a centered
+ * block on its own line, like LaTeX display math / MarkText math blocks. */
+.ag-hide.ag-math.ag-display-math {
+  display: block;
+  text-align: center;
+}
+/* Full-width preview so KaTeX \tag{...} equation numbers sit at the right
+ * margin of the editor line, like LaTeX. */
+.ag-hide.ag-math.ag-display-math > .ag-math-render {
+  display: block;
+}
+.ag-math.ag-display-math > .ag-math-render .katex-display {
+  margin: 0.2em 0;
+}
+/* Display equations keep KaTeX's normal display sizing (matching math
+ * blocks), unlike inline math which is forced back to 1em above. */
+.ag-math.ag-display-math > .ag-math-render .katex {
+  font-size: 1.21em;
+}
+
+/* Equation references \eqref{...} / \ref{...} in prose: the resolved
+ * number should typeset in the surrounding text font, not math mono. */
+span.ag-math.ag-eq-ref,
+span.ag-math.ag-eq-ref > .ag-math-render {
+  font-family: inherit;
+}
+
 .ag-hide.ag-ruby,
 .ag-hide.ag-math {
   width: auto;

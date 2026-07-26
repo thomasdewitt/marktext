@@ -19,7 +19,11 @@ class QuickInsert extends BaseScrollFloat {
     this.block = null
     // 从muya.options中获取翻译函数，如果没有则使用默认配置
     const translateFn = muya.options && muya.options.t ? muya.options.t : null
-    this.renderObj = createQuickInsertObj(translateFn)
+    // Keep a pristine, never-mutated copy of the full config so every search
+    // starts from the complete item set. Searching/splicing operates on deep
+    // copies of this, never on the previously-filtered renderObj.
+    this.fullObj = createQuickInsertObj(translateFn)
+    this.renderObj = deepCopy(this.fullObj)
     this.render()
     this.listen()
   }
@@ -110,7 +114,7 @@ class QuickInsert extends BaseScrollFloat {
   search (text) {
     const { contentState } = this.muya
     const canInserFrontMatter = contentState.canInserFrontMatter(this.block)
-    const obj = deepCopy(this.renderObj)
+    const obj = deepCopy(this.fullObj)
     if (!canInserFrontMatter) {
       // 查找包含 front-matter 的基础块分组
       const basicBlockKey = Object.keys(obj).find(key => {

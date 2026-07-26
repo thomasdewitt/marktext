@@ -37,7 +37,11 @@ const inline = {
   emoji: noop,
 
   // TODO: make math optional GH#740
+  // Single-line display math `$$...$$` — must be tried before `math`.
+  displayMath: /^\$\$([^$]*?[^$\\])\$\$(?!\$)/,
   math: /^\$([^$]*?[^\$\\])\$(?!\$)/,
+  // LaTeX-style equation reference in prose: \eqref{key} / \ref{key}
+  eqRef: /^(\\eqref|\\ref)\{([^{}\s]+)\}/,
 
   // superscript and subScript
   superscript: /^(\^)((?:[^\^\s]|(?<=\\)\1|(?<=\\) )+?)(?<!\\)\1(?!\1)/,

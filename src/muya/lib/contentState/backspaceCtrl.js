@@ -175,8 +175,8 @@ const backspaceCtrl = (ContentState) => {
     let needRender = false
     let preToken = null
     for (const token of tokens) {
-      // handle delete the second $ in inline_math.
-      if (token.range.end === start.offset && token.type === 'inline_math') {
+      // handle delete the second $ in inline_math (or the last $ in display_math).
+      if (token.range.end === start.offset && (token.type === 'inline_math' || token.type === 'display_math')) {
         needRender = true
         token.raw = token.raw.substr(0, token.raw.length - 1)
         break
@@ -544,18 +544,28 @@ const backspaceCtrl = (ContentState) => {
             // Remove list item from the current parent
             this.removeBlock(block)
           } else {
-            // We have reached end of indent level, so we should exit the list
-            newBlock = this.createBlockP()
-            if (block.listItemType === 'task') {
-              newBlock.children[0].text += block.children[1].children[0].text
-            } else {
-              newBlock.children[0].text += block.children[0].children[0].text
+            // We have reached end of indent level, so we should exit the list.
+            // If this list item is not the last one, split the list so that the
+            // following items remain a list positioned *after* the extracted
+            // content. Otherwise the text would be reordered below the entire
+            // list (and, with only children[0] copied, extra content dropped).
+            if (block.nextSibling) {
+              this.chopBlock(block)
             }
+            newBlock = this.createBlockP()
+            // For task items the paragraph is children[1] (children[0] is the checkbox).
+            const contentParagraph =
+              block.listItemType === 'task' ? block.children[1] : block.children[0]
+            newBlock.children[0].text += contentParagraph.children[0].text
             key = newBlock.children[0].key
             this.insertAfter(newBlock, parent)
-            // Any sublists it has should be added after the new paragraph
+            // Preserve any additional content of the list item (extra paragraphs
+            // and nested sublists) after the new paragraph, keeping their order.
+            let anchor = newBlock
             block.children.forEach((child) => {
-              if (child.type === 'ul') this.insertAfter(child, newBlock)
+              if (child.key === contentParagraph.key || child.type === 'input') return
+              this.insertAfter(child, anchor)
+              anchor = child
             })
             this.removeBlock(block)
           }

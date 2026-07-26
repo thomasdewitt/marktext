@@ -252,11 +252,11 @@ class ExportMarkdown {
   normalizeContainer (block, indent) {
     const result = []
     const diagramType = block.children[0].functionType
-    result.push('```' + diagramType + '\n')
+    result.push(`${indent}${'```' + diagramType}\n`)
     for (const line of block.children[0].children[0].children) {
-      result.push(`${line.text}\n`)
+      result.push(`${indent}${line.text}\n`)
     }
-    result.push('```\n')
+    result.push(`${indent}${'```'}\n`)
     return result.join('')
   }
 
@@ -297,7 +297,11 @@ class ExportMarkdown {
     const tHeader = table.children[0]
     const tBody = table.children[1]
     const escapeText = str => {
-      return str.replace(/([^\\])\|/g, '$1\\|')
+      // Escape every pipe that is not already escaped, including a leading
+      // pipe or consecutive pipes. The previous pattern required a preceding
+      // non-backslash character, so a cell like `|x` kept its leading pipe raw
+      // and re-parsed as an extra column on reopen.
+      return str.replace(/(?<!\\)\|/g, '\\|')
     }
 
     tableData.push(tHeader.children[0].children.map(th => escapeText(th.children[0].text).trim()))

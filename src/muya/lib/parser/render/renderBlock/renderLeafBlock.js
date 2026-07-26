@@ -4,6 +4,7 @@ import 'katex/dist/contrib/mhchem.min.js'
 import { CLASS_OR_ID, DEVICE_MEMORY, PREVIEW_DOMPURIFY_CONFIG, HAS_TEXT_BLOCK_REG } from '../../../config'
 import { tokenizer } from '../../'
 import { snakeToCamel, sanitize, escapeHTML, getLongUniqueId, getImageInfo } from '../../../utils'
+import { resolveEquation } from '../../../utils/eqLabels'
 import { h, htmlToVNode } from '../snabbdom'
 
 // todo@jocs any better solutions?
@@ -152,7 +153,10 @@ export default function renderLeafBlock (parent, block, activeBlocks, matches, u
         break
       }
       case 'multiplemath': {
-        const key = `${code}_display_math`
+        // resolve \label / \eqref / \ref before KaTeX; resolved text is the
+        // cache key so number changes re-render
+        const resolvedCode = resolveEquation(code, this.eqLabels)
+        const key = `${resolvedCode}_display_math`
         selector += `.${CLASS_OR_ID.AG_CONTAINER_PREVIEW}`
         Object.assign(data.attrs, { spellcheck: 'false' })
         if (code === '') {
@@ -162,7 +166,7 @@ export default function renderLeafBlock (parent, block, activeBlocks, matches, u
           children = loadMathMap.get(key)
         } else {
           try {
-            const html = katex.renderToString(code, {
+            const html = katex.renderToString(resolvedCode, {
               displayMode: true
             })
 

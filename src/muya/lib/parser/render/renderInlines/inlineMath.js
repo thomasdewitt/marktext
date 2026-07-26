@@ -1,6 +1,7 @@
 import katex from 'katex'
 import 'katex/dist/contrib/mhchem.min.js'
 import { CLASS_OR_ID } from '../../../config'
+import { resolveEquation } from '../../../utils/eqLabels'
 import { htmlToVNode } from '../snabbdom'
 
 import 'katex/dist/katex.min.css'
@@ -23,14 +24,17 @@ export default function displayMath (h, cursor, block, token, outerClass) {
   const { loadMathMap } = this
 
   const displayMode = false
-  const key = `${math}_${type}`
+  // resolve \eqref / \ref (and strip stray \label — \tag is illegal in
+  // inline math, so no tag is injected here)
+  const resolvedMath = resolveEquation(math, this.eqLabels, { injectTag: false })
+  const key = `${resolvedMath}_${type}`
   let mathVnode = null
   let previewSelector = `span.${CLASS_OR_ID.AG_MATH_RENDER}`
   if (loadMathMap.has(key)) {
     mathVnode = loadMathMap.get(key)
   } else {
     try {
-      const html = katex.renderToString(math, {
+      const html = katex.renderToString(resolvedMath, {
         displayMode
       })
       mathVnode = htmlToVNode(html)

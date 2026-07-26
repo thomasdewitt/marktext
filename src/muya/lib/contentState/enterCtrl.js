@@ -166,9 +166,24 @@ const enterCtrl = (ContentState) => {
 
         newBlock = newBlock.listItemType === 'task' ? newBlock.children[1] : newBlock.children[0]
       } else {
-        // We have reached end of indent level, so we should exit the list
+        // We have reached end of indent level, so we should exit the list.
+        // Where the exiting paragraph lands depends on the empty item's position:
+        // an empty first/middle item must split the list so the items following it
+        // stay in a list BELOW the new paragraph (mirrors the ol/blockquote branch),
+        // rather than always dropping the paragraph after the whole list.
         newBlock = this.createBlockP()
-        this.insertAfter(newBlock, parent)
+        if (this.isOnlyChild(block)) {
+          this.insertAfter(newBlock, parent)
+        } else if (this.isFirstChild(block)) {
+          this.insertBefore(newBlock, parent)
+        } else if (this.isLastChild(block)) {
+          this.insertAfter(newBlock, parent)
+        } else {
+          // Split the list: siblings after the empty item move into a new list
+          // that ends up after the exiting paragraph.
+          this.chopBlock(block)
+          this.insertAfter(newBlock, parent)
+        }
         // Any sublists it has should be added after the new paragraph
         block.children.forEach((child) => {
           if (child.type === 'ul') this.insertAfter(child, newBlock)
@@ -414,11 +429,17 @@ const enterCtrl = (ContentState) => {
 
     // Handles custom enter logic in a list item (should not be selecting the p)
 
-    // we only want to select the li if and only if we are currently in the <p> of an li
-    // the <p> is the "text content" of the li
+    // we only want to select the li if and only if we are currently in the FIRST
+    // <p> of an li — that <p> is the "text content" of the li. For loose list items
+    // with multiple paragraphs the later <p> blocks must be split like ordinary
+    // paragraphs; promoting them to the li would make chopBlockByCursor operate on
+    // the wrong (first) paragraph, corrupting it and throwing (findIndex === -1).
     if (parent && parent.type === 'li' && block.type === 'p') {
-      block = parent
-      parent = this.getParent(block)
+      const firstParagraph = parent.children.find((child) => child.type === 'p')
+      if (firstParagraph && firstParagraph.key === block.key) {
+        block = parent
+        parent = this.getParent(block)
+      }
     }
     const left = start.offset
     const right = text.length - left

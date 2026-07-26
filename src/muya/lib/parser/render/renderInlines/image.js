@@ -85,6 +85,10 @@ export default function image(h, cursor, block, token, outerClass) {
       selectedImage.imageId = id
     }
     src = this.urlMap.get(src)
+    // renderImage() below emits `src: domsrc`, so the base64 substitute must
+    // also become the rendered dom src — otherwise the <img> is `src=undefined`
+    // (or the still-loading remote url) and shows a broken-image icon.
+    domsrc = src
     isSuccess = true
   }
 
@@ -95,6 +99,7 @@ export default function image(h, cursor, block, token, outerClass) {
     })
     if (this.urlMap.has(alt)) {
       src = this.urlMap.get(alt)
+      domsrc = src
       isSuccess = true
     }
   }

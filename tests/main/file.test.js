@@ -10,7 +10,8 @@ const {
   ipcEmitMock,
   webContentsSend,
   winIsDestroyed,
-  webIsDestroyed
+  webIsDestroyed,
+  recommendTitleMock
 } = vi.hoisted(() => ({
   showSaveDialogMock: vi.fn(),
   showMessageBoxMock: vi.fn(),
@@ -20,7 +21,8 @@ const {
   ipcEmitMock: vi.fn(),
   webContentsSend: vi.fn(),
   winIsDestroyed: vi.fn(() => false),
-  webIsDestroyed: vi.fn(() => false)
+  webIsDestroyed: vi.fn(() => false),
+  recommendTitleMock: vi.fn(() => 'Untitled')
 }))
 
 vi.mock('electron', () => ({
@@ -69,7 +71,7 @@ vi.mock('../../src/main/filesystem/markdown', () => ({
 
 vi.mock('../../src/main/utils', () => ({
   getPath: (kind) => `/tmp/${kind}`,
-  getRecommendTitleFromMarkdownString: () => 'Untitled'
+  getRecommendTitleFromMarkdownString: recommendTitleMock
 }))
 
 vi.mock('../../src/main/utils/pandoc', () => ({
@@ -117,6 +119,7 @@ describe('handleResponseForSave', () => {
     webContentsSend.mockReset()
     winIsDestroyed.mockReturnValue(false)
     webIsDestroyed.mockReturnValue(false)
+    recommendTitleMock.mockReset().mockReturnValue('Untitled')
 
     ;({ handleResponseForSave } = await import('../../src/main/menu/actions/file'))
   })
@@ -159,8 +162,9 @@ describe('handleResponseForSave', () => {
     )
   })
 
-  it('uses defaultPath/project folder for autosave when it exists on disk', async () => {
-    existsMock.mockResolvedValue(true)
+  it('uses defaultPath/project folder for autosave when the target file is free', async () => {
+    // Directory exists, but the target file does NOT yet exist -> safe to autosave.
+    existsMock.mockImplementation(async (p) => p === '/tmp/projectroot')
     writeMarkdownFileMock.mockResolvedValue(undefined)
     const e = { sender: {} }
 
@@ -170,6 +174,43 @@ describe('handleResponseForSave', () => {
     expect(writeMarkdownFileMock).toHaveBeenCalledWith(
       path.join('/tmp/projectroot', 'Untitled.md'),
       '# A',
+      {}
+    )
+  })
+
+  it('does NOT silently overwrite an existing project file; shows the save dialog instead', async () => {
+    // Both the project directory AND the target file already exist on disk.
+    // The autosave shortcut must be skipped so the user is prompted.
+    existsMock.mockResolvedValue(true)
+    showSaveDialogMock.mockResolvedValue({ filePath: undefined, canceled: true })
+    const e = { sender: {} }
+
+    await handleResponseForSave(e, 'tab-1', 'a.md', null, '# A', {}, '/tmp/projectroot')
+
+    // Save dialog was shown (prefilled with the project folder + recommend name)...
+    expect(showSaveDialogMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        defaultPath: path.join('/tmp/projectroot', 'Untitled.md')
+      })
+    )
+    // ...and because the user canceled it, nothing was written (no clobber).
+    expect(writeMarkdownFileMock).not.toHaveBeenCalled()
+  })
+
+  it('sanitizes path separators in the recommend title so autosave cannot escape the project folder', async () => {
+    // A heading like "# foo/bar" would otherwise make path.join escape into a
+    // "foo" subdirectory. It must collapse to a single safe filename component.
+    recommendTitleMock.mockReturnValue('foo/bar')
+    existsMock.mockImplementation(async (p) => p === '/tmp/projectroot')
+    writeMarkdownFileMock.mockResolvedValue(undefined)
+    const e = { sender: {} }
+
+    await handleResponseForSave(e, 'tab-1', 'a.md', null, '# foo/bar\ntext', {}, '/tmp/projectroot')
+
+    expect(writeMarkdownFileMock).toHaveBeenCalledWith(
+      path.join('/tmp/projectroot', 'foo-bar.md'),
+      '# foo/bar\ntext',
       {}
     )
   })
@@ -211,6 +252,71 @@ describe('handleResponseForSave', () => {
     await handleResponseForSave(e, 'tab-1', null, null, '# A', {}, null)
 
     expect(writeMarkdownFileMock).toHaveBeenCalledWith('/tmp/notes.md', '# A', {})
+  })
+})
+
+describe('mt::response-file-save-as', () => {
+  const flush = () => new Promise((resolve) => setImmediate(resolve))
+  const getHandler = () => {
+    const call = ipcOnMock.mock.calls.find((c) => c[0] === 'mt::response-file-save-as')
+    if (!call) throw new Error('mt::response-file-save-as handler was not registered')
+    return call[1]
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    ipcOnMock.mockReset()
+    ipcEmitMock.mockReset()
+    showSaveDialogMock.mockReset()
+    writeMarkdownFileMock.mockReset()
+    webContentsSend.mockReset()
+    winIsDestroyed.mockReturnValue(false)
+    webIsDestroyed.mockReturnValue(false)
+    recommendTitleMock.mockReset().mockReturnValue('Untitled')
+    await import('../../src/main/menu/actions/file')
+  })
+
+  it('tracks the .md path (not the extension-less name) for an untitled Save As', async () => {
+    // User types "notes" with no extension. The file is written to notes.md on
+    // disk, so the tab, watcher, and recent-documents entry must all track
+    // notes.md — never the extension-less "notes" that the dialog returned.
+    showSaveDialogMock.mockResolvedValue({ filePath: '/tmp/notes', canceled: false })
+    writeMarkdownFileMock.mockResolvedValue(undefined)
+    const handler = getHandler()
+
+    // pathname is null -> untitled tab (alreadyTracked === false).
+    handler({ sender: {} }, 'tab-1', 'Untitled', null, '# A', {}, null)
+    await flush()
+
+    expect(writeMarkdownFileMock).toHaveBeenCalledWith('/tmp/notes.md', '# A', {})
+
+    // Watcher + recent documents must point at the real file.
+    expect(ipcEmitMock).toHaveBeenCalledWith('window-add-file-path', 42, '/tmp/notes.md')
+    expect(ipcEmitMock).toHaveBeenCalledWith('menu-add-recently-used', '/tmp/notes.md')
+    expect(ipcEmitMock).toHaveBeenCalledWith('window-file-saved', 42, '/tmp/notes.md')
+
+    // Tab pathname/filename must be the .md name.
+    expect(webContentsSend).toHaveBeenCalledWith('mt::set-pathname', {
+      id: 'tab-1',
+      pathname: '/tmp/notes.md',
+      filename: 'notes.md'
+    })
+  })
+
+  it('leaves an explicit extension untouched', async () => {
+    showSaveDialogMock.mockResolvedValue({ filePath: '/tmp/notes.txt', canceled: false })
+    writeMarkdownFileMock.mockResolvedValue(undefined)
+    const handler = getHandler()
+
+    handler({ sender: {} }, 'tab-1', 'Untitled', null, '# A', {}, null)
+    await flush()
+
+    expect(writeMarkdownFileMock).toHaveBeenCalledWith('/tmp/notes.txt', '# A', {})
+    expect(webContentsSend).toHaveBeenCalledWith('mt::set-pathname', {
+      id: 'tab-1',
+      pathname: '/tmp/notes.txt',
+      filename: 'notes.txt'
+    })
   })
 })
 

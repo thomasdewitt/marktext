@@ -1,5 +1,6 @@
 import defaultOptions from './options'
 import { cleanUrl, escape } from './utils'
+import { resolveEqRef } from '../../utils/eqLabels'
 
 /**
  * Renderer
@@ -22,13 +23,21 @@ Renderer.prototype.multiplemath = function (text) {
   return output || `<pre class="multiple-math">\n${text}</pre>\n`
 }
 
-Renderer.prototype.inlineMath = function (math) {
+Renderer.prototype.inlineMath = function (math, displayMode = false) {
   let output = ''
   if (this.options.mathRenderer) {
-    const displayMode = false
     output = this.options.mathRenderer(math, displayMode)
   }
   return output || math
+}
+
+Renderer.prototype.eqRef = function (cmd, key) {
+  const { eqLabels } = this.options
+  if (!eqLabels) {
+    // no numbering context (e.g. plain preview) — keep the raw text
+    return escape(`${cmd}{${key}}`)
+  }
+  return escape(resolveEqRef(cmd, key, eqLabels))
 }
 
 Renderer.prototype.emoji = function (text, emoji) {

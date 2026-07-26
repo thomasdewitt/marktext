@@ -10,11 +10,11 @@ import katexCss from 'katex/dist/katex.css?inline'
 import footerHeaderCss from '../assets/styles/headerFooterStyle.css?inline'
 import { EXPORT_DOMPURIFY_CONFIG } from '../config'
 import { sanitize, unescapeHTML } from '../utils'
+import { collectEqLabelsFromTex, resolveEquation } from './eqLabels'
 import { validEmoji } from '../ui/emojis'
 import {
   extractFrontmatter,
-  extractFirstH1,
-  stripFirstH1,
+  resolveBlogPost,
   slugify,
   buildBlogPostHtml
 } from './blogPostTemplate'
@@ -32,6 +32,27 @@ class ExportHtml {
     this.muya = muya
     this.exportContainer = null
     this.mathRendererCalled = false
+    this.eqLabels = new Map()
+  }
+
+  // First pass: walk the document with marked and collect \label{...} keys
+  // from display math in document order, so \eqref/\ref (including forward
+  // references) can be resolved during the real render.
+  collectEqLabels() {
+    const eqLabels = new Map()
+    let counter = 0
+    marked(this.markdown, {
+      isGitlabCompatibilityEnabled: this.muya
+        ? this.muya.options.isGitlabCompatibilityEnabled
+        : false,
+      mathRenderer: (math, displayMode) => {
+        if (displayMode) {
+          counter = collectEqLabelsFromTex(math, eqLabels, counter)
+        }
+        return ' '
+      }
+    })
+    return eqLabels
   }
 
   async renderMermaid() {
@@ -123,9 +144,11 @@ class ExportHtml {
 
   mathRenderer = (math, displayMode) => {
     this.mathRendererCalled = true
+    // resolve \label / \eqref / \ref before KaTeX (see utils/eqLabels.js)
+    const resolved = resolveEquation(math, this.eqLabels, { injectTag: displayMode })
 
     try {
-      return katex.renderToString(math, {
+      return katex.renderToString(resolved, {
         displayMode
       })
     } catch (err) {
@@ -138,7 +161,9 @@ class ExportHtml {
   // render pure html by marked
   async renderHtml(toc) {
     this.mathRendererCalled = false
+    this.eqLabels = this.collectEqLabels()
     let html = marked(this.markdown, {
+      eqLabels: this.eqLabels,
       superSubScript: this.muya ? this.muya.options.superSubScript : false,
       footnote: this.muya ? this.muya.options.footnote : false,
       isGitlabCompatibilityEnabled: this.muya
@@ -341,12 +366,13 @@ class ExportHtml {
       this.markdown = originalMarkdown
     }
 
-    const title = meta.title || extractFirstH1(body) || 'Untitled'
-    const date = meta.date || ''
+    // Only strip the body's first H1 when it is the heading being promoted to
+    // the page title, so a section heading isn't silently deleted when the
+    // title comes from frontmatter.
+    const { title, date, body: postBody } = resolveBlogPost(meta, body)
     const slug = meta.slug || slugify(title)
-    const bodyWithoutTitle = stripFirstH1(body)
 
-    return buildBlogPostHtml({ title, date, slug, body: bodyWithoutTitle })
+    return buildBlogPostHtml({ title, date, slug, body: postBody })
   }
 
   /**
