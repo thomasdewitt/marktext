@@ -174,9 +174,11 @@ describe('blogPostTemplate.buildBlogPostHtml', () => {
     })
     expect(html).toContain('<!DOCTYPE html>')
     // Stylesheet + post scripts live one directory up, with cache-busting suffixes.
-    expect(html).toContain('<link rel="stylesheet" href="../post.css?v=2.6">')
-    expect(html).toContain('<script defer src="../post-meta.js?v=1.4"></script>')
-    expect(html).toContain('<script defer src="../footnotes.js?v=2"></script>')
+    expect(html).toMatch(/<link rel="stylesheet" href="\.\.\/post\.css\?v=[\d.]+">/)
+    expect(html).toMatch(/<script defer src="\.\.\/footnotes\.js\?v=[\d.]+"><\/script>/)
+    // post-meta.js reads the word counts, so wordcounts.js has to load first.
+    expect(html.indexOf('../wordcounts.js')).toBeGreaterThan(-1)
+    expect(html.indexOf('../wordcounts.js')).toBeLessThan(html.indexOf('../post-meta.js'))
     expect(html).toContain('<title>Hello - Thought Cloud</title>')
     expect(html).toContain('<h1 class="article-title">Hello</h1>')
     expect(html).toContain('<div class="body markup" dir="auto"><p>body</p></div>')
@@ -210,10 +212,10 @@ describe('blogPostTemplate.buildBlogPostHtml', () => {
     expect(html.indexOf('static-breadcrumb')).toBeLessThan(html.indexOf('About'))
   })
 
-  it('loads Google Analytics under the site measurement id', () => {
+  it('carries no analytics script (the site dropped Google Analytics in September 2026)', () => {
     const html = buildBlogPostHtml({ title: 'Hello', date: '', slug: 'hello', body: '<p>x</p>' })
-    expect(html).toContain('https://www.googletagmanager.com/gtag/js?id=G-GZJYHFEXQE')
-    expect(html).toContain("gtag('config', 'G-GZJYHFEXQE')")
+    expect(html).not.toContain('googletagmanager')
+    expect(html).not.toContain('gtag(')
   })
 
   it('falls back to a slug derived from the title when none is supplied', () => {

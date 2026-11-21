@@ -13,6 +13,7 @@ import { writeMarkdownFile } from '../../filesystem/markdown'
 import { getPath, getRecommendTitleFromMarkdownString } from '../../utils'
 import pandoc from '../../utils/pandoc'
 import { t } from '../../i18n'
+import { applyPostAssets, findSiblingPostAssets } from '../../filesystem/blogPostAssets'
 
 // TODO(refactor): "save" and "save as" should be moved to the editor window (editor.js) and
 // the renderer should communicate only with the editor window for file relevant stuff.
@@ -105,6 +106,9 @@ const handleResponseForExport = async (e, { type, content, pathname, title, page
       } else {
         if (!content) {
           throw new Error('No HTML content found.')
+        }
+        if (type === 'blogPost') {
+          content = applyPostAssets(content, await findSiblingPostAssets(filePath))
         }
         await writeFile(filePath, content, extension, 'utf8')
       }

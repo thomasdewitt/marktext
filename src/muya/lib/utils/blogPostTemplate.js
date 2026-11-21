@@ -163,23 +163,23 @@ const hasKatex = (body) => typeof body === 'string' && /class="katex/.test(body)
 const KATEX_CSS_LINK =
   '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">'
 
-// Google Analytics measurement id used across the personal site. Kept here
-// so exported posts report under the same property as hand-written ones.
-const GA_MEASUREMENT_ID = 'G-GZJYHFEXQE'
-
-// Asset references for the post shell, copied verbatim from a live
-// thought-cloud/<slug>/index.html. The ?v= cache-busting suffixes must
-// track the personal-website repo — re-copy this block whenever the site
-// bumps a version, otherwise exported posts pin stale assets.
+// Asset references for the post shell, as a live thought-cloud/<slug>/
+// index.html has them. The site bumps the ?v= suffixes and adds scripts over
+// time, so on export the main process replaces this block with the one from
+// a post already in the destination folder (see main/filesystem/
+// blogPostAssets.js). These are the defaults for when there is none.
+// wordcounts.js must come before post-meta.js, which reads it.
 const HEAD_ASSETS = `    <!-- Stylesheet -->
-    <link rel="stylesheet" href="../post.css?v=2.6">
-    <script defer src="../footnotes.js?v=2"></script>
-    <script defer src="../data.js?v=1.3"></script>
-    <script defer src="../post-meta.js?v=1.4"></script>
-    <script defer src="../scores.js?v=1.2"></script>
-    <script defer src="../cloud-map.js?v=1.6"></script>
-    <script defer src="../cloud-hud.js?v=1.6"></script>
-    <script defer src="../post-footer.js?v=1.2"></script>`
+    <link rel="stylesheet" href="../post.css?v=2.7">
+    <script defer src="../footnotes.js?v=3"></script>
+    <script defer src="../data.js?v=1.5"></script>
+    <script defer src="../wordcounts.js?v=1.2"></script>
+    <script defer src="../post-meta.js?v=1.6"></script>
+    <script defer src="../scores.js?v=1.4"></script>
+    <script defer src="../cloud-map.js?v=1.7"></script>
+    <script defer src="../cloud-hud.js?v=1.8"></script>
+    <script defer src="../post-footer.js?v=1.2"></script>
+    <script defer src="../embed-resize.js?v=1"></script>`
 
 // Render the standalone HTML page given a (sanitized) body fragment and
 // metadata. The shell is byte-for-byte the site's thought-cloud/<slug>/
@@ -200,15 +200,6 @@ export const buildBlogPostHtml = ({ title, date, slug, body }) => {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', '${GA_MEASUREMENT_ID}');
-    </script>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${safeTitleAttr} - Thought Cloud</title>
