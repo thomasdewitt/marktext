@@ -121,7 +121,16 @@ class MouseEvent {
     const { container, eventCenter, contentState } = this.muya
     const handler = event => {
       const target = event.target
-      if (target.classList && target.classList.contains('ag-drag-handler')) {
+      if (target.closest('.ag-code-copy')) {
+        // Pressing the mouse on the copy button would move the caret into the button,
+        // where nothing can be typed. Keep it where it is. With no caret in the editor
+        // there is none to keep, and the press must go ahead: the copy is sent to wherever
+        // the selection is (see `Clipboard.copy`), which has to be inside the editor.
+        const { anchorNode } = document.getSelection()
+        if (anchorNode && container.contains(anchorNode)) {
+          event.preventDefault()
+        }
+      } else if (target.classList && target.classList.contains('ag-drag-handler')) {
         contentState.handleMouseDown(event)
       } else if (target && target.closest('tr')) {
         contentState.handleCellMouseDown(event)
