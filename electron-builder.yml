@@ -35,7 +35,12 @@ files:
   # Do not bundle development related files
   - '!eslint.config.js'
   - '!jsconfig.json'
-  - '!docs/*'
+  - '!vitest.config.mjs'
+  - '!build-and-install.sh'
+  - '!{CLAUDE.md,AGENTS.md}'
+  - '!docs'
+  - '!tests'
+  - '!sample-notes'
 extraResources:
   - from: build/icons
     to: icons # ends up at resources/icons/

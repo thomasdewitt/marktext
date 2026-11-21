@@ -1,70 +1,52 @@
 #!/bin/bash
+# Build MarkText for this machine and install it.
+#   Linux: /opt/MarkText (launcher: /usr/local/bin/marktext), needs sudo
+#   macOS: /Applications/MarkText.app
+# Quit MarkText before running this.
 
-# MarkText Build and Install Script
-# Automates the complete build process with proper architecture support
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
-set -e  # Exit on any error
+if pgrep -x marktext >/dev/null 2>&1 || pgrep -x MarkText >/dev/null 2>&1; then
+  echo "MarkText is running. Quit it first." >&2
+  exit 1
+fi
 
-echo "🔧 MarkText Build and Install Script"
-echo "====================================="
-
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
-
-echo "📁 Working directory: $PWD"
-
-# Step 1: Clean previous builds
-echo "🧹 Cleaning previous build artifacts..."
-rm -rf dist/* out/* 2>/dev/null || true
-rm -rf /Applications/marktext.app 2>/dev/null || true
-echo "✅ Cleanup complete"
-
-# Step 2: Minify localization files
-echo "🌐 Minifying localization files..."
+rm -rf dist out
 npm run minify-locales
-
-# Step 3: Build the application
-echo "🔨 Building application with latest changes..."
 npm run build
 
-# Step 4: Determine architecture and package accordingly
-ARCH=$(uname -m)
-echo "🖥️  Detected architecture: $ARCH"
-
-if [[ "$ARCH" == "arm64" ]]; then
-    echo "📦 Packaging for Apple Silicon (ARM64)..."
-    npx electron-builder --mac --arm64 --publish never
-    APP_PATH="dist/mac-arm64/marktext.app"
-    DMG_PATH="dist/marktext-mac-arm64-0.18.4.dmg"
-else
-    echo "📦 Packaging for Intel (x64)..."
-    npx electron-builder --mac --x64 --publish never
-    APP_PATH="dist/mac/marktext.app"
-    DMG_PATH="dist/marktext-mac-x64-0.18.4.dmg"
-fi
-
-# Step 5: Install the application
-echo "📲 Installing MarkText to Applications..."
-if [[ -d "$APP_PATH" ]]; then
-    cp -r "$APP_PATH" /Applications/
-    echo "✅ MarkText installed successfully!"
-    echo "📍 Location: /Applications/marktext.app"
-else
-    echo "❌ Error: Built app not found at $APP_PATH"
+case "$(uname -s)" in
+  Linux)
+    npx electron-builder --linux dir --publish never
+    # root-owned, so nothing running as you can replace the program you launch;
+    # chrome-sandbox must be setuid root for Chromium's sandbox.
+    sudo mkdir -p /opt/MarkText
+    sudo rsync -a --delete --chown=root:root dist/linux-unpacked/ /opt/MarkText/
+    sudo chmod 4755 /opt/MarkText/chrome-sandbox
+    sudo ln -sf /opt/MarkText/marktext /usr/local/bin/marktext
+    echo "Installed to /opt/MarkText"
+    ;;
+  Darwin)
+    if [[ "$(uname -m)" == "arm64" ]]; then arch_flag=--arm64; else arch_flag=--x64; fi
+    npx electron-builder --mac dir "$arch_flag" --publish never
+    app="$(ls -d dist/mac*/*.app | head -n 1)"
+    # Without a valid Developer ID the build is unsigned, and Apple Silicon
+    # refuses to open an unsigned app; an ad-hoc signature is enough locally.
+    if ! codesign --verify --deep "$app" 2>/dev/null; then
+      codesign --force --deep --sign - "$app"
+    fi
+    target="/Applications/MarkText.app"
+    if [[ -d "$target" ]]; then
+      rm -rf "$target.bak"
+      mv "$target" "$target.bak"
+      echo "Previous version kept at $target.bak"
+    fi
+    cp -R "$app" "$target"
+    echo "Installed to $target"
+    ;;
+  *)
+    echo "Unsupported platform: $(uname -s)" >&2
     exit 1
-fi
-
-# Step 6: Show build artifacts
-echo ""
-echo "📦 Build artifacts created:"
-ls -la dist/ | grep -E '\.(dmg|zip|app)$' || echo "No distribution files found"
-
-echo ""
-echo "🎉 Build and installation complete!"
-echo "You can now launch MarkText from:"
-echo "  • Applications folder"
-echo "  • Spotlight search (Cmd+Space)"
-echo "  • Launchpad"
-echo ""
-echo "📄 DMG installer available at: $DMG_PATH"
+    ;;
+esac

@@ -22,10 +22,14 @@ This is a fork of <a href="https://github.com/Tkaixiang/marktext">Tkiaxiang's</a
 ## Customizations in This Fork
 
 ### Sidebar & Navigation
+- One navigator instead of separate Files and Table of Contents panes: folders, then files (shown without `.md`), then each file's headings. The file being edited is unfolded into its outline; any other file unfolds with its arrow.
+- Clicking a heading goes there and puts the caret at its end, whether the file is the current tab, another tab or not open yet. The heading on screen is highlighted as you scroll. Works in source-code mode too.
+- Open files show a dot while unsaved; hovering turns it into a close button. Untitled notes and files from outside the folder are listed above the tree.
+- "Unfold" opens one more level of the whole tree per click; "Collapse all" folds it. `Cmd/Ctrl+K` toggles the pane.
+- Create, rename, copy/cut/paste and delete from the context menu (right-click empty space for the folder itself); drag files or folders onto a folder, or onto empty space for the top level.
 - New untitled notes adopt `M-D-YY` filenames (with numeric suffixes for duplicates) to keep daily journals tidy.
-- The file tree sorts Markdown notes by most-recent date, leaves “misc” names between folders and dated entries, and supports drag-and-drop moves.
-- TOC now mirrors the project tree hierarchy, loads collapsed by default, highlights the active note, and shows unsaved/external files in their own groups.
-- Clicking TOC headings or search hits jumps reliably using Muya’s line-based cursor, even for unopened files.
+- Markdown notes sort by most-recent date, with undated names between folders and dated entries.
+- The sidebar keeps the width you drag it to.
 
 ### Editor & UI Enhancements
 - Single-line display math `$$...$$` now renders (KaTeX display mode, centered on its own line when the cursor leaves it). Previously only `$...$` inline math and multi-line `$$` blocks worked.
@@ -37,11 +41,23 @@ This is a fork of <a href="https://github.com/Tkaixiang/marktext">Tkiaxiang's</a
 ### Search Improvements
 - Project search augments grep results with filename matches that respect case/word/regex toggles.
 - Search is debounced (250 ms) with a 2-character minimum, and results stream in per file instead of waiting for the whole project to be scanned.
+- Clicking a hit opens the file (if needed) with the match selected.
 
 ### Under the Hood
-- TOC metadata and cursor state are cached per file for quick jumps and are kept in sync with watcher updates.
 - New-tab saves default to the selected tree folder when available, matching sidebar context.
 - `_pendingMuyaRoundtrip` keeps freshly opened files marked as saved until the editor's first real edit (instead of the import round-trip).
+- Opening a folder lists its files without reading them; headings of closed files are read when their row is on screen.
+
+## Development
+
+```bash
+npm ci
+npm test                             # unit tests
+npm run build && npm run test:e2e    # end-to-end tests that drive the real app
+./build-and-install.sh               # build for this machine and install
+```
+
+See [CLAUDE.md](CLAUDE.md) for the layout of the code, how the end-to-end tests work, and platform notes.
 
 ## Known Limitations
 
