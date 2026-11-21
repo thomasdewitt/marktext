@@ -350,6 +350,15 @@ test('Shift+Tab in a code block unindents the line of the caret', async () => {
   assert.equal(await t.markdown(), 'p\n\n```js\nif (a) {\nb()X\n}\n```\n')
 })
 
+// --- Turning a paragraph into an item of the list next to it ----------------
+
+test('a paragraph turned into an item of a tight list leaves the list tight', async () => {
+  await openDoc('1. one\n2. two\n\nmiddle\n')
+  await caretIn('middle', 0)
+  await type('1. ')
+  assert.equal(await t.markdown(), '1. one\n2. two\n3. middle\n')
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })

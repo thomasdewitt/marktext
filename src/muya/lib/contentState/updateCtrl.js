@@ -242,12 +242,15 @@ const updateCtrl = ContentState => {
 
     // Special cases for CommonMark 264 and 265: Changing the bullet or ordered list delimiter starts a new list.
     // Same list type or new list
-    if (
-      preSibling &&
-      this.checkSameMarkerOrDelimiter(preSibling, bulletMarkerOrDelimiter) &&
-      nextSibling &&
-      this.checkSameMarkerOrDelimiter(nextSibling, bulletMarkerOrDelimiter)
-    ) {
+    const joinsPreList = preSibling && this.checkSameMarkerOrDelimiter(preSibling, bulletMarkerOrDelimiter)
+    const joinsNextList = nextSibling && this.checkSameMarkerOrDelimiter(nextSibling, bulletMarkerOrDelimiter)
+    // An item that joins a list is spaced like the items already in it.
+    if (joinsPreList || joinsNextList) {
+      const neighbour = (joinsPreList ? preSibling : nextSibling).children[0]
+      newListItemBlock.isLooseListItem = neighbour.isLooseListItem
+    }
+
+    if (joinsPreList && joinsNextList) {
       this.appendChild(preSibling, newListItemBlock)
       const partChildren = nextSibling.children.splice(0)
       partChildren.forEach(b => this.appendChild(preSibling, b))
@@ -255,22 +258,12 @@ const updateCtrl = ContentState => {
       this.removeBlock(block)
       const isLooseListItem = preSibling.children.some(c => c.isLooseListItem)
       preSibling.children.forEach(c => (c.isLooseListItem = isLooseListItem))
-    } else if (
-      preSibling &&
-      this.checkSameMarkerOrDelimiter(preSibling, bulletMarkerOrDelimiter)
-    ) {
+    } else if (joinsPreList) {
       this.appendChild(preSibling, newListItemBlock)
       this.removeBlock(block)
-      const isLooseListItem = preSibling.children.some(c => c.isLooseListItem)
-      preSibling.children.forEach(c => (c.isLooseListItem = isLooseListItem))
-    } else if (
-      nextSibling &&
-      this.checkSameMarkerOrDelimiter(nextSibling, bulletMarkerOrDelimiter)
-    ) {
+    } else if (joinsNextList) {
       this.insertBefore(newListItemBlock, nextSibling.children[0])
       this.removeBlock(block)
-      const isLooseListItem = nextSibling.children.some(c => c.isLooseListItem)
-      nextSibling.children.forEach(c => (c.isLooseListItem = isLooseListItem))
     } else {
       // Create a new list when changing list type, bullet or list delimiter
       const listBlock = this.createBlock(wrapperTag, {
