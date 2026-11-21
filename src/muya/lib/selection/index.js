@@ -9,7 +9,6 @@ import {
   traverseUp,
   getFirstSelectableLeafNode,
   getClosestBlockContainer,
-  getCursorPositionWithinMarkedText,
   findNearestParagraph,
   getTextContent,
   getOffsetOfParagraph
@@ -298,36 +297,6 @@ class Selection {
       html = container.innerHTML
     }
     return html
-  }
-
-  chopHtmlByCursor(root) {
-    const { left } = this.getCaretOffsets(root)
-    const markedText = root.textContent
-    const { type, info } = getCursorPositionWithinMarkedText(markedText, left)
-    const pre = markedText.slice(0, left)
-    const post = markedText.slice(left)
-    switch (type) {
-      case 'OUT':
-        return {
-          pre,
-          post
-        }
-      case 'IN':
-        return {
-          pre: `${pre}${info}`,
-          post: `${info}${post}`
-        }
-      case 'LEFT':
-        return {
-          pre: markedText.slice(0, left - info),
-          post: markedText.slice(left - info)
-        }
-      case 'RIGHT':
-        return {
-          pre: markedText.slice(0, left + info),
-          post: markedText.slice(left + info)
-        }
-    }
   }
 
   /**
