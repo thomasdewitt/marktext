@@ -226,6 +226,25 @@ test('Delete at the end of a task item joins the next one without leaving its ch
   assert.equal(await t.markdown(), '- [ ] onetwo\n')
 })
 
+// --- The end of the document ------------------------------------------------
+
+test('ArrowDown and ArrowRight at the end of the last paragraph add nothing', async () => {
+  await openDoc('alpha\n\nbeta\n')
+  await caretIn('beta')
+  await press('ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowRight')
+  await type('x')
+  assert.equal(await t.markdown(), 'alpha\n\nbetax\n')
+})
+
+test('ArrowDown out of a code block that ends the document opens one paragraph', async () => {
+  await openDoc('alpha\n\n```js\ncode\n```\n')
+  await caretIn('code')
+  await press('ArrowDown', 'ArrowDown', 'ArrowDown')
+  assert.equal(await isSaved(), false)
+  await type('x')
+  assert.equal(await t.markdown(), 'alpha\n\n```js\ncode\n```\n\nx\n')
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })

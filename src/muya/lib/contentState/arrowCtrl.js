@@ -197,6 +197,13 @@ const arrowCtrl = ContentState => {
       (event.key === EVENT_KEYS.ArrowDown) ||
       (event.key === EVENT_KEYS.ArrowRight && start.offset === block.text.length)
     ) {
+      const lastBlock = this.blocks[this.blocks.length - 1]
+      // Below the last paragraph there is nowhere to go. A document that ends
+      // in anything else (a code block, a table, a list) gets an empty
+      // paragraph there, so that writing can continue after it.
+      if (!nextBlock && lastBlock.type === 'p') {
+        return
+      }
       event.preventDefault()
       event.stopPropagation()
       let key
@@ -205,7 +212,6 @@ const arrowCtrl = ContentState => {
         key = nextBlock.key
       } else {
         newBlock = this.createBlockP()
-        const lastBlock = this.blocks[this.blocks.length - 1]
         this.insertAfter(newBlock, lastBlock)
         key = newBlock.children[0].key
       }
@@ -215,7 +221,10 @@ const arrowCtrl = ContentState => {
         end: { key, offset }
       }
 
-      return this.partialRender()
+      this.partialRender()
+      if (newBlock) {
+        this.muya.dispatchChange()
+      }
     }
   }
 }
