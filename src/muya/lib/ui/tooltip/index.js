@@ -10,59 +10,75 @@ const position = (source, ele) => {
   })
 }
 
+// Shows the `data-tooltip` text of the element under the mouse. One tooltip
+// exists at a time.
 class Tooltip {
   constructor (muya) {
     this.muya = muya
-    this.cache = new WeakMap()
-    // Tracks the polling intervals so a mouseLeave or destroy() can stop them.
-    // WeakMap keys auto-release when the source element is garbage-collected.
-    this.timers = new WeakMap()
+    this.target = null
+    this.tooltipEle = null
+    this.timer = null
+    // Where the mouse was when a click or a key press dismissed the tooltip.
+    // A re-render puts new elements under a resting mouse and the browser
+    // then fires `mouseover` again, so the tooltip stays away until the mouse
+    // is somewhere else.
+    this.dismissedAt = null
+    this.mouse = { x: -1, y: -1 }
     const { container, eventCenter } = this.muya
 
-    eventCenter.attachDOMEvent(container, 'mouseover', this.mouseOver.bind(this))
+    eventCenter.attachDOMEvent(container, 'mouseover', this.mouseMoved.bind(this))
+    eventCenter.attachDOMEvent(container, 'mousemove', this.mouseMoved.bind(this))
+    eventCenter.attachDOMEvent(container, 'mouseleave', this.hide.bind(this))
+    eventCenter.attachDOMEvent(container, 'mousedown', this.dismiss.bind(this))
+    eventCenter.attachDOMEvent(container, 'keydown', this.dismiss.bind(this))
   }
 
-  mouseOver (event) {
-    const { target } = event
-    const toolTipTarget = target.closest('[data-tooltip]')
-    const { eventCenter } = this.muya
-    if (toolTipTarget && !this.cache.has(toolTipTarget)) {
-      const tooltip = toolTipTarget.getAttribute('data-tooltip')
-      const tooltipEle = document.createElement('div')
-      tooltipEle.textContent = tooltip
-      tooltipEle.classList.add('ag-tooltip')
-      document.body.appendChild(tooltipEle)
-      position(toolTipTarget, tooltipEle)
-
-      this.cache.set(toolTipTarget, tooltipEle)
-
-      setTimeout(() => {
-        tooltipEle.classList.add('active')
-      })
-
-      const timer = setInterval(() => {
-        if (!document.body.contains(toolTipTarget)) {
-          this.mouseLeave({ target: toolTipTarget })
-        }
-      }, 300)
-      this.timers.set(toolTipTarget, timer)
-
-      eventCenter.attachDOMEvent(toolTipTarget, 'mouseleave', this.mouseLeave.bind(this))
+  mouseMoved (event) {
+    const { clientX: x, clientY: y } = event
+    this.mouse = { x, y }
+    if (this.dismissedAt) {
+      if (this.dismissedAt.x === x && this.dismissedAt.y === y) return
+      this.dismissedAt = null
     }
+
+    const target = event.target.closest('[data-tooltip]')
+    if (target === this.target) return
+    this.hide()
+    if (target) this.show(target)
   }
 
-  mouseLeave (event) {
-    const { target } = event
-    if (this.cache.has(target)) {
-      const tooltipEle = this.cache.get(target)
-      tooltipEle.remove()
-      this.cache.delete(target)
-    }
-    const timer = this.timers.get(target)
-    if (timer) {
-      clearInterval(timer)
-      this.timers.delete(target)
-    }
+  show (target) {
+    const tooltipEle = document.createElement('div')
+    tooltipEle.textContent = target.getAttribute('data-tooltip')
+    tooltipEle.classList.add('ag-tooltip')
+    document.body.appendChild(tooltipEle)
+    position(target, tooltipEle)
+    setTimeout(() => {
+      tooltipEle.classList.add('active')
+    })
+
+    this.target = target
+    this.tooltipEle = tooltipEle
+    // No mouse event tells that the target was removed by a re-render.
+    this.timer = setInterval(() => {
+      if (!document.body.contains(target)) this.hide()
+    }, 300)
+  }
+
+  hide () {
+    if (!this.target) return
+    clearInterval(this.timer)
+    this.tooltipEle.remove()
+    this.target = this.tooltipEle = this.timer = null
+  }
+
+  dismiss () {
+    this.dismissedAt = this.mouse
+    this.hide()
+  }
+
+  destroy () {
+    this.hide()
   }
 }
 

@@ -104,6 +104,28 @@ test('Tab in the last cell adds a row instead of typing spaces into the cell', a
   assert.match(markdown, /\| second \| b {4}\| 2 {5}\|\n\| x {6}\| y {4}\| {7}\|\n/)
 })
 
+test('a toolbar tooltip goes away on click and stays away until the mouse moves', async () => {
+  await clickCell('first')
+  const button = await centre('figure.ag-active .ag-tool-bar li[data-label=center]')
+  await win.mouse.move(button.x - 40, button.y + 60)
+  await win.mouse.move(button.x, button.y, { steps: 4 })
+  await win.waitForSelector('.ag-tooltip.active')
+
+  await win.mouse.down()
+  await win.mouse.up()
+  // The click re-renders the toolbar under the resting mouse.
+  await win.waitForSelector('figure.ag-active .ag-tool-bar li[data-label=center].active')
+  await t.type('typed')
+  await win.waitForTimeout(400)
+  assert.equal(await tooltips(), 0)
+
+  await win.mouse.move(button.x + 26, button.y, { steps: 4 })
+  await win.waitForSelector('.ag-tooltip.active')
+  assert.equal(await tooltips(), 1)
+  await win.mouse.move(button.x + 26, button.y + 150, { steps: 4 })
+  await win.waitForFunction(() => !document.querySelector('.ag-tooltip'))
+})
+
 test('a wide table scrolls inside its own wrapper and the toolbar stays in place', async () => {
   await clickCell('cell 1')
   const before = await win.evaluate(() => {
