@@ -94,6 +94,16 @@ test('dragging a column past the edge of the table shows no scrollbar and moves 
   assert.match(await t.markdown(), /\| Notes {2}\| Name \| Value \|\n.*\n\| first {2}\| a {4}\| 1 {5}\|\n/)
 })
 
+test('Tab in the last cell adds a row instead of typing spaces into the cell', async () => {
+  await clickCell('2')
+  await t.press('Tab')
+  await t.type('x')
+  await t.press('Tab')
+  await t.type('y')
+  const markdown = await t.markdown()
+  assert.match(markdown, /\| second \| b {4}\| 2 {5}\|\n\| x {6}\| y {4}\| {7}\|\n/)
+})
+
 test('a wide table scrolls inside its own wrapper and the toolbar stays in place', async () => {
   await clickCell('cell 1')
   const before = await win.evaluate(() => {

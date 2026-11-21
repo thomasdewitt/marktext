@@ -454,10 +454,17 @@ const tabCtrl = ContentState => {
 
     // Handle `tab` key in table cell.
     let nextCell
+    let isRowAdded = false
     if (start.key === end.key && startBlock.functionType === 'cellContent') {
       nextCell = event.shiftKey
         ? this.findPreviousCell(startBlock)
         : this.findNextCell(startBlock)
+      if (!nextCell) {
+        // Tab in the last cell continues the table with a new row.
+        const row = this.appendTableRow(this.closest(startBlock, 'table'))
+        nextCell = this.firstInDescendant(row)
+        isRowAdded = true
+      }
     } else if (endBlock.functionType === 'cellContent') {
       nextCell = endBlock
     }
@@ -471,7 +478,11 @@ const tabCtrl = ContentState => {
       }
 
       const figure = this.closest(nextCell, 'figure')
-      return this.singleRender(figure)
+      this.singleRender(figure)
+      if (isRowAdded) {
+        this.muya.eventCenter.dispatch('stateChange')
+      }
+      return
     }
 
     if (this.isIndentableListItem()) {
