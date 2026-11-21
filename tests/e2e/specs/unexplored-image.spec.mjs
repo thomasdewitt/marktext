@@ -1,0 +1,108 @@
+// Images: the toolbar and resize handles of a selected image, the image
+// selector, and the markdown each of them writes.
+
+import { test, after, before } from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import zlib from 'node:zlib'
+import { startWith } from './inline.helpers.mjs'
+
+/** A plain-coloured PNG, so the workspace has a real image to load. */
+const png = (width, height, [r, g, b]) => {
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type), data])
+    const crc = Buffer.alloc(4)
+    crc.writeUInt32BE(zlib.crc32(body))
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    return Buffer.concat([length, body, crc])
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header.set([8, 2, 0, 0, 0], 8)
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3, Buffer.from([r, g, b]))])
+  const pixels = zlib.deflateSync(Buffer.concat(Array.from({ length: height }, () => row)))
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', pixels),
+    chunk('IEND', Buffer.alloc(0))
+  ])
+}
+
+const DOCUMENT = `First paragraph.
+
+![pic](pic.png)
+
+Middle paragraph.
+
+Last paragraph.
+`
+
+const IMAGE = '.ag-inline-image.ag-image-success img'
+const SELECTOR = '.ag-image-selector'
+
+let t
+let win
+before(async () => {
+  t = await startWith('Start.\n')
+  win = t.win
+  fs.writeFileSync(path.join(t.workspace, 'pic.png'), png(300, 120, [70, 130, 180]))
+  fs.writeFileSync(path.join(t.workspace, 'small.png'), png(60, 40, [180, 70, 70]))
+})
+after(() => t?.close())
+
+/** Open `markdown` in a new tab, as it is right after a file is opened: images drawn, nothing clicked. */
+const open = async (markdown = DOCUMENT) => {
+  await t.openDocument(markdown)
+  await win.waitForSelector(IMAGE)
+  await win.waitForTimeout(200)
+}
+
+const handleCount = () => win.evaluate(() => document.querySelectorAll('.ag-transformer .circle').length)
+const focusIsInEditor = () => win.evaluate(() => !!document.activeElement.closest('.editor-component'))
+
+const selectImage = async (nth = 0) => {
+  await win.locator(IMAGE).nth(nth).click()
+  await win.waitForSelector('.ag-image-toolbar li.item')
+  await win.waitForFunction(() => document.querySelectorAll('.ag-transformer .circle').length === 4)
+}
+
+test('aligning an image right after opening the file is written to the markdown', async () => {
+  await open()
+  await selectImage()
+  await win.locator('.ag-image-toolbar li.item.center').click()
+  await win.waitForSelector('.ag-inline-image.center')
+
+  assert.match(await t.markdown(), /\n<img src="pic.png" alt="pic" data-align="center">\n/)
+  assert.equal(await t.isSaved(), false)
+  // The image is selected again, with its tools.
+  await win.waitForSelector('.ag-image-toolbar li.item.center.active')
+  assert.deepEqual(await t.shownFloats(), ['ag-image-toolbar'])
+})
+
+test('dragging a resize handle right after opening the file writes the width', async () => {
+  await open()
+  await selectImage()
+  const handle = await win.locator('.ag-transformer .circle.bottom-right').boundingBox()
+  await win.mouse.move(handle.x + 7, handle.y + 7)
+  await win.mouse.down()
+  await win.mouse.move(handle.x - 93, handle.y + 7, { steps: 5 })
+  await win.mouse.up()
+  await win.waitForSelector('.ag-inline-image.ag-inline-image-selected img[width]')
+
+  const [, width] = /\n<img src="pic.png" alt="pic" width="(\d+)">\n/.exec(await t.markdown()) || []
+  assert.ok(Math.abs(width - 200) <= 2, `the image is about 200px wide after the drag (${width})`)
+})
+
+test('the first click on an image that is in the document twice shows its tools', async () => {
+  await open('First paragraph.\n\n![one](pic.png)\n\nMiddle paragraph.\n\n![two](pic.png)\n\nLast paragraph.\n')
+  await selectImage(0)
+  assert.deepEqual(await t.shownFloats(), ['ag-image-toolbar'])
+})
+
+test('no renderer errors', () => {
+  assert.deepEqual(t.errors(), [])
+})
