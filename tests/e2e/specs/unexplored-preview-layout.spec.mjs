@@ -51,6 +51,11 @@ const leaveBlocks = async () => {
   await win.waitForSelector('figure.ag-active', { state: 'detached' })
 }
 
+test('a document that starts with an equation opens with the equation rendered', async () => {
+  assert.equal(await win.locator('figure.ag-active').count(), 0)
+  assert.deepEqual(await t.caret(), { caret: 'Paragraph below the first equation.|' })
+})
+
 for (const [name, figure, source, following] of [
   ['math block', MATH, 'pre.ag-multiple-math', 'Paragraph below the first equation.'],
   ['diagram', MERMAID, 'pre[data-role=mermaid]', 'Paragraph below the diagram.']
