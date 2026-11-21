@@ -122,6 +122,40 @@ test('Enter on a selected image opens the image selector and adds no paragraph',
   assert.equal(await t.markdown(), DOCUMENT)
 })
 
+test('Escape in the image selector closes it and returns the keyboard to the editor', async () => {
+  await open()
+  await selectImage()
+  await win.locator('.ag-image-toolbar li.item.edit').click()
+  await win.waitForSelector(`${SELECTOR} input.src:focus`)
+  // Typing a path lists the matching files under the input.
+  await t.type('small')
+  await win.waitForFunction(() => !!document.querySelector('.ag-float-wrapper[data-popper-placement] > .ag-list-picker'))
+
+  await t.press('Escape')
+  await win.waitForTimeout(300)
+  assert.deepEqual(await t.shownFloats(), [])
+  assert.equal(await focusIsInEditor(), true)
+  assert.equal(await t.markdown(), DOCUMENT)
+})
+
+test('Enter in the image selector embeds the image and goes no further', async () => {
+  await open()
+  await selectImage()
+  await win.locator('.ag-image-toolbar li.item.edit').click()
+  await win.waitForSelector(`${SELECTOR} input.src:focus`)
+  await win.locator(`${SELECTOR} input.src`).fill('small.png')
+  // Note whether the rest of the key reaches the editor as a typed Enter.
+  await win.evaluate(() => {
+    window.enterReachedEditor = false
+    document.addEventListener('keypress', () => { window.enterReachedEditor = true }, { once: true, capture: true })
+  })
+  await t.press('Enter')
+  await win.waitForSelector('.ag-inline-image img[src*="small.png"]')
+
+  assert.equal(await win.evaluate(() => window.enterReachedEditor), false)
+  assert.match(await t.markdown(), /\n!\[pic\]\(small\.png\)\n\nMiddle paragraph\.\n/)
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
