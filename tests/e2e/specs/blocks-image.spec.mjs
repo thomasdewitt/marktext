@@ -124,6 +124,13 @@ test('the image toolbar and resize handles follow the image while the editor scr
   assertToolsOnImage(await imageTools())
 })
 
+test('clicking a rendered math block puts the image tools away', async () => {
+  await win.locator('figure[data-role=MULTIPLEMATH] .ag-container-preview').click()
+  await win.waitForSelector('figure[data-role=MULTIPLEMATH].ag-active')
+  await win.waitForFunction(() => !document.querySelector('.ag-image-toolbar-container[data-popper-placement]'))
+  assert.equal(await win.locator('.ag-transformer .circle').count(), 0)
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })

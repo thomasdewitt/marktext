@@ -201,6 +201,8 @@ class ClickEvent {
       }
 
       if (target.closest('div.ag-container-preview') || target.closest('div.ag-html-preview')) {
+        // The click stops here, so the float tools do not see it on the document.
+        this.muya.keyboard.hideAllFloatTools()
         event.stopPropagation()
         if (target.closest('div.ag-container-preview')) {
           event.preventDefault()
