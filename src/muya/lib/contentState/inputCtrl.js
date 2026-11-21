@@ -3,22 +3,7 @@ import { getTextContent } from '../selection/dom'
 import { beginRules } from '../parser/rules'
 import { tokenizer } from '../parser/'
 import { CLASS_OR_ID } from '../config'
-
-const BRACKET_HASH = {
-  '{': '}',
-  '[': ']',
-  '(': ')',
-  _: '_',
-  $: '$'
-}
-
-const BACK_HASH = {
-  '}': '{',
-  ']': '[',
-  ')': '(',
-  _: '_',
-  $: '$'
-}
+import { CLOSING_CHAR, OPENING_CHAR, closingCharToInsert, typesOverClosingChar } from './autoPair'
 
 // TODO: refactor later.
 let renderCodeBlockTimer = null
@@ -175,69 +160,44 @@ const inputCtrl = ContentState => {
         event.type === 'input'
       ) {
         const { offset } = start
-        const { autoPairBracket, autoPairMarkdownSyntax, autoPairQuote } = this.muya.options
+        const { autoPairBracket, autoPairMarkdownSyntax } = this.muya.options
         const inputChar = text.charAt(+offset - 1)
-        const preInputChar = text.charAt(+offset - 2)
-        const prePreInputChar = text.charAt(+offset - 3)
         const postInputChar = text.charAt(+offset)
 
         if (/^delete/.test(event.inputType)) {
           // handle `deleteContentBackward` or `deleteContentForward`
           const deletedChar = block.text[offset]
-          if (event.inputType === 'deleteContentBackward' && postInputChar === BRACKET_HASH[deletedChar]) {
+          if (event.inputType === 'deleteContentBackward' && postInputChar === CLOSING_CHAR[deletedChar]) {
             needRender = true
             text = text.substring(0, offset) + text.substring(offset + 1)
           }
-          if (event.inputType === 'deleteContentForward' && inputChar === BACK_HASH[deletedChar]) {
+          if (event.inputType === 'deleteContentForward' && inputChar === OPENING_CHAR[deletedChar]) {
             needRender = true
             start.offset -= 1
             end.offset -= 1
             text = text.substring(0, offset - 1) + text.substring(offset)
           }
-          /* eslint-disable no-useless-escape */
-        } else if (
-          (event.inputType.indexOf('delete') === -1) &&
-          (inputChar === postInputChar) &&
-          (
-            (autoPairQuote && /[']{1}/.test(inputChar)) ||
-            (autoPairQuote && /["]{1}/.test(inputChar)) ||
-            (autoPairBracket && /[\}\]\)]{1}/.test(inputChar)) ||
-            (autoPairMarkdownSyntax && /[$]{1}/.test(inputChar)) ||
-            (autoPairMarkdownSyntax && /[*$`_]{1}/.test(inputChar)) && /[_*]{1}/.test(prePreInputChar)
-          )
-        ) {
-          needRender = true
-          text = text.substring(0, offset) + text.substring(offset + 1)
-        } else {
-          /* eslint-disable no-useless-escape */
-          // Not Unicode aware, since things like \p{Alphabetic} or \p{L} are not supported yet
-          const isInInlineMath = this.checkCursorInTokenType(block.functionType, text, offset, 'inline_math') ||
-            this.checkCursorInTokenType(block.functionType, text, offset, 'display_math')
-          const isInInlineCode = this.checkCursorInTokenType(block.functionType, text, offset, 'inline_code')
-          if (
-            // Issue 2566: Do not complete markdown syntax if the previous character is
-            // alphanumeric.
-            !/\\/.test(preInputChar) &&
-            ((autoPairQuote && /[']{1}/.test(inputChar) && !(/[\S]{1}/.test(postInputChar)) && !(/[a-zA-Z\d]{1}/.test(preInputChar))) ||
-              (autoPairQuote && /["]{1}/.test(inputChar) && !(/[\S]{1}/.test(postInputChar))) ||
-              (autoPairBracket && /[\{\[\(]{1}/.test(inputChar) && !(/[\S]{1}/.test(postInputChar))) ||
-              (block.functionType !== 'codeContent' && !isInInlineMath && !isInInlineCode && autoPairMarkdownSyntax && !/[a-z0-9]{1}/i.test(preInputChar) && /[*$`_]{1}/.test(inputChar)))
-          ) {
+        } else if (event.data === inputChar) {
+          if (typesOverClosingChar(text, offset, { autoPairBracket, autoPairMarkdownSyntax })) {
             needRender = true
-            text = BRACKET_HASH[event.data]
-              ? text.substring(0, offset) + BRACKET_HASH[inputChar] + text.substring(offset)
-              : text
-          }
-          /* eslint-enable no-useless-escape */
-          // Delete the last `*` of `**` when you insert one space between `**` to create a bullet list.
-          if (
-            /\s/.test(event.data) &&
-            /^\* /.test(text) &&
-            preInputChar === '*' &&
-            postInputChar === '*'
-          ) {
             text = text.substring(0, offset) + text.substring(offset + 1)
-            needRender = true
+          } else {
+            // Only the markdown markers need to know whether they are typed into code or math.
+            const isLiteral =
+              /[_$]/.test(inputChar) &&
+              (block.functionType === 'codeContent' ||
+                ['inline_math', 'display_math', 'inline_code'].some((type) =>
+                  this.checkCursorInTokenType(block.functionType, text, offset, type)
+                ))
+            const closingChar = closingCharToInsert(text, offset, {
+              autoPairBracket,
+              autoPairMarkdownSyntax,
+              isLiteral
+            })
+            if (closingChar) {
+              needRender = true
+              text = text.substring(0, offset) + closingChar + text.substring(offset)
+            }
           }
         }
       }
