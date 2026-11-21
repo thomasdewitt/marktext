@@ -284,10 +284,11 @@ const arrowCtrl = ContentState => {
         return this.moveCaretVertically(nextBlock, event)
       }
       let key
+      let newBlock = null
       if (nextBlock) {
         key = nextBlock.key
       } else {
-        const newBlock = this.createBlockP()
+        newBlock = this.createBlockP()
         const lastBlock = this.blocks[this.blocks.length - 1]
         this.insertAfter(newBlock, lastBlock)
         key = newBlock.children[0].key

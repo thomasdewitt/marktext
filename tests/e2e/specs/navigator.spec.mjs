@@ -159,6 +159,12 @@ test('the + button creates a file next to the current one and opens it', async (
   await until(() => t.store('editor', (s) => s.currentFile.filename === 'fresh note.md'), 'new file opened')
   assert.ok(fs.existsSync(path.join(t.workspace, 'fresh note.md')))
   assert.ok((await rowLabels()).includes('fresh note'))
+  // The new tab takes the keyboard focus; let that settle before the next test types.
+  await until(
+    () => win.evaluate(() => !!document.activeElement?.closest('.editor-component')),
+    'editor focused on the new file'
+  )
+  await win.waitForTimeout(150)
 })
 
 test('creating a file under a name that exists leaves the existing file alone', async () => {
