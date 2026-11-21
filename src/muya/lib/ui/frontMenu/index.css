@@ -1,6 +1,8 @@
 .ag-front-menu {
-  width: 190px;
+  min-width: 190px;
+  width: max-content;
   font-size: 14px;
+  white-space: nowrap;
 }
 .ag-front-menu ul,
 .ag-front-menu li {
