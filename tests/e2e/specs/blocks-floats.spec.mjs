@@ -69,6 +69,13 @@ test('the front menu calls the task list by its name', async () => {
   await closeFrontMenu()
 })
 
+test('the front menu opens with a gap below its icon', async () => {
+  await openFrontMenu()
+  const { gap } = await readFrontMenu()
+  assert.equal(Math.round(gap), 10)
+  await closeFrontMenu()
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
