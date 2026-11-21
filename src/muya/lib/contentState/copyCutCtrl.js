@@ -38,6 +38,7 @@ const copyCutCtrl = ContentState => {
     startBlock.text = text
     if (start.key !== end.key) {
       this.removeBlocks(startBlock, endBlock)
+      this.joinListsAfter(startBlock)
     }
     start.offset = caret
     this.cursor = {

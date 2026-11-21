@@ -181,6 +181,7 @@ const inputCtrl = ContentState => {
       } else {
         this.removeBlocks(startBlock, endBlock)
       }
+      this.joinListsAfter(startBlock)
       // The browser removed the selection from the rendered text, where it can take one
       // marker of a pair (`**`) and leave the other. Remove it from the markdown instead.
       const head = startBlock.text.substring(0, oldStart.offset)

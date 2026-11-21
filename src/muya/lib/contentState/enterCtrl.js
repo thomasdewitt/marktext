@@ -55,6 +55,38 @@ const enterCtrl = (ContentState) => {
     return container
   }
 
+  // A list directly followed by another list of its kind takes that list's items.
+  // Markdown cannot say that two such lists are two (they are read back as one), so the
+  // document must not hold them.
+  ContentState.prototype.joinListAfter = function (list) {
+    const isList = (block) => !!block && /^(?:ul|ol)$/.test(block.type)
+    const isSameKind = (other) =>
+      isList(other) &&
+      other.type === list.type &&
+      other.listType === list.listType &&
+      other.children[0].bulletMarkerOrDelimiter === list.children[0].bulletMarkerOrDelimiter
+    if (!isList(list)) return
+
+    let joined = false
+    for (let next = this.getNextSibling(list); isSameKind(next); next = this.getNextSibling(list)) {
+      next.children.splice(0).forEach((item) => this.appendChild(list, item))
+      this.removeBlock(next)
+      joined = true
+    }
+    if (joined) {
+      const isLooseListItem = list.children.some((item) => item.isLooseListItem)
+      list.children.forEach((item) => (item.isLooseListItem = isLooseListItem))
+    }
+  }
+
+  // Join the lists that are next to each other now that what stood between them, after
+  // `block`, is gone.
+  ContentState.prototype.joinListsAfter = function (block) {
+    for (let ancestor = block; ancestor; ancestor = this.getParent(ancestor)) {
+      this.joinListAfter(ancestor)
+    }
+  }
+
   ContentState.prototype.createRow = function (row, isHeader = false) {
     const tr = this.createBlock('tr')
     const len = row.children.length
@@ -183,6 +215,9 @@ const enterCtrl = (ContentState) => {
       if (parent.children.length === 0) {
         this.removeBlock(parent)
       }
+      // A sublist that now stands in front of the rest of its parent's list is one list
+      // with it.
+      this.joinListAfter(this.getNextSibling(newBlock))
     } else {
       newBlock = this.createBlockP()
       if (block.type === 'li') {
@@ -258,6 +293,7 @@ const enterCtrl = (ContentState) => {
       block.text = joined
 
       this.removeBlocks(block, endBlock)
+      this.joinListsAfter(block)
       // Removing the selection and breaking the line are one undo step.
       this.cursor = {
         start: { key, offset },
