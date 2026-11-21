@@ -112,9 +112,6 @@ pre.ag-paragraph {
   background: var(--codeBlockBgColor) !important;
   border: none !important;
 }
-figure.ag-active.ag-container-block > div.ag-container-preview {
-  box-shadow: 0 3px 8px 0 var(--floatShadow) !important;
-}
 
 /*
  * Prism.js theme (override light theme)

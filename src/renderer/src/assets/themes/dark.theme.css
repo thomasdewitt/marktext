@@ -145,9 +145,6 @@ p:not(.ag-active)[data-role="hr"]::before {
   border-top: 2px dashed var(--editorColor10) !important;
   background: none !important;
 }
-figure.ag-active.ag-container-block > div.ag-container-preview {
-  box-shadow: 0 3px 8px 0 var(--floatShadow) !important;
-}
 
 /*
  * Prism.js theme (override light theme)
