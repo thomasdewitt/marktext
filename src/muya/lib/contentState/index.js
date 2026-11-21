@@ -679,7 +679,7 @@ class ContentState {
     const parent = this.getParent(block)
     return (
       (parent ? parent.children : this.blocks).filter(
-        (child) => child.editable && child.functionType !== 'languageInput'
+        (child) => child.editable && child.functionType !== 'languageInput' && child.type !== 'input'
       ).length === 1
     )
   }

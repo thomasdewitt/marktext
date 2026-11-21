@@ -219,6 +219,13 @@ test('Delete in an empty paragraph before a code block removes the paragraph', a
   assert.equal(await caret(), '|code')
 })
 
+test('Delete at the end of a task item joins the next one without leaving its checkbox', async () => {
+  await openDoc('- [ ] one\n- [x] two\n')
+  await caretIn('one')
+  await press('Delete')
+  assert.equal(await t.markdown(), '- [ ] onetwo\n')
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
