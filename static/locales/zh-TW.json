@@ -235,6 +235,7 @@
       "openedFiles": "已開啟的檔案",
       "saveAll": "全部儲存",
       "closeAll": "全部關閉",
+      "collapseAll": "全部摺疊",
       "emptyProject": "空專案",
       "createFile": "建立檔案",
       "openFolder": "開啟資料夾"

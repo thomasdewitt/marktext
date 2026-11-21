@@ -235,6 +235,7 @@
       "openedFiles": "開いているファイル",
       "saveAll": "すべて保存",
       "closeAll": "すべて閉じる",
+      "collapseAll": "すべて折りたたむ",
       "emptyProject": "空のプロジェクト",
       "createFile": "ファイルを作成",
       "openFolder": "フォルダを開く"

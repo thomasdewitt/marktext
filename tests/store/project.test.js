@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-const { createMock, pasteMock, renameMock, noticeNotify, editorMock, layoutMock, ipcHandlers, ipcSend, busOn, busEmit, addFileMock, unlinkFileMock, addDirectoryMock, unlinkDirectoryMock, getFileStateFromDataMock } = vi.hoisted(() => ({
+const { createMock, pasteMock, renameMock, noticeNotify, editorMock, navigatorMock, layoutMock, ipcHandlers, ipcSend, busOn, busEmit, addFileMock, unlinkFileMock, addDirectoryMock, unlinkDirectoryMock, moveEntryMock } = vi.hoisted(() => ({
   createMock: vi.fn(),
   pasteMock: vi.fn(() => Promise.resolve()),
   renameMock: vi.fn(),
@@ -14,7 +14,7 @@ const { createMock, pasteMock, renameMock, noticeNotify, editorMock, layoutMock,
   unlinkFileMock: vi.fn(),
   addDirectoryMock: vi.fn(),
   unlinkDirectoryMock: vi.fn(),
-  getFileStateFromDataMock: vi.fn(() => ({ id: 'new-file' })),
+  moveEntryMock: vi.fn(),
   layoutMock: {
     SET_LAYOUT: vi.fn(),
     DISPATCH_LAYOUT_MENU_ITEMS: vi.fn()
@@ -22,12 +22,12 @@ const { createMock, pasteMock, renameMock, noticeNotify, editorMock, layoutMock,
   editorMock: {
     RENAME_IF_NEEDED: vi.fn(),
     UPDATE_CURRENT_FILE: vi.fn(),
-    RESET_TOC_CACHE: vi.fn(),
-    REBUILD_COMPOSITE_TOC: vi.fn(),
-    SCHEDULE_REBUILD_COMPOSITE_TOC: vi.fn(),
-    SET_SAVE_STATUS_WHEN_REMOVE: vi.fn(),
-    LOAD_FILE_TOC: vi.fn(),
-    fileTocCache: {}
+    SET_SAVE_STATUS_WHEN_REMOVE: vi.fn()
+  },
+  navigatorMock: {
+    reset: vi.fn(),
+    forgetHeadings: vi.fn(),
+    forgetHeadingsUnder: vi.fn()
   }
 }))
 
@@ -55,6 +55,10 @@ vi.mock('../../src/renderer/src/store/editor', () => ({
   useEditorStore: () => editorMock
 }))
 
+vi.mock('../../src/renderer/src/store/navigator', () => ({
+  useNavigatorStore: () => navigatorMock
+}))
+
 vi.mock('../../src/renderer/src/store/layout', () => ({
   useLayoutStore: () => layoutMock
 }))
@@ -63,11 +67,8 @@ vi.mock('../../src/renderer/src/store/treeCtrl', () => ({
   addFile: addFileMock,
   unlinkFile: unlinkFileMock,
   addDirectory: addDirectoryMock,
-  unlinkDirectory: unlinkDirectoryMock
-}))
-
-vi.mock('../../src/renderer/src/store/help', () => ({
-  getFileStateFromData: getFileStateFromDataMock
+  unlinkDirectory: unlinkDirectoryMock,
+  moveEntry: moveEntryMock
 }))
 
 vi.mock('../../src/renderer/src/bus', () => ({
@@ -95,17 +96,15 @@ describe('project store', () => {
     unlinkFileMock.mockReset()
     addDirectoryMock.mockReset()
     unlinkDirectoryMock.mockReset()
-    getFileStateFromDataMock.mockClear()
+    moveEntryMock.mockReset()
     layoutMock.SET_LAYOUT.mockReset()
     layoutMock.DISPATCH_LAYOUT_MENU_ITEMS.mockReset()
     editorMock.RENAME_IF_NEEDED.mockReset()
     editorMock.UPDATE_CURRENT_FILE.mockReset()
-    editorMock.RESET_TOC_CACHE.mockReset()
-    editorMock.REBUILD_COMPOSITE_TOC.mockReset()
-    editorMock.SCHEDULE_REBUILD_COMPOSITE_TOC.mockReset()
     editorMock.SET_SAVE_STATUS_WHEN_REMOVE.mockReset()
-    editorMock.LOAD_FILE_TOC.mockReset()
-    editorMock.fileTocCache = {}
+    navigatorMock.reset.mockReset()
+    navigatorMock.forgetHeadings.mockReset()
+    navigatorMock.forgetHeadingsUnder.mockReset()
 
     const path = await import('node:path')
     global.localStorage = {
@@ -136,9 +135,10 @@ describe('project store', () => {
     ;({ useProjectStore } = await import('../../src/renderer/src/store/project'))
   })
 
-  it('CREATE_FILE_DIRECTORY appends .md for file type and updates cache on success', async () => {
+  it('CREATE_FILE_DIRECTORY appends .md, lists the new file at once and opens it', async () => {
     createMock.mockResolvedValueOnce()
     const store = useProjectStore()
+    store.projectTree = { pathname: '/root', files: [], folders: [] }
     store.createCache = { dirname: '/root', type: 'file' }
 
     store.CREATE_FILE_DIRECTORY('note')
@@ -146,8 +146,40 @@ describe('project store', () => {
     await Promise.resolve()
 
     expect(createMock).toHaveBeenCalledWith('/root/note.md', 'file')
-    expect(store.newFileNameCache).toBe('/root/note.md')
     expect(store.createCache).toEqual({})
+    expect(addFileMock).toHaveBeenCalledWith(
+      store.projectTree,
+      expect.objectContaining({ pathname: '/root/note.md', name: 'note.md', isMarkdown: true })
+    )
+    expect(ipcSend).toHaveBeenCalledWith('mt::open-file', '/root/note.md', {})
+  })
+
+  it('CREATE_FILE_DIRECTORY lists a new directory at once', async () => {
+    createMock.mockResolvedValueOnce()
+    const store = useProjectStore()
+    store.projectTree = { pathname: '/root', files: [], folders: [] }
+    store.createCache = { dirname: '/root', type: 'directory' }
+
+    store.CREATE_FILE_DIRECTORY('drafts')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(createMock).toHaveBeenCalledWith('/root/drafts', 'directory')
+    expect(addDirectoryMock).toHaveBeenCalledWith(store.projectTree, { pathname: '/root/drafts' })
+    expect(ipcSend).not.toHaveBeenCalled()
+  })
+
+  it('CREATE_FILE_DIRECTORY refuses a name that already exists instead of emptying the file', () => {
+    global.window.fileUtils.pathExistsSync.mockReturnValueOnce(true)
+    const store = useProjectStore()
+    store.createCache = { dirname: '/root', type: 'file' }
+
+    store.CREATE_FILE_DIRECTORY('note')
+
+    expect(createMock).not.toHaveBeenCalled()
+    expect(noticeNotify).toHaveBeenCalled()
+    // The input stays open so the name can be corrected.
+    expect(store.createCache).toEqual({ dirname: '/root', type: 'file' })
   })
 
   it('CREATE_FILE_DIRECTORY reports errors through notification service', async () => {
@@ -160,11 +192,13 @@ describe('project store', () => {
     await Promise.resolve()
 
     expect(noticeNotify).toHaveBeenCalled()
+    expect(addDirectoryMock).not.toHaveBeenCalled()
   })
 
-  it('RENAME_IN_SIDEBAR renames and notifies editor store for open tabs', async () => {
+  it('RENAME_IN_SIDEBAR renames, moves the tree entry and notifies editor store for open tabs', async () => {
     renameMock.mockResolvedValueOnce()
     const store = useProjectStore()
+    store.projectTree = { pathname: '/root', files: [], folders: [] }
     store.renameCache = '/root/a.md'
 
     store.RENAME_IN_SIDEBAR('b.md')
@@ -176,13 +210,40 @@ describe('project store', () => {
       src: '/root/a.md',
       dest: '/root/b.md'
     })
+    expect(moveEntryMock).toHaveBeenCalledWith(store.projectTree, '/root/a.md', '/root/b.md')
+    expect(navigatorMock.forgetHeadingsUnder).toHaveBeenCalledWith('/root/a.md')
+    expect(store.renameCache).toBeNull()
   })
 
-  it('MOVE_FILE_TO_DIRECTORY warns if destination file already exists', async () => {
+  it('RENAME_IN_SIDEBAR refuses to rename onto an existing file', () => {
+    global.window.fileUtils.pathExistsSync.mockReturnValueOnce(true)
+    const store = useProjectStore()
+    store.renameCache = '/root/a.md'
+
+    store.RENAME_IN_SIDEBAR('b.md')
+
+    expect(renameMock).not.toHaveBeenCalled()
+    expect(noticeNotify).toHaveBeenCalled()
+  })
+
+  it('RENAME_IN_SIDEBAR reports a failed rename', async () => {
+    renameMock.mockRejectedValueOnce(new Error('rename failed'))
+    const store = useProjectStore()
+    store.renameCache = '/root/a.md'
+
+    store.RENAME_IN_SIDEBAR('b.md')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(noticeNotify).toHaveBeenCalled()
+    expect(editorMock.RENAME_IF_NEEDED).not.toHaveBeenCalled()
+  })
+
+  it('MOVE_TO_DIRECTORY warns if destination file already exists', async () => {
     global.window.fileUtils.pathExistsSync.mockReturnValueOnce(true)
 
     const store = useProjectStore()
-    await store.MOVE_FILE_TO_DIRECTORY({
+    await store.MOVE_TO_DIRECTORY({
       src: '/root/a.md',
       destDir: '/dest'
     })
@@ -191,21 +252,34 @@ describe('project store', () => {
     expect(global.window.fileUtils.move).not.toHaveBeenCalled()
   })
 
-  it('MOVE_FILE_TO_DIRECTORY moves file when source and destination are valid', async () => {
+  it('MOVE_TO_DIRECTORY moves file when source and destination are valid', async () => {
     const store = useProjectStore()
-    await store.MOVE_FILE_TO_DIRECTORY({
+    await store.MOVE_TO_DIRECTORY({
       src: '/root/a.md',
       destDir: '/dest'
     })
 
     expect(global.window.fileUtils.move).toHaveBeenCalledWith('/root/a.md', '/dest/a.md')
+    // An open tab of the moved file follows it.
+    expect(editorMock.RENAME_IF_NEEDED).toHaveBeenCalledWith({
+      src: '/root/a.md',
+      dest: '/dest/a.md'
+    })
   })
 
-  it('MOVE_FILE_TO_DIRECTORY reports move failures', async () => {
+  it('MOVE_TO_DIRECTORY never moves a directory into itself', async () => {
+    const store = useProjectStore()
+    await store.MOVE_TO_DIRECTORY({ src: '/root/dir', destDir: '/root/dir/sub' })
+    await store.MOVE_TO_DIRECTORY({ src: '/root/dir', destDir: '/root/dir' })
+
+    expect(global.window.fileUtils.move).not.toHaveBeenCalled()
+  })
+
+  it('MOVE_TO_DIRECTORY reports move failures', async () => {
     global.window.fileUtils.move.mockRejectedValueOnce(new Error('move failed'))
     const store = useProjectStore()
 
-    await store.MOVE_FILE_TO_DIRECTORY({
+    await store.MOVE_TO_DIRECTORY({
       src: '/root/a.md',
       destDir: '/dest'
     })
@@ -213,11 +287,11 @@ describe('project store', () => {
     expect(noticeNotify).toHaveBeenCalled()
   })
 
-  it('MOVE_FILE_TO_DIRECTORY exits early for invalid/same-source moves', async () => {
+  it('MOVE_TO_DIRECTORY exits early for invalid/same-source moves', async () => {
     const store = useProjectStore()
 
-    await store.MOVE_FILE_TO_DIRECTORY({ src: '', destDir: '/dest' })
-    await store.MOVE_FILE_TO_DIRECTORY({ src: '/root/a.md', destDir: '/root' })
+    await store.MOVE_TO_DIRECTORY({ src: '', destDir: '/dest' })
+    await store.MOVE_TO_DIRECTORY({ src: '/root/a.md', destDir: '/root' })
 
     expect(global.window.fileUtils.move).not.toHaveBeenCalled()
   })
@@ -230,55 +304,37 @@ describe('project store', () => {
     expect(store.projectTree.pathname).toBe('/root')
     expect(store.projectTree.name).toBe('root')
     expect(layoutMock.SET_LAYOUT).toHaveBeenCalled()
-    expect(editorMock.RESET_TOC_CACHE).toHaveBeenCalled()
-    expect(editorMock.SCHEDULE_REBUILD_COMPOSITE_TOC).toHaveBeenCalled()
+    expect(navigatorMock.reset).toHaveBeenCalled()
   })
 
-  it('LISTEN_FOR_UPDATE_PROJECT handles add/change/unlinkDir and rebuilds TOC', () => {
+  it('LISTEN_FOR_UPDATE_PROJECT handles add/change/unlinkDir and drops stale headings', () => {
     const store = useProjectStore()
     store.projectTree = { pathname: '/root', files: [], folders: [] }
-    store.newFileNameCache = '/root/new.md'
-    editorMock.fileTocCache = {
-      '/root/dir/a.md': [{ a: 1 }],
-      '/root/other.md': [{ b: 1 }]
-    }
 
     store.LISTEN_FOR_UPDATE_PROJECT()
     ipcHandlers['mt::update-object-tree'](null, {
       type: 'add',
-      change: {
-        pathname: '/root/new.md',
-        isMarkdown: true,
-        data: { markdown: '# X' }
-      }
+      change: { pathname: '/root/new.md', isMarkdown: true }
     })
     expect(addFileMock).toHaveBeenCalled()
-    expect(editorMock.UPDATE_CURRENT_FILE).toHaveBeenCalledWith({ id: 'new-file' })
-    expect(store.newFileNameCache).toBe('')
 
     ipcHandlers['mt::update-object-tree'](null, {
       type: 'change',
       change: { pathname: '/root/other.md' }
     })
-    expect(editorMock.LOAD_FILE_TOC).toHaveBeenCalledWith('/root/other.md')
-    expect(editorMock.fileTocCache['/root/other.md']).toBeUndefined()
+    expect(navigatorMock.forgetHeadings).toHaveBeenCalledWith('/root/other.md')
 
     ipcHandlers['mt::update-object-tree'](null, {
       type: 'unlinkDir',
       change: { pathname: '/root/dir' }
     })
     expect(unlinkDirectoryMock).toHaveBeenCalled()
-    expect(editorMock.fileTocCache['/root/dir/a.md']).toBeUndefined()
-
-    expect(editorMock.SCHEDULE_REBUILD_COMPOSITE_TOC).toHaveBeenCalled()
+    expect(navigatorMock.forgetHeadingsUnder).toHaveBeenCalledWith('/root/dir')
   })
 
   it('LISTEN_FOR_UPDATE_PROJECT handles unlink and addDir updates', () => {
     const store = useProjectStore()
     store.projectTree = { pathname: '/root', files: [], folders: [] }
-    editorMock.fileTocCache = {
-      '/root/a.md': [{ a: 1 }]
-    }
 
     store.LISTEN_FOR_UPDATE_PROJECT()
     ipcHandlers['mt::update-object-tree'](null, {
@@ -287,7 +343,7 @@ describe('project store', () => {
     })
     expect(unlinkFileMock).toHaveBeenCalled()
     expect(editorMock.SET_SAVE_STATUS_WHEN_REMOVE).toHaveBeenCalled()
-    expect(editorMock.fileTocCache['/root/a.md']).toBeUndefined()
+    expect(navigatorMock.forgetHeadings).toHaveBeenCalledWith('/root/a.md')
 
     ipcHandlers['mt::update-object-tree'](null, {
       type: 'addDir',
@@ -311,11 +367,11 @@ describe('project store', () => {
 
     handlers['SIDEBAR::new']('file')
     expect(store.createCache).toEqual({ dirname: '/root/dir', type: 'file' })
-    expect(busEmit).toHaveBeenCalledWith('SIDEBAR::show-new-input')
 
+    // Starting a rename dismisses the pending "new file" input, and back.
     handlers['SIDEBAR::rename']()
     expect(store.renameCache).toBe('/root/dir')
-    expect(busEmit).toHaveBeenCalledWith('SIDEBAR::show-rename-input')
+    expect(store.createCache).toEqual({})
 
     handlers['SIDEBAR::copy-cut']('copy')
     expect(store.clipboard).toEqual({ type: 'copy', src: '/root/dir' })

@@ -82,3 +82,15 @@ export const extractHeadingsFromMarkdown = (markdown) => {
 
   return headings
 }
+
+/**
+ * Headings of a markdown text as heading-list entries: the editor's own
+ * entries carry `slug` (its block id), these carry the source `line` instead.
+ */
+export const headingsFromMarkdown = (markdown) =>
+  extractHeadingsFromMarkdown(markdown).map(({ content, lvl, line }) => ({
+    content,
+    lvl,
+    slug: null,
+    line
+  }))

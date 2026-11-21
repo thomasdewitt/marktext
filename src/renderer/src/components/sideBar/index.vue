@@ -3,7 +3,7 @@
     v-show="showSideBar"
     ref="sideBar"
     class="side-bar"
-    :style="[!rightColumn ? { 'min-width': '45px' } : {}, { width: `${finalSideBarWidth}px` }]"
+    :style="{ width: `${finalSideBarWidth}px`, minWidth: `${finalSideBarWidth}px` }"
   >
     <div class="left-column">
       <ul>
@@ -11,6 +11,7 @@
           v-for="(c, index) of sideBarIcons"
           :key="index"
           :class="{ active: c.id === rightColumn }"
+          :title="c.name()"
           @click="handleLeftIconClick(c.id)"
         >
           <component :is="c.icon" />
@@ -20,6 +21,7 @@
         <li
           v-for="(c, index) of sideBarBottomIcons"
           :key="index"
+          :title="c.name()"
           @click="handleLeftBottomClick(c.id)"
         >
           <component :is="c.icon" />
@@ -27,126 +29,80 @@
       </ul>
     </div>
     <div v-show="rightColumn" class="right-column">
-      <tree
-        v-if="rightColumn === 'files'"
-        :projectTree="projectTree"
-        :openedFiles="openedFiles"
-        :tabs="tabs"
-      ></tree>
-      <side-bar-search v-else-if="rightColumn === 'search'"></side-bar-search>
-      <toc v-else-if="rightColumn === 'toc'"></toc>
+      <side-bar-search v-if="rightColumn === 'search'"></side-bar-search>
+      <navigator v-else-if="rightColumn"></navigator>
     </div>
     <div v-show="rightColumn" ref="dragBar" class="drag-bar"></div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { useLayoutStore } from '@/store/layout'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useLayoutStore, MIN_SIDE_BAR_WIDTH } from '@/store/layout'
 import { useProjectStore } from '@/store/project'
-import { useEditorStore } from '@/store/editor'
 
 import { sideBarIcons, sideBarBottomIcons } from './help'
-import Tree from './tree.vue'
+import Navigator from './navigator.vue'
 import SideBarSearch from './search.vue'
-import Toc from './toc.vue'
-import { storeToRefs } from 'pinia'
 
 const layoutStore = useLayoutStore()
 const projectStore = useProjectStore()
-const editorStore = useEditorStore()
 
 const sideBar = ref(null)
 const dragBar = ref(null)
 
-const MIN_SIDEBAR_WIDTH = 220
-
-const openedFiles = ref([])
-const sideBarViewWidth = ref(280)
-
-const getDefaultSideBarWidth = () => {
-  if (typeof window === 'undefined') {
-    return MIN_SIDEBAR_WIDTH
-  }
-  return Math.max(Math.round(window.innerWidth / 3), MIN_SIDEBAR_WIDTH)
-}
+const ICON_COLUMN_WIDTH = 45
 
 const { rightColumn, showSideBar, sideBarWidth } = storeToRefs(layoutStore)
 
-const { projectTree } = storeToRefs(projectStore)
-const { tabs } = storeToRefs(editorStore)
+// Width while the drag bar is being dragged; the stored width otherwise.
+const draggedWidth = ref(null)
 
 const finalSideBarWidth = computed(() => {
   if (!showSideBar.value) return 0
-  if (rightColumn.value === '') return 45
-  return sideBarViewWidth.value < MIN_SIDEBAR_WIDTH ? MIN_SIDEBAR_WIDTH : sideBarViewWidth.value
+  if (rightColumn.value === '') return ICON_COLUMN_WIDTH
+  return Math.max(draggedWidth.value ?? sideBarWidth.value, MIN_SIDE_BAR_WIDTH)
 })
 
-watch(
-  () => [rightColumn.value, showSideBar.value],
-  ([currentColumn, isDisplayed], [previousColumn, wasDisplayed]) => {
-    const justOpened =
-      isDisplayed &&
-      currentColumn &&
-      (!wasDisplayed || !previousColumn)
+let startX = 0
+let startWidth = 0
 
-    if (justOpened) {
-      const targetWidth = getDefaultSideBarWidth()
-      sideBarViewWidth.value = targetWidth
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(targetWidth)
-    }
+const onDragMove = (event) => {
+  // Leave the editor at least as much room as the narrowest sidebar takes.
+  const widest = Math.max(window.innerWidth - MIN_SIDE_BAR_WIDTH, MIN_SIDE_BAR_WIDTH)
+  draggedWidth.value = Math.min(startWidth + event.clientX - startX, widest)
+}
+
+const onDragEnd = () => {
+  document.removeEventListener('mousemove', onDragMove, false)
+  document.removeEventListener('mouseup', onDragEnd, false)
+  if (draggedWidth.value !== null) {
+    layoutStore.SET_SIDE_BAR_WIDTH(draggedWidth.value)
+    draggedWidth.value = null
   }
-)
+}
+
+const onDragStart = (event) => {
+  event.preventDefault()
+  startX = event.clientX
+  startWidth = finalSideBarWidth.value
+  document.addEventListener('mousemove', onDragMove, false)
+  document.addEventListener('mouseup', onDragEnd, false)
+}
 
 onMounted(() => {
-  nextTick(() => {
-    const dragBarEl = dragBar.value
-    let startX = 0
-    let currentSideBarWidth = +sideBarWidth.value
-    let startWidth = currentSideBarWidth
-
-    sideBarViewWidth.value = currentSideBarWidth
-
-    const mouseUpHandler = () => {
-      document.removeEventListener('mousemove', mouseMoveHandler, false)
-      document.removeEventListener('mouseup', mouseUpHandler, false)
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(
-        currentSideBarWidth < MIN_SIDEBAR_WIDTH ? MIN_SIDEBAR_WIDTH : currentSideBarWidth
-      )
-    }
-
-    const mouseMoveHandler = (event) => {
-      const offset = event.clientX - startX
-      currentSideBarWidth = startWidth + offset
-      sideBarViewWidth.value = currentSideBarWidth
-    }
-
-    const mouseDownHandler = (event) => {
-      startX = event.clientX
-      startWidth = +sideBarWidth.value
-      document.addEventListener('mousemove', mouseMoveHandler, false)
-      document.addEventListener('mouseup', mouseUpHandler, false)
-    }
-
-    dragBarEl.addEventListener('mousedown', mouseDownHandler, false)
-  })
+  dragBar.value.addEventListener('mousedown', onDragStart, false)
 })
 
+onBeforeUnmount(() => {
+  onDragEnd()
+})
+
+// Clicking the icon of the pane that is showing folds the sidebar down to
+// its icon column; clicking any icon again opens that pane.
 const handleLeftIconClick = (name) => {
-  if (rightColumn.value === name) {
-    layoutStore.SET_LAYOUT({ rightColumn: '' })
-    layoutStore.CHANGE_SIDE_BAR_WIDTH(finalSideBarWidth.value)
-  } else {
-    const needDispatch = rightColumn.value === ''
-    layoutStore.SET_LAYOUT({ rightColumn: name })
-    if (needDispatch) {
-      const targetWidth = getDefaultSideBarWidth()
-      sideBarViewWidth.value = targetWidth
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(targetWidth)
-    } else {
-      sideBarViewWidth.value = +sideBarWidth.value
-    }
-  }
+  layoutStore.SET_LAYOUT({ rightColumn: rightColumn.value === name ? '' : name })
 }
 
 const handleLeftBottomClick = (name) => {
@@ -161,9 +117,7 @@ const handleLeftBottomClick = (name) => {
   display: flex;
   flex-shrink: 0;
   flex-grow: 0;
-  width: 280px;
   height: 100vh;
-  min-width: 220px;
   position: relative;
   color: var(--sideBarColor);
   user-select: none;

@@ -4,9 +4,18 @@ import { createIpcRegistry } from '../util/ipcSubscriptions'
 
 const ipc = createIpcRegistry()
 
-const width = localStorage.getItem('side-bar-width')
-const parsedWidth = Number(width)
-const sideBarWidth = Number.isFinite(parsedWidth) ? Math.max(parsedWidth, 220) : 280
+export const MIN_SIDE_BAR_WIDTH = 220
+const DEFAULT_SIDE_BAR_WIDTH = 280
+
+const clampSideBarWidth = (width) => {
+  const value = Number(width)
+  return Number.isFinite(value) && value > 0
+    ? Math.max(Math.round(value), MIN_SIDE_BAR_WIDTH)
+    : DEFAULT_SIDE_BAR_WIDTH
+}
+
+// The width the user last dragged the sidebar to.
+const sideBarWidth = clampSideBarWidth(localStorage.getItem('side-bar-width'))
 
 export const useLayoutStore = defineStore('layout', {
   state: () => ({
@@ -27,19 +36,17 @@ export const useLayoutStore = defineStore('layout', {
       this[entryName] = !this[entryName]
     },
     SET_SIDE_BAR_WIDTH(width) {
-      // TODO: Add side bar to session (GH#732).
-      const clamped = Math.max(+width || 220, 220)
+      const clamped = clampSideBarWidth(width)
       localStorage.setItem('side-bar-width', clamped)
       this.sideBarWidth = clamped
     },
     LISTEN_FOR_LAYOUT() {
       ipc.subscribe('mt::set-view-layout', (e, layout) => {
         if (layout.rightColumn) {
-          this.SET_LAYOUT({
-            ...layout,
-            rightColumn: layout.rightColumn === this.rightColumn ? '' : layout.rightColumn,
-            showSideBar: true
-          })
+          // A menu item or shortcut for a sidebar pane toggles it: it opens
+          // the pane, or folds the sidebar away if that pane is showing.
+          const isShowing = this.showSideBar && layout.rightColumn === this.rightColumn
+          this.SET_LAYOUT({ ...layout, showSideBar: !isShowing })
         } else {
           this.SET_LAYOUT(layout)
         }
@@ -67,10 +74,6 @@ export const useLayoutStore = defineStore('layout', {
         showTabBar,
         showSideBar
       })
-    },
-
-    CHANGE_SIDE_BAR_WIDTH(width) {
-      this.SET_SIDE_BAR_WIDTH(width)
     },
 
     TEAR_DOWN_IPC() {

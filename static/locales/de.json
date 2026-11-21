@@ -235,6 +235,7 @@
       "openedFiles": "Geöffnete Dateien",
       "saveAll": "Alle speichern",
       "closeAll": "Alle schließen",
+      "collapseAll": "Alle einklappen",
       "emptyProject": "Leeres Projekt",
       "createFile": "Datei erstellen",
       "openFolder": "Ordner öffnen"

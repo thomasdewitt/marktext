@@ -237,6 +237,7 @@
       "openedFiles": "Opened files",
       "saveAll": "Save All",
       "closeAll": "Close All",
+      "collapseAll": "Collapse All",
       "emptyProject": "Empty project",
       "createFile": "Create File",
       "openFolder": "Open Folder"

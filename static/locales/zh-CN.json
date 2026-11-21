@@ -235,6 +235,7 @@
       "openedFiles": "已打开的文件",
       "saveAll": "保存全部",
       "closeAll": "关闭全部",
+      "collapseAll": "全部折叠",
       "emptyProject": "空项目",
       "createFile": "创建文件",
       "openFolder": "打开文件夹"

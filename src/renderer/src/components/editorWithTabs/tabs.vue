@@ -31,7 +31,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/store/editor'
-import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
 import dragula from 'dragula'
@@ -39,7 +38,6 @@ import { showContextMenu } from '../../contextMenu/tabs'
 import bus from '../../bus'
 
 const editorStore = useEditorStore()
-const layoutStore = useLayoutStore()
 
 const { currentFile, tabs } = storeToRefs(editorStore)
 
@@ -105,10 +103,6 @@ const closeAll = () => {
   editorStore.CLOSE_ALL_TABS()
 }
 
-const changeMaxWidth = (width) => {
-  layoutStore.CHANGE_SIDE_BAR_WIDTH(width)
-}
-
 const rename = (tabId) => {
   const tab = tabs.value.find((f) => f.id === tabId)
   if (tab && tab.pathname) {
@@ -144,7 +138,6 @@ onMounted(() => {
   bus.on('TABS::rename', rename)
   bus.on('TABS::copy-path', copyPath)
   bus.on('TABS::show-in-folder', showInFolder)
-  bus.on('EDITOR_TABS::change-max-width', changeMaxWidth)
 
   const tabs = tabContainer.value
 
@@ -208,7 +201,6 @@ onBeforeUnmount(() => {
   bus.off('TABS::rename', rename)
   bus.off('TABS::copy-path', copyPath)
   bus.off('TABS::show-in-folder', showInFolder)
-  bus.off('EDITOR_TABS::change-max-width', changeMaxWidth)
 })
 </script>
 

@@ -89,6 +89,9 @@ export const animatedScrollTo = function (element, to, duration, callback) {
   // Prevent animation on small steps or duration is 0
   if (Math.abs(change) <= 6 || duration === 0) {
     element.scrollTop = to
+    if (callback) {
+      callback()
+    }
     return
   }
 

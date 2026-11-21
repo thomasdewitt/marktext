@@ -547,7 +547,6 @@ describe('editor store', () => {
     }
     store.tabs = [tabInside, tabNested, tabOutside]
     store.currentFile = tabInside
-    store.fileTocCache = { '/project/notes/a.md': ['heading'] }
 
     // Rename the folder /project/notes -> /project/journal
     store.RENAME_IF_NEEDED({ src: '/project/notes', dest: '/project/journal' })
@@ -561,8 +560,5 @@ describe('editor store', () => {
     expect(tabOutside.pathname).toBe('/project/other/d.md')
     // currentFile is remapped too.
     expect(store.currentFile.pathname).toBe('/project/journal/a.md')
-    // Cached TOC entries move with the renamed directory.
-    expect(store.fileTocCache['/project/journal/a.md']).toEqual(['heading'])
-    expect(store.fileTocCache['/project/notes/a.md']).toBeUndefined()
   })
 })

@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia'
-import { addFile, unlinkFile, addDirectory, unlinkDirectory } from './treeCtrl'
+import { addFile, unlinkFile, addDirectory, unlinkDirectory, moveEntry } from './treeCtrl'
 import bus from '../bus'
 import { create, paste, rename } from '../util/fileSystem'
 import { PATH_SEPARATOR } from '../config'
 import notice from '../services/notification'
-import { getFileStateFromData } from './help'
 import { useLayoutStore } from './layout'
 import { useEditorStore } from './editor'
+import { useNavigatorStore } from './navigator'
 import { createIpcRegistry } from '../util/ipcSubscriptions'
 import { i18n } from '../i18n'
 
@@ -18,8 +18,6 @@ export const useProjectStore = defineStore('project', {
   state: () => ({
     activeItem: {},
     createCache: {},
-    // Use to cache newly created filename, for open immediately.
-    newFileNameCache: '',
     renameCache: null,
     clipboard: null,
     projectTree: null
@@ -28,7 +26,6 @@ export const useProjectStore = defineStore('project', {
   actions: {
     LISTEN_FOR_LOAD_PROJECT() {
       const layoutStore = useLayoutStore()
-      const editorStore = useEditorStore()
       ipc.subscribe('mt::open-directory', (e, pathname) => {
         let name = window.path.basename(pathname)
         if (!name) {
@@ -54,56 +51,33 @@ export const useProjectStore = defineStore('project', {
         }
         layoutStore.SET_LAYOUT(layout)
         layoutStore.DISPATCH_LAYOUT_MENU_ITEMS()
-        editorStore.RESET_TOC_CACHE()
-        editorStore.SCHEDULE_REBUILD_COMPOSITE_TOC()
+        useNavigatorStore().reset()
       })
     },
 
     LISTEN_FOR_UPDATE_PROJECT() {
       const editorStore = useEditorStore()
+      const navigatorStore = useNavigatorStore()
       ipc.subscribe('mt::update-object-tree', (e, { type, change }) => {
         switch (type) {
-          case 'add': {
-            const { pathname, data, isMarkdown } = change
+          case 'add':
             addFile(this.projectTree, change)
-            if (isMarkdown && this.newFileNameCache && pathname === this.newFileNameCache) {
-              const fileState = getFileStateFromData(data)
-              editorStore.UPDATE_CURRENT_FILE(fileState)
-              this.newFileNameCache = ''
-            }
             break
-          }
           case 'unlink':
             unlinkFile(this.projectTree, change)
             editorStore.SET_SAVE_STATUS_WHEN_REMOVE(change)
-            if (change?.pathname) {
-              const normalizedPath = window.path.normalize(change.pathname)
-              delete editorStore.fileTocCache[normalizedPath]
-            }
+            if (change?.pathname) navigatorStore.forgetHeadings(change.pathname)
             break
           case 'addDir':
             addDirectory(this.projectTree, change)
             break
           case 'unlinkDir':
             unlinkDirectory(this.projectTree, change)
-            if (change?.pathname) {
-              const dirPath = window.path.normalize(change.pathname)
-              const dirWithSep = dirPath.endsWith(window.path.sep)
-                ? dirPath
-                : `${dirPath}${window.path.sep}`
-              for (const key of Object.keys(editorStore.fileTocCache)) {
-                if (key === dirPath || key.startsWith(dirWithSep)) {
-                  delete editorStore.fileTocCache[key]
-                }
-              }
-            }
+            if (change?.pathname) navigatorStore.forgetHeadingsUnder(change.pathname)
             break
           case 'change':
-            if (change?.pathname) {
-              const normalizedPath = window.path.normalize(change.pathname)
-              delete editorStore.fileTocCache[normalizedPath]
-              editorStore.LOAD_FILE_TOC(normalizedPath)
-            }
+            // The navigator reads the headings again when the file is next shown.
+            if (change?.pathname) navigatorStore.forgetHeadings(change.pathname)
             break
           default:
             if (process.env.NODE_ENV === 'development') {
@@ -111,7 +85,6 @@ export const useProjectStore = defineStore('project', {
             }
             break
         }
-        editorStore.SCHEDULE_REBUILD_COMPOSITE_TOC()
       })
     },
 
@@ -135,8 +108,7 @@ export const useProjectStore = defineStore('project', {
       bus.on('SIDEBAR::new', (type) => {
         const { pathname, isDirectory } = this.activeItem
         const dirname = isDirectory ? pathname : window.path.dirname(pathname)
-        this.createCache = { dirname, type }
-        bus.emit('SIDEBAR::show-new-input')
+        this.START_CREATE({ dirname, type })
       })
       bus.on('SIDEBAR::remove', () => {
         const { pathname, isDirectory } = this.activeItem
@@ -202,6 +174,9 @@ export const useProjectStore = defineStore('project', {
 
           paste(clipboard)
             .then(() => {
+              if (clipboard.type === 'cut') {
+                this.ENTRY_MOVED({ src: clipboard.src, dest: clipboard.dest })
+              }
               this.clipboard = null
             })
             .catch((err) => {
@@ -215,25 +190,60 @@ export const useProjectStore = defineStore('project', {
       })
       bus.on('SIDEBAR::rename', () => {
         const { pathname } = this.activeItem
+        this.createCache = {}
         this.renameCache = pathname
-        bus.emit('SIDEBAR::show-rename-input')
       })
+    },
+
+    /** Show the navigator's input for a new file or directory in `dirname`. */
+    START_CREATE({ dirname, type }) {
+      this.renameCache = null
+      this.createCache = { dirname, type }
+    },
+
+    /** Dismiss the navigator's create or rename input. */
+    CANCEL_SIDEBAR_INPUT() {
+      this.createCache = {}
+      this.renameCache = null
     },
 
     CREATE_FILE_DIRECTORY(name) {
       const { dirname, type } = this.createCache
+      if (!dirname) return
 
+      name = name.trim()
       if (type === 'file' && !window.fileUtils.hasMarkdownExtension(name)) {
         name += '.md'
       }
+      const fullName = window.path.join(dirname, name)
 
-      const fullName = `${dirname}/${name}`
+      // Creating writes an empty file, so never do it over an existing one.
+      if (window.fileUtils.pathExistsSync(fullName)) {
+        notice.notify({
+          title: t('sideBar.project.errorInSideBar'),
+          type: 'warning',
+          message: t('sideBar.project.moveTargetExists', { filename: name })
+        })
+        return
+      }
 
+      this.createCache = {}
       create(fullName, type)
         .then(() => {
-          this.createCache = {}
-          if (type === 'file') {
-            this.newFileNameCache = fullName
+          // The file watcher reports the new entry about a second later;
+          // list it, and open a new file, right away.
+          if (type === 'directory') {
+            addDirectory(this.projectTree, { pathname: fullName })
+          } else {
+            addFile(this.projectTree, {
+              pathname: fullName,
+              name,
+              isFile: true,
+              isDirectory: false,
+              isMarkdown: true,
+              birthTime: new Date()
+            })
+            window.electron.ipcRenderer.send('mt::open-file', fullName, {})
           }
         })
         .catch((err) => {
@@ -246,30 +256,68 @@ export const useProjectStore = defineStore('project', {
     },
 
     RENAME_IN_SIDEBAR(name) {
-      const editorStore = useEditorStore()
       const src = this.renameCache
-      const dirname = window.path.dirname(src)
-      const dest = dirname + PATH_SEPARATOR + name
-      rename(src, dest).then(() => {
-        editorStore.RENAME_IF_NEEDED({ src, dest })
-      })
+      this.renameCache = null
+      if (!src || !name) return
+
+      const dest = window.path.join(window.path.dirname(src), name)
+      // Changing only the letter case is a rename of the same file.
+      if (!window.fileUtils.isSamePathSync(src, dest) && window.fileUtils.pathExistsSync(dest)) {
+        notice.notify({
+          title: t('sideBar.project.errorInSideBar'),
+          type: 'warning',
+          message: t('sideBar.project.moveTargetExists', { filename: name })
+        })
+        return
+      }
+
+      rename(src, dest)
+        .then(() => {
+          this.ENTRY_MOVED({ src, dest })
+        })
+        .catch((err) => {
+          notice.notify({
+            title: t('sideBar.project.errorInSideBar'),
+            type: 'error',
+            message: err.message
+          })
+        })
     },
 
-    async MOVE_FILE_TO_DIRECTORY({ src, destDir }) {
+    /**
+     * A file or directory was just renamed or moved on disk: show it at its
+     * new place, and keep open tabs pointing at their files.
+     */
+    ENTRY_MOVED({ src, dest }) {
+      if (this.projectTree) {
+        moveEntry(this.projectTree, window.path.normalize(src), window.path.normalize(dest))
+      }
+      const navigatorStore = useNavigatorStore()
+      navigatorStore.forgetHeadingsUnder(src)
+      useEditorStore().RENAME_IF_NEEDED({ src, dest })
+    },
+
+    /** Move a file or directory of the project into another directory. */
+    async MOVE_TO_DIRECTORY({ src, destDir }) {
       if (!src || !destDir) {
         return
       }
 
       const filename = window.path.basename(src)
-      const sourceDir = window.path.dirname(src)
+      const destinationPath = window.path.join(destDir, filename)
 
-      if (window.fileUtils.isSamePathSync(sourceDir, destDir)) {
+      if (window.fileUtils.isSamePathSync(window.path.dirname(src), destDir)) {
         return
       }
 
-      const destinationPath = window.path.join(destDir, filename)
-
-      if (window.fileUtils.isSamePathSync(src, destinationPath)) {
+      // A directory cannot be moved into itself or into one of its own
+      // subdirectories.
+      const normalizedSrc = window.path.normalize(src)
+      const normalizedDest = window.path.normalize(destDir)
+      if (
+        normalizedDest === normalizedSrc ||
+        normalizedDest.startsWith(normalizedSrc + window.path.sep)
+      ) {
         return
       }
 
@@ -284,6 +332,7 @@ export const useProjectStore = defineStore('project', {
 
       try {
         await window.fileUtils.move(src, destinationPath)
+        this.ENTRY_MOVED({ src, dest: destinationPath })
       } catch (err) {
         notice.notify({
           title: t('sideBar.project.errorWhileMovingFile'),

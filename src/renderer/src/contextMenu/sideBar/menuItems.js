@@ -7,7 +7,7 @@ export const SEPARATOR = {
   type: 'separator'
 }
 
-// 使用函数形式避免模块加载时调用翻译函数
+// Built on demand so the labels follow the current language.
 export const getNEW_FILE = () => ({
   label: t('contextMenu.sideBar.newFile'),
   id: 'newFileMenuItem',
@@ -71,13 +71,3 @@ export const getSHOW_IN_FOLDER = () => ({
     contextMenu.showInFolder()
   }
 })
-
-// 为了向后兼容，保留原有的导出
-export const NEW_FILE = getNEW_FILE()
-export const NEW_DIRECTORY = getNEW_DIRECTORY()
-export const COPY = getCOPY()
-export const CUT = getCUT()
-export const PASTE = getPASTE()
-export const RENAME = getRENAME()
-export const DELETE = getDELETE()
-export const SHOW_IN_FOLDER = getSHOW_IN_FOLDER()

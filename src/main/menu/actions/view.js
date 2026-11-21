@@ -60,8 +60,10 @@ export const showTabBar = (win) => {
   setLayout(win, 'showTabBar', true)
 }
 
+// The table of contents is part of the sidebar's file navigator, where each
+// file unfolds into its headings.
 export const showTableOfContents = (win) => {
-  setLayout(win, 'rightColumn', 'toc')
+  setLayout(win, 'rightColumn', 'files')
 }
 
 export const toggleTypewriterMode = (win) => {

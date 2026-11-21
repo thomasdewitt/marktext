@@ -95,6 +95,7 @@ import { getCssForOptions, getHtmlToc } from '@/util/pdf'
 import { addCommonStyle, setEditorWidth, setWrapCodeBlocks } from '@/util/theme'
 import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
+import { useNavigatorStore } from '@/store/navigator'
 import { useProjectStore } from '@/store/project'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -119,6 +120,7 @@ const props = defineProps({
 
 // Get stores
 const preferencesStore = usePreferencesStore()
+const navigatorStore = useNavigatorStore()
 const editorStore = useEditorStore()
 const projectStore = useProjectStore()
 
@@ -681,6 +683,83 @@ const scrollToHeader = (slug) => {
   return scrollToElement(`#${slug}`)
 }
 
+// --- Sidebar navigator: jump to a heading, report the heading in view ---
+
+// Distance kept between the top of the editor and a heading scrolled to.
+const HEADING_TOP_GAP = 30
+
+// The editor's headings in the order of the file's heading list: the list
+// only holds top-level headings, not ones nested in a quote or list.
+const topLevelHeadings = () =>
+  editor.value
+    ? editor.value.container.querySelectorAll('#ag-editor-id > :is(h1, h2, h3, h4, h5, h6)')
+    : []
+
+// The heading last jumped to, with the scroll position the jump ended at.
+// It stays the heading "in view" until the editor is scrolled again, also
+// when it is too close to the end of the document to reach the top.
+let jumpedHeading = null
+
+const goToHeadingIndex = (index) => {
+  const heading = topLevelHeadings()[index]
+  if (!heading) return
+  const { container, contentState } = editor.value
+
+  // Put the caret at the end of the heading, so typing continues there.
+  const block = contentState.getBlock(heading.id)
+  const textBlock = block && block.children[0]
+  if (textBlock) {
+    const position = { key: textBlock.key, offset: textBlock.text.length }
+    contentState.cursor = { start: position, end: position }
+    contentState.render()
+    editor.value.focus()
+  }
+
+  // The render above replaced the heading's element.
+  const target = topLevelHeadings()[index]
+  const offset = target.getBoundingClientRect().top - container.getBoundingClientRect().top
+  animatedScrollTo(container, container.scrollTop + offset - HEADING_TOP_GAP, 300, () => {
+    jumpedHeading = { index, scrollTop: container.scrollTop }
+    navigatorStore.activeHeadingIndex = index
+  })
+}
+
+// A jump requested for a file that is not showing yet; done once it is.
+let pendingHeadingJump = null
+
+const isCurrentFile = ({ tabId, pathname }) => {
+  const current = currentFile.value
+  if (tabId) return current.id === tabId
+  return !!pathname && !!current.pathname && window.fileUtils.isSamePathSync(current.pathname, pathname)
+}
+
+const handleGoToHeading = (target) => {
+  if (sourceCode.value) return
+  if (isCurrentFile(target)) {
+    goToHeadingIndex(target.index)
+  } else {
+    pendingHeadingJump = target
+  }
+}
+
+const reportHeadingInView = () => {
+  if (!editor.value || sourceCode.value) return
+  const { container } = editor.value
+  if (jumpedHeading && Math.abs(container.scrollTop - jumpedHeading.scrollTop) < 2) {
+    navigatorStore.activeHeadingIndex = jumpedHeading.index
+    return
+  }
+  jumpedHeading = null
+
+  const limit = container.getBoundingClientRect().top + HEADING_TOP_GAP + 10
+  let inView = -1
+  for (const [index, heading] of topLevelHeadings().entries()) {
+    if (heading.getBoundingClientRect().top > limit) break
+    inView = index
+  }
+  navigatorStore.activeHeadingIndex = inView
+}
+
 const scrollToElement = (selector) => {
   // Scroll to search highlight word
   const { container } = editor.value
@@ -900,6 +979,14 @@ const handleFileChange = ({
         }
       }, 50)
     }
+
+    jumpedHeading = null
+    if (pendingHeadingJump && isCurrentFile(pendingHeadingJump)) {
+      const { index } = pendingHeadingJump
+      pendingHeadingJump = null
+      // After the scroll position restored above has been applied.
+      requestAnimationFrame(() => requestAnimationFrame(() => goToHeadingIndex(index)))
+    }
   }
 }
 
@@ -1047,6 +1134,7 @@ onMounted(() => {
   bus.on('deleteParagraph', handleParagraph)
   bus.on('insertParagraph', handleInsertParagraph)
   bus.on('scroll-to-header', scrollToHeader)
+  bus.on('navigator:go-to-heading', handleGoToHeading)
   bus.on('screenshot-captured', handleScreenShot)
   bus.on('switch-spellchecker-language', switchSpellcheckLanguage)
   bus.on('open-command-spellchecker-switch-language', openSpellcheckerLanguageCommand)
@@ -1061,6 +1149,7 @@ onMounted(() => {
 
   editor.value.on('scroll', (scroll) => {
     editorStore.updateScrollPosition(scroll.scrollTop)
+    reportHeadingInView()
   })
 
   editor.value.on('heading-copy-link', ({ key }) => {
@@ -1133,6 +1222,7 @@ onBeforeUnmount(() => {
   bus.off('deleteParagraph', handleParagraph)
   bus.off('insertParagraph', handleInsertParagraph)
   bus.off('scroll-to-header', scrollToHeader)
+  bus.off('navigator:go-to-heading', handleGoToHeading)
   bus.off('screenshot-captured', handleScreenShot)
   bus.off('switch-spellchecker-language', switchSpellcheckLanguage)
   bus.off('open-command-spellchecker-switch-language', openSpellcheckerLanguageCommand)

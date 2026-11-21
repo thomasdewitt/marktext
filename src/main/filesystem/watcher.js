@@ -74,32 +74,26 @@ const add = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTraili
     birthTime,
     isMarkdown
   }
-  if (isMarkdown) {
-    // HACK: But this should be removed completely in #1034/#1035.
+  if (!isMarkdown) return
+
+  // An opened file's tab needs the new content; the project tree only lists
+  // the file, so a directory watcher doesn't read it.
+  if (type === 'file') {
     try {
-      const data = await loadMarkdownFile(
-        pathname,
-        endOfLine,
-        autoGuessEncoding,
-        trimTrailingNewline
-      )
-      file.data = data
+      file.data = await loadMarkdownFile(pathname, endOfLine, autoGuessEncoding, trimTrailingNewline)
     } catch (err) {
-      // Only notify user about opened files.
-      if (type === 'file') {
-        safeSend(win, 'mt::show-notification', {
-          title: t('dialog.watcherIoError'),
-          type: 'error',
-          message: err.message
-        })
-        return
-      }
+      safeSend(win, 'mt::show-notification', {
+        title: t('dialog.watcherIoError'),
+        type: 'error',
+        message: err.message
+      })
+      return
     }
-    safeSend(win, EVENT_NAME[type], {
-      type: 'add',
-      change: file
-    })
   }
+  safeSend(win, EVENT_NAME[type], {
+    type: 'add',
+    change: file
+  })
 }
 
 const unlink = (win, pathname, type) => {
@@ -111,10 +105,20 @@ const unlink = (win, pathname, type) => {
 }
 
 const change = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTrailingNewline) => {
-  // No need to update the tree view if the file content has changed.
-  if (type === 'dir') return
-
   const isMarkdown = hasMarkdownExtension(pathname)
+
+  // The project tree only needs to know that the file changed (its headings
+  // in the sidebar are then read again), not what it contains now.
+  if (type === 'dir') {
+    if (isMarkdown) {
+      safeSend(win, EVENT_NAME.dir, {
+        type: 'change',
+        change: { pathname }
+      })
+    }
+    return
+  }
+
   if (isMarkdown) {
     // HACK: Markdown data should be removed completely in #1034/#1035 and
     // should be only loaded after user interaction.

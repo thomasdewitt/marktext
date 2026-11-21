@@ -68,18 +68,30 @@ describe('layout store', () => {
     expect(store.sideBarWidth).toBe(220)
   })
 
-  it('LISTEN_FOR_LAYOUT handles ipc layout updates and menu dispatches', () => {
+  it('a sidebar pane shortcut opens that pane, and hides the sidebar when it is showing', () => {
     const store = useLayoutStore()
-    store.rightColumn = 'files'
-
+    store.rightColumn = 'search'
+    store.showSideBar = false
     store.LISTEN_FOR_LAYOUT()
-    handlers['mt::set-view-layout'](null, { rightColumn: 'files', showTabBar: true })
 
-    expect(store.rightColumn).toBe('')
+    // Hidden sidebar: show it on the requested pane.
+    handlers['mt::set-view-layout'](null, { rightColumn: 'files' })
+    expect(store.rightColumn).toBe('files')
     expect(store.showSideBar).toBe(true)
+
+    // Another pane: switch, stay visible.
+    handlers['mt::set-view-layout'](null, { rightColumn: 'search' })
+    expect(store.rightColumn).toBe('search')
+    expect(store.showSideBar).toBe(true)
+
+    // The pane that is showing: hide the sidebar, remember the pane.
+    handlers['mt::set-view-layout'](null, { rightColumn: 'search' })
+    expect(store.rightColumn).toBe('search')
+    expect(store.showSideBar).toBe(false)
+
     expect(ipcSend).toHaveBeenCalledWith('mt::view-layout-changed', 10, {
       showTabBar: store.showTabBar,
-      showSideBar: store.showSideBar
+      showSideBar: false
     })
   })
 
@@ -117,13 +129,6 @@ describe('layout store', () => {
       showTabBar: true,
       showSideBar: true
     })
-  })
-
-  it('CHANGE_SIDE_BAR_WIDTH proxies to SET_SIDE_BAR_WIDTH', () => {
-    const store = useLayoutStore()
-    const spy = vi.spyOn(store, 'SET_SIDE_BAR_WIDTH')
-    store.CHANGE_SIDE_BAR_WIDTH(320)
-    expect(spy).toHaveBeenCalledWith(320)
   })
 
   it('initializes sideBarWidth from localStorage with minimum clamp', async () => {

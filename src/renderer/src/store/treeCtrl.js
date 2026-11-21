@@ -96,7 +96,6 @@ export const addFile = (tree, file) => {
         id: getUniqueId(),
         pathname: `${currentPath}${PATH_SEPARATOR}${directoryName}`,
         name: directoryName,
-        isCollapsed: true,
         isDirectory: true,
         isFile: false,
         isMarkdown: false,
@@ -147,7 +146,6 @@ export const addDirectory = (tree, dir) => {
         id: getUniqueId(),
         pathname: `${currentPath}${PATH_SEPARATOR}${directoryName}`,
         name: directoryName,
-        isCollapsed: true,
         isDirectory: true,
         isFile: false,
         isMarkdown: false,
@@ -210,4 +208,57 @@ export const unlinkDirectory = (tree, dir) => {
   if (index !== -1) {
     currentFolder.splice(index, 1)
   }
+}
+
+const findFolder = (tree, pathname) => {
+  let folder = tree
+  for (const name of getSubdirectoriesFromRoot(tree.pathname, pathname)) {
+    folder = folder.folders.find((f) => f.name === name)
+    if (!folder) return null
+  }
+  return folder
+}
+
+// Give a folder and everything in it the paths they have under `pathname`.
+const repathFolder = (folder, pathname) => {
+  folder.pathname = pathname
+  folder.name = window.path.basename(pathname)
+  for (const file of folder.files) {
+    file.pathname = `${pathname}${PATH_SEPARATOR}${file.name}`
+  }
+  for (const child of folder.folders) {
+    repathFolder(child, `${pathname}${PATH_SEPARATOR}${child.name}`)
+  }
+}
+
+/**
+ * Move or rename a file or directory inside the tree, the way it was just
+ * moved on disk. The file watcher reports the same change a moment later;
+ * applying it here first keeps the entry from vanishing in between.
+ *
+ * @param {*} tree Root file tree
+ * @param {string} src The entry's old path
+ * @param {string} dest The entry's new path
+ * @returns {boolean} Whether the entry was found and moved.
+ */
+export const moveEntry = (tree, src, dest) => {
+  const srcParent = findFolder(tree, window.path.dirname(src))
+  if (!srcParent) return false
+
+  const fileIndex = srcParent.files.findIndex((f) => f.pathname === src)
+  if (fileIndex !== -1) {
+    const [file] = srcParent.files.splice(fileIndex, 1)
+    addFile(tree, { ...file, pathname: dest, name: window.path.basename(dest) })
+    return true
+  }
+
+  const folderIndex = srcParent.folders.findIndex((f) => f.pathname === src)
+  if (folderIndex === -1) return false
+  const [folder] = srcParent.folders.splice(folderIndex, 1)
+  // Create the destination's parent chain, then put the folder itself there.
+  addDirectory(tree, { pathname: window.path.dirname(dest) })
+  const destParent = findFolder(tree, window.path.dirname(dest))
+  repathFolder(folder, dest)
+  destParent.folders.push(folder)
+  return true
 }

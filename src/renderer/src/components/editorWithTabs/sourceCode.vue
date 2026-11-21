@@ -7,6 +7,8 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
+import { useNavigatorStore } from '@/store/navigator'
+import { extractHeadingsFromMarkdown } from '@/store/markdownHeading'
 import { storeToRefs } from 'pinia'
 import codeMirror, { setMode, setCursorAtFirstLine, setTextDirection } from '../../codeMirror'
 import { debounce, wordCount as getWordCount } from 'muya/lib/utils'
@@ -26,6 +28,7 @@ const props = defineProps({
 const { t } = useI18n()
 const editorStore = useEditorStore()
 const preferencesStore = usePreferencesStore()
+const navigatorStore = useNavigatorStore()
 
 const sourceCodeContainer = ref(null)
 
@@ -131,6 +134,13 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
     scrollToCords(scrollTop)
   }
   tabId.value = id
+
+  if (pendingHeadingJump && isCurrentFile(pendingHeadingJump)) {
+    const { index } = pendingHeadingJump
+    pendingHeadingJump = null
+    // After the scroll position restored above has been applied.
+    requestAnimationFrame(() => requestAnimationFrame(() => goToHeadingIndex(index)))
+  }
 }
 
 const handleInvalidateImageCache = () => {
@@ -206,9 +216,56 @@ const handleImageAction = ({ id, result, alt }) => {
   }
 }
 
+// --- Sidebar navigator: jump to a heading, report the heading at the cursor ---
+
+// Source line of every heading in the text, in order (the navigator's list
+// may come from the WYSIWYG editor, which has no line numbers).
+let headingLinesCache = { generation: -1, lines: [] }
+const headingLines = (cm) => {
+  const generation = cm.changeGeneration()
+  if (headingLinesCache.generation !== generation) {
+    const lines = extractHeadingsFromMarkdown(cm.getValue()).map((heading) => heading.line)
+    headingLinesCache = { generation, lines }
+  }
+  return headingLinesCache.lines
+}
+
+const goToHeadingIndex = (index) => {
+  const line = headingLines(editor.value)[index]
+  if (typeof line !== 'number') return
+  editor.value.setCursor({ line, ch: editor.value.getLine(line).length })
+  editor.value.focus()
+  // The container scrolls, not CodeMirror; its content starts 50px down.
+  sourceCodeContainer.value.scrollTop = editor.value.heightAtLine(line, 'local') + 50 - 30
+}
+
+// A jump requested for a file that is not showing yet; done once it is.
+let pendingHeadingJump = null
+
+const isCurrentFile = ({ tabId: targetTabId, pathname }) => {
+  const current = currentTab.value
+  if (targetTabId) return current.id === targetTabId
+  return !!pathname && !!current.pathname && window.fileUtils.isSamePathSync(current.pathname, pathname)
+}
+
+const handleGoToHeading = (target) => {
+  if (!editor.value) return
+  if (isCurrentFile(target) && tabId.value === currentTab.value.id) {
+    goToHeadingIndex(target.index)
+  } else {
+    pendingHeadingJump = target
+  }
+}
+
+const reportHeadingAtCursor = (cm) => {
+  const cursorLine = cm.getCursor('head').line
+  navigatorStore.activeHeadingIndex = headingLines(cm).findLastIndex((line) => line <= cursorLine)
+}
+
 const listenChange = () => {
   editor.value.on('cursorActivity', (cm) => {
     updateSelectionWordCount(cm)
+    reportHeadingAtCursor(cm)
 
     const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(cm)
     // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
@@ -271,6 +328,7 @@ onMounted(() => {
   bus.on('file-changed', handleFileChange)
   bus.on('selectAll', handleSelectAll)
   bus.on('image-action', handleImageAction)
+  bus.on('navigator:go-to-heading', handleGoToHeading)
 
   // For some reason, code mirror does not seem to play well with Vue's refs if we reference editor.value directly.
   // See https://github.com/codemirror/codemirror5/issues/6886 - hence, we need to use a local variable first.
@@ -306,6 +364,7 @@ onBeforeUnmount(() => {
   bus.off('file-changed', handleFileChange)
   bus.off('selectAll', handleSelectAll)
   bus.off('image-action', handleImageAction)
+  bus.off('navigator:go-to-heading', handleGoToHeading)
 
   const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
   bus.emit('file-changed', {

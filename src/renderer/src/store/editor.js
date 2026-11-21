@@ -3,8 +3,6 @@ import dayjs from 'dayjs'
 import log from 'electron-log'
 import bus from '../bus'
 import { hasKeys, getUniqueId, deepClone } from '../util'
-import listToTree from '../util/listToTree'
-import { generateGithubSlug } from 'muya/lib/utils/url'
 import {
   createDocumentState,
   getOptionsFromState,
@@ -23,7 +21,8 @@ import { usePreferencesStore } from './preferences'
 import { useProjectStore } from './project'
 import { useLayoutStore } from './layout'
 import { useMainStore } from '.'
-import { extractHeadingsFromMarkdown } from './markdownHeading'
+import { useNavigatorStore } from './navigator'
+import { headingsFromMarkdown } from './markdownHeading'
 import { i18n } from '../i18n'
 import { createIpcRegistry } from '../util/ipcSubscriptions'
 
@@ -31,59 +30,11 @@ const ipc = createIpcRegistry()
 
 const autoSaveTimers = new Map()
 
-const pendingTocLoads = new Set()
-let pendingTocRebuildTimer = null
-
-const mapNodesToPlainObjects = (nodes, tab) => {
-  if (!Array.isArray(nodes) || nodes.length === 0) {
-    return []
-  }
-
-  return nodes.map((node) => ({
-    id: node.slug
-      ? `${tab.id}::${node.slug}`
-      : `${tab.id}::lvl${node.lvl || 0}::${node.label || 'heading'}::${
-          typeof node.line === 'number' ? node.line : 'n'
-        }`,
-    label: node.label,
-    slug: node.slug,
-    lvl: node.lvl,
-    githubSlug: node.githubSlug,
-    line: typeof node.line === 'number' ? node.line : null,
-    fileId: tab.id,
-    pathname: tab.pathname,
-    isFileRoot: false,
-    children: mapNodesToPlainObjects(node.children, tab)
-  }))
-}
-
-const createRootTocNode = (tab, currentFileId) => {
-  const label = tab.filename || (tab.pathname ? window.path.basename(tab.pathname) : 'Untitled')
-  const tocList = Array.isArray(tab.tocList) ? tab.tocList : []
-  const childNodes = mapNodesToPlainObjects(listToTree(tocList), tab)
-
-  return {
-    id: `file::${tab.id}`,
-    label,
-    slug: null,
-    lvl: 0,
-    fileId: tab.id,
-    pathname: tab.pathname,
-    isFileRoot: true,
-    isDirectory: false,
-    type: 'file',
-    isActive: tab.id === currentFileId,
-    children: childNodes
-  }
-}
-
 export const useEditorStore = defineStore('editor', {
   state: () => ({
     currentFile: {},
     tabs: [],
-    listToc: [], // Used for equal check and for searching for the correct github-slug to jump to
-    toc: [],
-    fileTocCache: Object.create(null)
+    listToc: [] // Headings of the current file; used to find the github-slug to jump to
   }),
 
   actions: {
@@ -330,220 +281,6 @@ export const useEditorStore = defineStore('editor', {
       }
     },
 
-    REBUILD_COMPOSITE_TOC() {
-      const currentId = this.currentFile && this.currentFile.id ? this.currentFile.id : null
-      const projectStore = useProjectStore()
-      const projectTree = projectStore.projectTree
-
-      const unsavedTabs = []
-      const openTabsByPath = new Map()
-
-      for (const tab of this.tabs) {
-        if (tab.pathname) {
-          const normalizedPath = window.path.normalize(tab.pathname)
-          openTabsByPath.set(normalizedPath, tab)
-        } else {
-          unsavedTabs.push(tab)
-        }
-      }
-
-      const seenPaths = new Set()
-
-      const createFileNode = (pathname, name) => {
-        if (!pathname) {
-          return null
-        }
-
-        const normalizedPath = window.path.normalize(pathname)
-        seenPaths.add(normalizedPath)
-
-        const openTab = openTabsByPath.get(normalizedPath)
-        const tocList = openTab ? openTab.tocList : this.fileTocCache[normalizedPath]
-
-        // Note: closed-file TOCs are now loaded lazily — toc.vue calls
-        // LOAD_FILE_TOC when the user expands a directory containing them.
-        // Loading every file unconditionally was O(N) reads per project
-        // even when the user never opened the TOC pane.
-
-        const tabLike = openTab || {
-          id: normalizedPath,
-          filename: name || window.path.basename(normalizedPath),
-          pathname: normalizedPath,
-          tocList: Array.isArray(tocList) ? tocList : []
-        }
-
-        const node = createRootTocNode(tabLike, currentId)
-        node.isDirectory = false
-        node.type = 'file'
-        return node
-      }
-
-      const buildDirectoryNode = (folder) => {
-        if (!folder) {
-          return null
-        }
-
-        const children = []
-
-        if (Array.isArray(folder.folders)) {
-          for (const subFolder of folder.folders) {
-            const childNode = buildDirectoryNode(subFolder)
-            if (childNode) {
-              children.push(childNode)
-            }
-          }
-        }
-
-        if (Array.isArray(folder.files)) {
-          for (const file of folder.files) {
-            if (!file?.isMarkdown || !file.pathname) {
-              continue
-            }
-            const fileNode = createFileNode(file.pathname, file.name)
-            if (fileNode) {
-              children.push(fileNode)
-            }
-          }
-        }
-
-        const label = folder.name || (folder.pathname ? window.path.basename(folder.pathname) : 'Folder')
-        const id = folder.id ? `dir::${folder.id}` : `dir::${folder.pathname || label}`
-        const node = {
-          id,
-          label,
-          pathname: folder.pathname || '',
-          isDirectory: true,
-          type: 'directory',
-          fileId: null,
-          children
-        }
-
-        node.isActive = children.some((child) => child?.isActive)
-        return node
-      }
-
-      const tocNodes = []
-
-      if (projectTree) {
-        const projectNode = buildDirectoryNode(projectTree)
-        if (projectNode) {
-          tocNodes.push(projectNode)
-        }
-      }
-
-      if (unsavedTabs.length > 0) {
-        const unsavedChildren = unsavedTabs.map((tab) => {
-          const node = createRootTocNode(tab, currentId)
-          node.isDirectory = false
-          node.type = 'file'
-          return node
-        })
-
-        tocNodes.push({
-          id: 'group::unsaved',
-          label: 'Unsaved Notes',
-          pathname: '',
-          isDirectory: true,
-          type: 'group',
-          fileId: null,
-          isActive: unsavedChildren.some((child) => child?.isActive),
-          children: unsavedChildren
-        })
-      }
-
-      const otherFileNodes = []
-
-      for (const tab of this.tabs) {
-        if (!tab.pathname) {
-          continue
-        }
-        const normalizedPath = window.path.normalize(tab.pathname)
-        if (seenPaths.has(normalizedPath)) {
-          continue
-        }
-        seenPaths.add(normalizedPath)
-        const node = createRootTocNode(tab, currentId)
-        node.isDirectory = false
-        node.type = 'file'
-        otherFileNodes.push(node)
-      }
-
-      for (const [pathname, tocList] of Object.entries(this.fileTocCache)) {
-        const normalizedPath = window.path.normalize(pathname)
-        if (seenPaths.has(normalizedPath)) {
-          continue
-        }
-        const node = createFileNode(normalizedPath, window.path.basename(normalizedPath))
-        if (node) {
-          otherFileNodes.push(node)
-        }
-      }
-
-      if (otherFileNodes.length > 0) {
-        tocNodes.push({
-          id: 'group::external',
-          label: 'Other Files',
-          pathname: '',
-          isDirectory: true,
-          type: 'group',
-          fileId: null,
-          isActive: otherFileNodes.some((child) => child?.isActive),
-          children: otherFileNodes
-        })
-      }
-
-      this.toc = tocNodes
-    },
-
-    async LOAD_FILE_TOC(pathname) {
-      if (!pathname || this.fileTocCache[pathname] || pendingTocLoads.has(pathname)) {
-        return
-      }
-
-      pendingTocLoads.add(pathname)
-
-      try {
-        const buffer = await window.fileUtils.readFile(pathname)
-        const markdown = Buffer.isBuffer(buffer) ? buffer.toString('utf8') : String(buffer)
-        const headings = extractHeadingsFromMarkdown(markdown).map((item) => ({
-          content: item.content,
-          lvl: item.lvl,
-          slug: null,
-          githubSlug: generateGithubSlug(item.content),
-          line: item.line
-        }))
-
-        this.fileTocCache[pathname] = headings
-      } catch (error) {
-        log.error('Failed to build TOC for file:', pathname, error)
-        this.fileTocCache[pathname] = []
-      } finally {
-        pendingTocLoads.delete(pathname)
-        // Defer to the shared scheduler so batch-loading many files only
-        // triggers one tree rebuild.
-        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
-      }
-    },
-
-    // Coalesces N near-simultaneous rebuild requests into one. Use this
-    // instead of REBUILD_COMPOSITE_TOC() from any code path that may fire
-    // many times in quick succession (typing in a heading, opening a
-    // folder, watcher events, tab switches).
-    SCHEDULE_REBUILD_COMPOSITE_TOC(delay = 100) {
-      if (pendingTocRebuildTimer) {
-        clearTimeout(pendingTocRebuildTimer)
-      }
-      pendingTocRebuildTimer = setTimeout(() => {
-        pendingTocRebuildTimer = null
-        this.REBUILD_COMPOSITE_TOC()
-      }, delay)
-    },
-
-    RESET_TOC_CACHE() {
-      this.fileTocCache = Object.create(null)
-      pendingTocLoads.clear()
-    },
-
     // need pass some data to main process when `save` menu item clicked
     LISTEN_FOR_SAVE() {
       const projectStore = useProjectStore()
@@ -612,21 +349,7 @@ export const useEditorStore = defineStore('editor', {
           window.DIRNAME = window.path.dirname(pathname)
         }
         if (tab) {
-          const previousPath = tab.pathname
           Object.assign(tab, { filename, pathname, isSaved: true })
-          if (previousPath) {
-            const normalizedPrevious = window.path.normalize(previousPath)
-            delete this.fileTocCache[normalizedPrevious]
-          }
-          if (pathname) {
-            const normalizedNew = window.path.normalize(pathname)
-            if (Array.isArray(tab.tocList)) {
-              this.fileTocCache[normalizedNew] = tab.tocList
-            } else {
-              delete this.fileTocCache[normalizedNew]
-            }
-          }
-          this.SCHEDULE_REBUILD_COMPOSITE_TOC()
         }
       })
 
@@ -834,9 +557,6 @@ export const useEditorStore = defineStore('editor', {
         // edits are still written (to the new path) on save.
         if (isExactRename) {
           tab.isSaved = true
-          if (tab.tocList && Array.isArray(tab.tocList)) {
-            this.fileTocCache[window.path.normalize(newPathname)] = tab.tocList
-          }
         }
       }
 
@@ -848,18 +568,6 @@ export const useEditorStore = defineStore('editor', {
           window.DIRNAME = window.path.dirname(newCurrentPathname)
         }
       }
-
-      // Remap cached TOC entries for the renamed file or any file under the
-      // renamed directory.
-      for (const cacheKey of Object.keys(this.fileTocCache)) {
-        const newCacheKey = remap(cacheKey)
-        if (newCacheKey && newCacheKey !== cacheKey) {
-          this.fileTocCache[newCacheKey] = this.fileTocCache[cacheKey]
-          delete this.fileTocCache[cacheKey]
-        }
-      }
-
-      this.SCHEDULE_REBUILD_COMPOSITE_TOC()
     },
 
     UPDATE_CURRENT_FILE(currentFile) {
@@ -885,7 +593,6 @@ export const useEditorStore = defineStore('editor', {
       }
 
       this.listToc = Array.isArray(currentFile.tocList) ? currentFile.tocList : []
-      this.SCHEDULE_REBUILD_COMPOSITE_TOC()
       this.UPDATE_LINE_ENDING_MENU()
     },
 
@@ -1041,14 +748,13 @@ export const useEditorStore = defineStore('editor', {
         }
       }
 
-      if (this.tabs.length === 0) {
-        this.listToc = []
-      }
-
-      this.SCHEDULE_REBUILD_COMPOSITE_TOC()
+      this.listToc = Array.isArray(this.currentFile.tocList) ? this.currentFile.tocList : []
 
       const { pathname } = file
       if (pathname) {
+        // The navigator showed this file's headings from the tab; from now on
+        // it has to read them from disk again.
+        useNavigatorStore().forgetHeadings(pathname)
         window.electron.ipcRenderer.send('mt::window-tab-closed', pathname)
       }
     },
@@ -1094,6 +800,7 @@ export const useEditorStore = defineStore('editor', {
         const { pathname } = this.tabs[index]
 
         if (pathname) {
+          useNavigatorStore().forgetHeadings(pathname)
           window.electron.ipcRenderer.send('mt::window-tab-closed', pathname)
         }
 
@@ -1126,10 +833,7 @@ export const useEditorStore = defineStore('editor', {
         }
       }
 
-      if (this.tabs.length === 0) {
-        this.listToc = []
-        this.toc = []
-      }
+      this.listToc = Array.isArray(this.currentFile.tocList) ? this.currentFile.tocList : []
     },
 
     EXCHANGE_TABS_BY_ID(tabIDs) {
@@ -1315,7 +1019,6 @@ export const useEditorStore = defineStore('editor', {
         }
       } else {
         this.tabs.push(fileState)
-        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
       }
     },
 
@@ -1371,7 +1074,6 @@ export const useEditorStore = defineStore('editor', {
         bus.emit('file-loaded', { id, markdown, cursor })
       } else {
         this.tabs.push(docState)
-        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
       }
 
       if (isMixedLineEndings) {
@@ -1436,13 +1138,7 @@ export const useEditorStore = defineStore('editor', {
             tab.markdown = newTabMarkdown
             if (cursor) tab.cursor = cursor
             if (history) tab.history = history
-            if (Array.isArray(toc)) {
-              tab.tocList = toc
-              if (tab.pathname) {
-                const normalizedPath = window.path.normalize(tab.pathname)
-                this.fileTocCache[normalizedPath] = toc
-              }
-            }
+            tab.tocList = Array.isArray(toc) ? toc : headingsFromMarkdown(newTabMarkdown)
             // A commit for a non-current tab (e.g. source-code mode flushing its
             // pending edit on tab switch) still changes the buffer relative to
             // disk, so mark it dirty and schedule an autosave just like the
@@ -1463,7 +1159,6 @@ export const useEditorStore = defineStore('editor', {
             break
           }
         }
-        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
         return
       }
 
@@ -1497,23 +1192,13 @@ export const useEditorStore = defineStore('editor', {
       if (cursor) this.currentFile.cursor = cursor
       if (muyaIndexCursor) this.currentFile.muyaIndexCursor = muyaIndexCursor
       if (history) this.currentFile.history = history
-      const normalizedToc = Array.isArray(toc) ? toc : []
-      if (!equal(normalizedToc, this.listToc)) {
-        this.listToc = normalizedToc
-        this.currentFile.tocList = normalizedToc
-        if (this.currentFile.pathname) {
-          const normalizedPath = window.path.normalize(this.currentFile.pathname)
-          this.fileTocCache[normalizedPath] = normalizedToc
-        }
-        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
-      } else if (Array.isArray(toc)) {
-        this.currentFile.tocList = normalizedToc
-        if (this.currentFile.pathname) {
-          const normalizedPath = window.path.normalize(this.currentFile.pathname)
-          this.fileTocCache[normalizedPath] = normalizedToc
-        }
-        this.SCHEDULE_REBUILD_COMPOSITE_TOC()
+      // The WYSIWYG editor reports its headings; the source-code editor does
+      // not, so read them from the text.
+      const headings = Array.isArray(toc) ? toc : headingsFromMarkdown(markdown)
+      if (!equal(headings, this.listToc)) {
+        this.listToc = headings
       }
+      this.currentFile.tocList = this.listToc
 
       if (markdown !== oldMarkdown && !wasPendingRoundtrip) {
         this.currentFile.isSaved = false
