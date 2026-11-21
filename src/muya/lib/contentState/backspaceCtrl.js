@@ -123,6 +123,12 @@ const backspaceCtrl = (ContentState) => {
       return
     }
 
+    // Joining or unwrapping blocks, or deleting a selection, is an undo step of
+    // its own, apart from the typing before it.
+    if (start.key !== end.key || start.offset !== end.offset || start.offset === 0) {
+      this.history.commitPending()
+    }
+
     // handle delete selected image
     if (this.selectedImage) {
       event.preventDefault()
@@ -138,8 +144,7 @@ const backspaceCtrl = (ContentState) => {
       this.render()
 
       this.muya.dispatchSelectionChange()
-      this.muya.dispatchSelectionFormats()
-      return this.muya.dispatchChange()
+      return this.muya.dispatchSelectionFormats()
     }
 
     const startBlock = this.getBlock(start.key)
@@ -500,49 +505,15 @@ const backspaceCtrl = (ContentState) => {
           block = this.getParent(block) // let's get the 'li' item instead
           parent = this.getBlock(block.parent) // parent is the 'ul' item
 
-          let newBlock
-
           const grandpa = this.getParent(parent)
           const greatGrandpaBlock = this.getParent(grandpa)
           if (greatGrandpaBlock && greatGrandpaBlock.type === 'ul') {
-            if (block.listItemType === 'task') {
-              const { checked } = parent.children[0]
-              newBlock = this.createTaskItemBlock(null, checked)
-              newBlock.children[1].children[0].text += block.children[1].children[0].text
-              key = newBlock.children[1].key
-            } else {
-              newBlock = this.createBlockLi()
-              newBlock.listItemType = parent.listItemType
-              newBlock.bulletMarkerOrDelimiter = parent.bulletMarkerOrDelimiter
-              newBlock.children[0].children[0].text += block.children[0].children[0].text
-              key = newBlock.children[0].key
-            }
-            // Insert the new list item after the grandparent (the parent list item of the current list)
-            this.insertAfter(newBlock, grandpa)
-
-            block.children.forEach((child) => {
-              if (child.type === 'ul') this.appendChild(newBlock, child)
-            })
-            if (block.nextSibling) {
-              // Also append all the nextSibilings of the current list item to a ul
-              // under the newBlock
-              const newULBlock = this.createBlock('ul')
-              this.appendChild(newBlock, newULBlock)
-              let probe = this.getBlock(block.nextSibling)
-              const addedChildKeys = []
-              while (probe) {
-                const nextSibilingSaved = probe.nextSibling // save it before we overwrite it by appending it
-                this.appendChild(newULBlock, probe)
-                addedChildKeys.push(probe.key)
-                probe = this.getBlock(nextSibilingSaved)
-              }
-              // Remove all the added siblings from the current parent
-              parent.children = parent.children.filter(
-                (child) => !addedChildKeys.includes(child.key)
-              )
-            }
-            // Remove list item from the current parent
+            // A nested item moves out one level with everything it holds, and
+            // the items that followed it become its sublist.
+            this.adoptFollowingItems(block, block)
             this.removeBlock(block)
+            this.insertAfter(block, grandpa)
+            this.matchListItem(block, grandpa)
           } else {
             // We have reached end of indent level, so we should exit the list.
             // If this list item is not the last one, split the list so that the
@@ -552,7 +523,7 @@ const backspaceCtrl = (ContentState) => {
             if (block.nextSibling) {
               this.chopBlock(block)
             }
-            newBlock = this.createBlockP()
+            const newBlock = this.createBlockP()
             // For task items the paragraph is children[1] (children[0] is the checkbox).
             const contentParagraph =
               block.listItemType === 'task' ? block.children[1] : block.children[0]
@@ -600,13 +571,22 @@ const backspaceCtrl = (ContentState) => {
       const { text } = block
       const key = preBlock.key
       const offset = preBlock.text.length
-      preBlock.text += text
-      // If block is a line block and its parent paragraph only has one text line,
-      // also need to remove the paragrah
-      if (this.isOnlyChild(block) && block.type === 'span') {
-        this.removeBlock(parent)
-      } else if (block.functionType !== 'languageInput' && block.functionType !== 'footnoteInput') {
-        this.removeBlock(block)
+      // Running text joins the running text before it. In front of anything
+      // else (code, math, a table, a thematic break) only an empty line is
+      // removed; other text stays where it is and just the cursor moves up.
+      const isProse = (b) => /^(?:paragraphContent|atxLine)$/.test(b.functionType)
+      const canJoin = isProse(block) && isProse(preBlock)
+      if (canJoin) {
+        preBlock.text += text
+      }
+      if (canJoin || (isProse(block) && text === '')) {
+        // If block is a line block and its parent paragraph only has one text line,
+        // also need to remove the paragrah
+        if (this.isOnlyChild(block) && block.type === 'span') {
+          this.removeBlock(parent)
+        } else {
+          this.removeBlock(block)
+        }
       }
 
       this.cursor = {

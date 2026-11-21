@@ -1,5 +1,9 @@
 import selection from '../selection'
 
+// Lines of running text, which join when the break between them is deleted.
+// The text of a code block, table cell or thematic break never joins another.
+const isProse = block => /^(?:paragraphContent|atxLine)$/.test(block.functionType)
+
 const deleteCtrl = ContentState => {
   // Handle `delete` keydown event on document.
   ContentState.prototype.docDeleteHandler = function (event) {
@@ -23,6 +27,12 @@ const deleteCtrl = ContentState => {
     }
     const startBlock = this.getBlock(start.key)
     const nextBlock = this.findNextBlockInLocation(startBlock)
+
+    // Joining blocks or deleting a selection is an undo step of its own, apart
+    // from the typing before it.
+    if (start.key !== end.key || start.offset !== end.offset || start.offset === startBlock.text.length) {
+      this.history.commitPending()
+    }
 
     // TODO: @jocs It will delete all the editor and cause error in console when there is only one empty table. same as #67
     if (startBlock.type === 'figure') event.preventDefault()
@@ -48,40 +58,44 @@ const deleteCtrl = ContentState => {
     ) {
       event.preventDefault()
       if (nextBlock && /h\d|span/.test(nextBlock.type)) {
-        // if cursor at the end of code block-language input, do nothing!
-        if (nextBlock.functionType === 'codeContent' && startBlock.functionType === 'languageInput') {
-          return
-        }
-        // if forward-deleting into a fenced code block's language input (e.g. a
-        // paragraph immediately before a code block), do nothing. Merging text
-        // into the languageInput would otherwise leave `pre` with only its code
-        // child, causing isOnlyRemoveableChild to walk up and delete the whole
-        // code block.
-        if (nextBlock.functionType === 'languageInput') {
-          return
-        }
+        const removeWithEmptiedParents = block => {
+          const toBeRemoved = [block]
+          let parent = this.getParent(block)
+          let target = block
 
-        startBlock.text += nextBlock.text
+          while (this.isOnlyRemoveableChild(target)) {
+            toBeRemoved.push(parent)
+            target = parent
+            parent = this.getParent(parent)
+          }
 
-        const toBeRemoved = [nextBlock]
-
-        let parent = this.getParent(nextBlock)
-        let target = nextBlock
-
-        while (this.isOnlyRemoveableChild(target)) {
-          toBeRemoved.push(parent)
-          target = parent
-          parent = this.getParent(parent)
+          toBeRemoved.forEach(b => this.removeBlock(b))
         }
 
-        toBeRemoved.forEach(b => this.removeBlock(b))
+        if (isProse(startBlock) && isProse(nextBlock)) {
+          startBlock.text += nextBlock.text
+          removeWithEmptiedParents(nextBlock)
 
-        const offset = start.offset
-        this.cursor = {
-          start: { key, offset },
-          end: { key, offset }
+          const offset = start.offset
+          this.cursor = {
+            start: { key, offset },
+            end: { key, offset }
+          }
+          this.render()
+        } else if (isProse(startBlock) && text === '' && nextBlock.editable) {
+          // What follows (code, math, a table, a thematic break) cannot take
+          // text in, but an empty line in front of it can still be deleted.
+          const target = nextBlock.functionType === 'languageInput'
+            ? this.findNextBlockInLocation(nextBlock)
+            : nextBlock
+          removeWithEmptiedParents(startBlock)
+
+          this.cursor = {
+            start: { key: target.key, offset: 0 },
+            end: { key: target.key, offset: 0 }
+          }
+          this.render()
         }
-        this.render()
       }
     }
   }

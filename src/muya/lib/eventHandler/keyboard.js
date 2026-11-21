@@ -163,12 +163,22 @@ class Keyboard {
         event.preventDefault()
         return
       }
+      // A handler that edits the block tree itself cancels the native edit, so
+      // no `input` event follows to announce the change.
+      const dispatchHandledEdit = () => {
+        if (event.defaultPrevented) {
+          this.muya.dispatchChange()
+        }
+      }
+
       switch (event.key) {
         case EVENT_KEYS.Backspace:
           contentState.backspaceHandler(event)
+          dispatchHandledEdit()
           break
         case EVENT_KEYS.Delete:
           contentState.deleteHandler(event)
+          dispatchHandledEdit()
           break
         case EVENT_KEYS.Enter:
           if (!this.isComposed) {
@@ -186,6 +196,7 @@ class Keyboard {
           break
         case EVENT_KEYS.Tab:
           contentState.tabHandler(event)
+          dispatchHandledEdit()
           break
         default:
           break

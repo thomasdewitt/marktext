@@ -193,7 +193,8 @@ const tabCtrl = ContentState => {
     const { start, end } = this.cursor
     const startBlock = this.getBlock(start.key)
     const endBlock = this.getBlock(end.key)
-    if (start.key === end.key && start.offset === end.offset) {
+    const isCodeContent = startBlock.type === 'span' && startBlock.functionType === 'codeContent'
+    if (start.key === end.key && start.offset === end.offset && !event.shiftKey) {
       startBlock.text = startBlock.text.substring(0, start.offset) +
         tabCharacter + endBlock.text.substring(end.offset)
       const key = start.key
@@ -203,11 +204,9 @@ const tabCtrl = ContentState => {
         end: { key, offset }
       }
       return this.partialRender()
-    } else if (start.key === end.key &&
-      start.offset !== end.offset &&
-      startBlock.type === 'span' &&
-      startBlock.functionType === 'codeContent') {
-      // 在代码块内
+    } else if (start.key === end.key && isCodeContent) {
+      // Indent the selected lines of code, or with Shift take one level of
+      // indentation off them (off the cursor's line when nothing is selected).
       let nowLen = 0
       let oldText = startBlock.text
       let lines = oldText.split('\n')
@@ -231,10 +230,12 @@ const tabCtrl = ContentState => {
         }
       }
       let isDealLine = false
+      let firstLineStart = 0
       for (let nowLineNum = 0; nowLineNum < lines.length; nowLineNum++) {
         nowLen += lines[nowLineNum].length
         if (start.offset <= nowLen && !isDealLine) {
           isDealLine = true
+          firstLineStart = nowLen - lines[nowLineNum].length
         }
         if (isDealLine) lines[nowLineNum] = dealLine(lines[nowLineNum])
         if (end.offset <= nowLen) {
@@ -244,9 +245,10 @@ const tabCtrl = ContentState => {
       }
       startBlock.text = lines.join('\n')
       let sk = start.key
-      let so = start.offset + startTabSize
+      // A cursor inside the indentation that was removed stays on its line.
+      let so = Math.max(firstLineStart, start.offset + startTabSize)
       let ek = end.key
-      let eo = startBlock.text.length - (oldText.length - end.offset)
+      let eo = Math.max(so, startBlock.text.length - (oldText.length - end.offset))
       this.cursor = {
         start: { key: sk, offset: so },
         end: { key: ek, offset: eo }
@@ -364,12 +366,21 @@ const tabCtrl = ContentState => {
     const startBlock = this.getBlock(start.key)
     const endBlock = this.getBlock(end.key)
 
+    // Tab is an undo step of its own, apart from the typing before it.
+    this.history.commitPending()
+
     if (event.shiftKey && startBlock.functionType !== 'cellContent') {
       const unindentType = this.isUnindentableListItem(startBlock)
       if (unindentType) {
         this.unindentListItem(startBlock, unindentType)
         return
       }
+      // Shift+Tab only ever takes indentation away: from a nested list item
+      // (above) or from lines of code. Elsewhere there is none to take.
+      if (start.key === end.key && startBlock.functionType === 'codeContent') {
+        this.insertTab(event)
+      }
+      return
     }
 
     // Handle `tab` to jump to the end of format when the cursor is at the end of format content.

@@ -35,14 +35,8 @@ class ExportMarkdown {
 
   translateBlocks2Markdown (blocks, indent = '', listIndent = '') {
     const result = []
-    // helper for CommonMark 264
-    let lastListBullet = ''
 
     for (const block of blocks) {
-      if (block.type !== 'ul' && block.type !== 'ol') {
-        lastListBullet = ''
-      }
-
       switch (block.type) {
         case 'p':
         case 'hr': {
@@ -108,15 +102,8 @@ class ExportMarkdown {
           break
         }
         case 'ul': {
-          let insertNewLine = this.isLooseParentList
+          const insertNewLine = this.isLooseParentList
           this.isLooseParentList = true
-
-          // Start a new list without separation due changing the bullet or ordered list delimiter starts a new list.
-          const { bulletMarkerOrDelimiter } = block.children[0]
-          if (lastListBullet && lastListBullet !== bulletMarkerOrDelimiter) {
-            insertNewLine = false
-          }
-          lastListBullet = bulletMarkerOrDelimiter
           if (insertNewLine) {
             this.insertLineBreak(result, indent)
           }
@@ -127,15 +114,8 @@ class ExportMarkdown {
           break
         }
         case 'ol': {
-          let insertNewLine = this.isLooseParentList
+          const insertNewLine = this.isLooseParentList
           this.isLooseParentList = true
-
-          // Start a new list without separation due changing the bullet or ordered list delimiter starts a new list.
-          const { bulletMarkerOrDelimiter } = block.children[0]
-          if (lastListBullet && lastListBullet !== bulletMarkerOrDelimiter) {
-            insertNewLine = false
-          }
-          lastListBullet = bulletMarkerOrDelimiter
           if (insertNewLine) {
             this.insertLineBreak(result, indent)
           }
@@ -183,7 +163,9 @@ class ExportMarkdown {
     const { headingStyle, marker } = block
     const { text } = block.children[0]
     if (headingStyle === 'atx') {
-      const match = text.match(/(#{1,6})(.*)/)
+      // A heading block is a heading of its level even when its text has no
+      // marker (yet); the document must still be written out.
+      const match = /^ {0,3}(#{1,6})(.*)/.exec(text) || [text, '#'.repeat(Number(block.type[1])), text]
       const atxHeadingText = `${match[1]} ${match[2].trim()}`
       return `${indent}${atxHeadingText}\n`
     } else if (headingStyle === 'setext') {

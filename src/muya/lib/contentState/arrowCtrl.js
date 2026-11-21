@@ -298,7 +298,10 @@ const arrowCtrl = ContentState => {
         end: { key, offset }
       }
 
-      return this.partialRender()
+      this.partialRender()
+      if (newBlock) {
+        this.muya.dispatchChange()
+      }
     }
   }
 }

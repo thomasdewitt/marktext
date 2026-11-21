@@ -47,6 +47,9 @@ const enterCtrl = (ContentState) => {
     const parent = this.getParent(block)
     const type = parent.type
     const container = this.createBlock(type)
+    if (parent.listType) {
+      container.listType = parent.listType
+    }
     const index = this.findIndex(parent.children, block)
     const partChildren = parent.children.splice(index + 1)
     block.nextSibling = null
@@ -100,97 +103,88 @@ const enterCtrl = (ContentState) => {
     return listItem
   }
 
+  // Make `listItem` the same kind of item as `model` (bullet, ordered or task,
+  // same marker and spacing), so that it can sit in the list `model` is in.
+  ContentState.prototype.matchListItem = function (listItem, model) {
+    const firstChild = listItem.children[0]
+    const hasCheckbox = !!firstChild && firstChild.type === 'input'
+    if (model.listItemType === 'task' && !hasCheckbox) {
+      const checkbox = this.createBlock('input')
+      checkbox.checked = false
+      this.insertBefore(checkbox, firstChild)
+    } else if (model.listItemType !== 'task' && hasCheckbox) {
+      this.removeBlock(firstChild)
+    }
+    listItem.listItemType = model.listItemType
+    listItem.bulletMarkerOrDelimiter = model.bulletMarkerOrDelimiter
+    listItem.isLooseListItem = model.isLooseListItem
+  }
+
+  // Take the items after `listItem` out of its list and make them a sublist at
+  // the end of `target`.
+  ContentState.prototype.adoptFollowingItems = function (listItem, target) {
+    if (!listItem.nextSibling) return
+    const rest = this.chopBlock(listItem)
+    this.removeBlock(rest)
+    const lastChild = this.getLastChild(target)
+    if (lastChild && lastChild.type === rest.type) {
+      rest.children.forEach((child) => this.appendChild(lastChild, child))
+    } else {
+      this.appendChild(target, rest)
+    }
+  }
+
   ContentState.prototype.enterInEmptyParagraph = function (block) {
     if (block.type === 'span') block = this.getParent(block)
     const parent = this.getParent(block)
+    const isList = (b) => !!b && (b.type === 'ul' || b.type === 'ol')
+    const outerItem = block.type === 'li' && isList(parent) ? this.getParent(parent) : null
 
     let newBlock = null
-    if (parent && /ol|blockquote/.test(parent.type)) {
-      newBlock = this.createBlockP()
-      if (this.isOnlyChild(block)) {
-        this.insertAfter(newBlock, parent)
+    if (outerItem && outerItem.type === 'li') {
+      // An empty item of a nested list moves out one level: it becomes the
+      // item after the one that held the nested list.
+      const newItem = this.createBlockLi()
+      this.insertAfter(newItem, outerItem)
+      this.matchListItem(newItem, outerItem)
+
+      // Its own sublists move with it, and the items that followed it in the
+      // nested list become its sublist.
+      block.children.filter(isList).forEach((child) => this.appendChild(newItem, child))
+      this.adoptFollowingItems(block, newItem)
+      this.removeBlock(block)
+      if (parent.children.length === 0) {
         this.removeBlock(parent)
+      }
+
+      newBlock = newItem.children.find((child) => child.type === 'p')
+    } else if (parent && parent.type === 'li' && block.type === 'p' && this.isLastChild(block)) {
+      // An empty paragraph at the end of a list item becomes the next item.
+      const newItem = this.createBlockLi()
+      this.insertAfter(newItem, parent)
+      this.matchListItem(newItem, parent)
+      this.removeBlock(block)
+
+      newBlock = newItem.children.find((child) => child.type === 'p')
+    } else if (parent && (isList(parent) || parent.type === 'blockquote')) {
+      // Leave the list or quote. Where the paragraph lands depends on where the
+      // empty block was: after an only or last child, before a first child, and
+      // between the two halves when it was in the middle.
+      newBlock = this.createBlockP()
+      if (this.isOnlyChild(block) || this.isLastChild(block)) {
+        this.insertAfter(newBlock, parent)
       } else if (this.isFirstChild(block)) {
         this.insertBefore(newBlock, parent)
-      } else if (this.isLastChild(block)) {
-        this.insertAfter(newBlock, parent)
       } else {
         this.chopBlock(block)
         this.insertAfter(newBlock, parent)
       }
-
+      // Sublists of an empty list item stay, below the new paragraph.
+      block.children
+        .filter(isList)
+        .reverse()
+        .forEach((child) => this.insertAfter(child, newBlock))
       this.removeBlock(block)
-    } else if (parent && parent.type === 'ul') {
-      // Check if this is the last indent, then we should insert it into the grandparent (the root element) instead
-      // This effectively exists the list
-
-      const grandParent = this.getParent(parent)
-      const greatGrandParent = this.getParent(grandParent)
-      if (greatGrandParent && greatGrandParent.type === 'ul') {
-        if (block.listItemType === 'task') {
-          const checked = parent.children?.[0]?.checked || false
-          newBlock = this.createTaskItemBlock(null, checked)
-        } else {
-          newBlock = this.createBlockLi()
-          newBlock.listItemType = parent.listItemType
-          newBlock.bulletMarkerOrDelimiter = parent.bulletMarkerOrDelimiter
-        }
-        newBlock.isLooseListItem = parent.isLooseListItem
-
-        // Insert the new list item after the grandparent (the parent list item of the current list)
-        this.insertAfter(newBlock, grandParent)
-
-        block.children.forEach((child) => {
-          if (child.type === 'ul') this.appendChild(newBlock, child)
-        })
-        // Also append all the nextSibilings of the current list item to a ul
-        // under the newBlock
-        if (block.nextSibling) {
-          // Also append all the nextSibilings of the current list item to a ul
-          // under the newBlock
-          const newULBlock = this.createBlock('ul')
-          this.appendChild(newBlock, newULBlock)
-          let probe = this.getBlock(block.nextSibling)
-          const addedChildKeys = []
-          while (probe) {
-            const nextSibilingSaved = probe.nextSibling // save it before we overwrite it by appending it
-            this.appendChild(newULBlock, probe)
-            addedChildKeys.push(probe.key)
-            probe = this.getBlock(nextSibilingSaved)
-          }
-          // Remove all the added siblings from the current parent
-          parent.children = parent.children.filter((child) => !addedChildKeys.includes(child.key))
-        }
-        // Remove list item from the current parent
-        this.removeBlock(block)
-
-        newBlock = newBlock.listItemType === 'task' ? newBlock.children[1] : newBlock.children[0]
-      } else {
-        // We have reached end of indent level, so we should exit the list.
-        // Where the exiting paragraph lands depends on the empty item's position:
-        // an empty first/middle item must split the list so the items following it
-        // stay in a list BELOW the new paragraph (mirrors the ol/blockquote branch),
-        // rather than always dropping the paragraph after the whole list.
-        newBlock = this.createBlockP()
-        if (this.isOnlyChild(block)) {
-          this.insertAfter(newBlock, parent)
-        } else if (this.isFirstChild(block)) {
-          this.insertBefore(newBlock, parent)
-        } else if (this.isLastChild(block)) {
-          this.insertAfter(newBlock, parent)
-        } else {
-          // Split the list: siblings after the empty item move into a new list
-          // that ends up after the exiting paragraph.
-          this.chopBlock(block)
-          this.insertAfter(newBlock, parent)
-        }
-        // Any sublists it has should be added after the new paragraph
-        block.children.forEach((child) => {
-          if (child.type === 'ul') this.insertAfter(child, newBlock)
-        })
-        this.removeBlock(block)
-      }
-      // If the parent list is now empty, we also need to remove it
       if (parent.children.length === 0) {
         this.removeBlock(parent)
       }
@@ -253,6 +247,9 @@ const enterCtrl = (ContentState) => {
 
     event.preventDefault()
 
+    // Enter is an undo step of its own, apart from the typing before it.
+    this.history.commitPending()
+
     // Don't allow new lines in language identifiers (GH#569)
     if (block.functionType && block.functionType === 'languageInput') {
       // Jump inside the code block and update code language if necessary
@@ -271,9 +268,11 @@ const enterCtrl = (ContentState) => {
       block.text = startRemainText + endRemainText
 
       this.removeBlocks(block, endBlock)
+      // Removing the selection and breaking the line are one undo step.
       this.cursor = {
         start: { key, offset },
-        end: { key, offset }
+        end: { key, offset },
+        noHistory: true
       }
       this.partialRender()
       return this.enterHandler(event)
@@ -286,7 +285,8 @@ const enterCtrl = (ContentState) => {
       block.text = block.text.substring(0, start.offset) + block.text.substring(end.offset)
       this.cursor = {
         start: { key, offset },
-        end: { key, offset }
+        end: { key, offset },
+        noHistory: true
       }
       this.partialRender()
       return this.enterHandler(event)
@@ -445,15 +445,23 @@ const enterCtrl = (ContentState) => {
     const right = text.length - left
     const type = block.type
     let newBlock
+    // Where the cursor goes in the block it ends up in.
+    let cursorOffset = 0
+
+    // The text of an ATX heading starts after its marker. With the cursor there,
+    // or inside the marker, Enter moves the heading down like Enter at the start
+    // of any other block; it must not break the marker off as a heading of its own.
+    const atxMarker = block.headingStyle === 'atx' ? /^ {0,3}(#{1,6})[ \t]*/.exec(text) : null
+    const atStart = left === 0 || (!!atxMarker && left <= atxMarker[0].length)
 
     switch (true) {
-      case left !== 0 && right !== 0: {
+      case !atStart && right !== 0: {
         // cursor in the middle
         let { pre, post } = selection.chopHtmlByCursor(paragraph)
         if (/^h\d$/.test(block.type)) {
-          if (block.headingStyle === 'atx') {
-            const PREFIX = /^#+/.exec(pre)[0]
-            post = `${PREFIX} ${post}`
+          if (atxMarker) {
+            post = `${atxMarker[1]} ${post.trimStart()}`
+            cursorOffset = atxMarker[1].length + 1
           }
           block.children[0].text = pre
           newBlock = this.createBlock(type, {
@@ -520,8 +528,8 @@ const enterCtrl = (ContentState) => {
         // paragraph is empty
         return this.enterInEmptyParagraph(block)
       }
-      case left !== 0 && right === 0:
-      case left === 0 && right !== 0: {
+      case right === 0:
+      case atStart: {
         // cursor at end of block or at begin of block
         if (type === 'li') {
           if (block.listItemType === 'task') {
@@ -536,9 +544,10 @@ const enterCtrl = (ContentState) => {
           newBlock = this.createBlockP()
         }
 
-        if (left === 0 && right !== 0) {
+        if (atStart && right !== 0) {
           this.insertBefore(newBlock, block)
           newBlock = block
+          cursorOffset = left
         } else {
           if (block.type === 'p') {
             const lastLine = block.children[block.children.length - 1]
@@ -610,10 +619,10 @@ const enterCtrl = (ContentState) => {
 
     cursorBlock = getParagraphBlock(cursorBlock)
     const key =
-      (cursorBlock.type === 'p' || cursorBlock.type === 'pre') && cursorBlock.children?.[0]
+      /^(?:p|pre|hr|h\d)$/.test(cursorBlock.type) && cursorBlock.children?.[0]
         ? cursorBlock.children[0].key
         : cursorBlock.key
-    let offset = 0
+    let offset = cursorBlock === getParagraphBlock(newBlock) ? cursorOffset : 0
     if (htmlNeedFocus) {
       const { text } = cursorBlock
       const match = /^[^\n]+\n[^\n]*/.exec(text)
