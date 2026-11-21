@@ -1203,7 +1203,7 @@
       "subtitle": "- List item"
     },
     "todoList": {
-      "title": "List",
+      "title": "Task List",
       "subtitle": "- [ ] Task item"
     },
     "vegaChart": {

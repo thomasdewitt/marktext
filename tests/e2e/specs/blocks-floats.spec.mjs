@@ -59,6 +59,16 @@ test('the front menu shows every entry on one line', async () => {
   await closeFrontMenu()
 })
 
+test('the front menu calls the task list by its name', async () => {
+  await openFrontMenu()
+  const { items } = await readFrontMenu()
+  assert.deepEqual(
+    items.map((item) => item.title).filter((title) => /list/i.test(title)),
+    ['Ordered List', 'Bullet List', 'Task List']
+  )
+  await closeFrontMenu()
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
