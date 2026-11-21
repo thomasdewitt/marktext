@@ -78,6 +78,22 @@ test('an active table shows its toolbar, gutter icon and drag bars, and has no s
   assert.deepEqual(await overflow(0), { x: 0, y: 0 })
 })
 
+test('dragging a column past the edge of the table shows no scrollbar and moves the column', async () => {
+  await clickCell('first')
+  const bar = await centre('.ag-drag-handler.bottom')
+  await win.mouse.move(bar.x, bar.y)
+  await win.mouse.down()
+  await win.mouse.move(bar.x - 200, bar.y, { steps: 5 })
+  await win.mouse.move(bar.x - 900, bar.y + 40, { steps: 5 })
+  assert.deepEqual(await overflow(0), { x: 0, y: 0 })
+  await win.mouse.up()
+  await win.waitForFunction(() => {
+    const header = document.querySelector('figure[data-role=TABLE] th')
+    return header && header.textContent === 'Notes'
+  })
+  assert.match(await t.markdown(), /\| Notes {2}\| Name \| Value \|\n.*\n\| first {2}\| a {4}\| 1 {5}\|\n/)
+})
+
 test('a wide table scrolls inside its own wrapper and the toolbar stays in place', async () => {
   await clickCell('cell 1')
   const before = await win.evaluate(() => {

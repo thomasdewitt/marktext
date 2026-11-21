@@ -96,9 +96,14 @@ const tableDragBarCtrl = ContentState => {
     if (!this.dragInfo) {
       return
     }
-    const { barType } = this.dragInfo
+    const { barType, index, aspects } = this.dragInfo
     const attrName = barType === 'bottom' ? 'clientX' : 'clientY'
-    const offset = this.dragInfo.offset = event[attrName] - this.dragInfo[attrName]
+    // The dragged row or column stays inside the table: outside it, it would
+    // overflow the table's scroll wrapper and make scrollbars come and go.
+    const sum = sizes => sizes.reduce((total, size) => total + size, 0)
+    const min = -sum(aspects.slice(0, index))
+    const max = sum(aspects.slice(index + 1))
+    const offset = this.dragInfo.offset = Math.max(min, Math.min(max, event[attrName] - this.dragInfo[attrName]))
     if (Math.abs(offset) < 5) {
       return
     }
