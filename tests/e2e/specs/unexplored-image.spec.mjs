@@ -103,6 +103,25 @@ test('the first click on an image that is in the document twice shows its tools'
   assert.deepEqual(await t.shownFloats(), ['ag-image-toolbar'])
 })
 
+test('Escape puts the toolbar and the resize handles of a selected image away', async () => {
+  await open()
+  await selectImage()
+  await t.press('Escape')
+  await win.waitForFunction(() => document.querySelectorAll('.ag-transformer .circle').length === 0)
+  assert.deepEqual(await t.shownFloats(), [])
+})
+
+test('Enter on a selected image opens the image selector and adds no paragraph', async () => {
+  await open()
+  await selectImage()
+  await t.press('Enter')
+  await win.waitForSelector(`${SELECTOR} input.src`)
+
+  assert.deepEqual(await t.shownFloats(), ['ag-image-selector'])
+  assert.equal(await handleCount(), 0)
+  assert.equal(await t.markdown(), DOCUMENT)
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })

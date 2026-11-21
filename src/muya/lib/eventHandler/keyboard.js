@@ -181,7 +181,8 @@ class Keyboard {
           dispatchHandledEdit()
           break
         case EVENT_KEYS.Enter:
-          if (!this.isComposed) {
+          // Enter on a selected image opens the image selector (`docEnterHandler`).
+          if (!this.isComposed && !contentState.selectedImage) {
             contentState.enterHandler(event)
             this.muya.dispatchChange()
           }

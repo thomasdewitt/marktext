@@ -123,12 +123,16 @@ class ContentState {
 
   set selectedImage(image) {
     const oldSelectedImage = this._selectedImage
-    // if there is no selected image, remove selected status of current selected image.
+    // if there is no selected image, remove selected status of current selected image
+    // and put its toolbar and resize handles away.
     if (!image && oldSelectedImage) {
       const selectedImages = this.muya.container.querySelectorAll('.ag-inline-image-selected')
       for (const img of selectedImages) {
         img.classList.remove('ag-inline-image-selected')
       }
+      const { eventCenter } = this.muya
+      eventCenter.dispatch('muya-image-toolbar', { reference: null })
+      eventCenter.dispatch('muya-transformer', { reference: null })
     }
     this._selectedImage = image
   }
