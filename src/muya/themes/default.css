@@ -400,19 +400,25 @@ kbd {
 
   /* Tables shouldn't wrap their cell text inside the readable doc column —
      let the table take its natural width and scroll horizontally within
-     its figure container instead. */
-  figure[data-role='TABLE'] {
-    max-width: 100%;
+     its wrapper instead. The wrapper's padding (cancelled by the negative
+     margin) keeps what hangs outside the table inside the scrolled area: the
+     row drag bar on the left, the column drag bar below (lower still while
+     its column is dragged), and the cell borders, which are drawn 1px past
+     the last column. Without it they are clipped, or give every table a
+     scrollbar. */
+  figure[data-role='TABLE'] > .ag-table-scroll {
     overflow-x: auto;
+    padding: 0 1px 14px 12px;
+    margin: 0 -1px -14px -12px;
   }
 
-  figure[data-role='TABLE'] > table {
+  figure[data-role='TABLE'] > .ag-table-scroll > table {
     width: max-content;
     min-width: 100%;
   }
 
-  figure[data-role='TABLE'] > table tr th,
-  figure[data-role='TABLE'] > table tr td {
+  figure[data-role='TABLE'] > .ag-table-scroll > table tr th,
+  figure[data-role='TABLE'] > .ag-table-scroll > table tr td {
     white-space: nowrap;
   }
 
