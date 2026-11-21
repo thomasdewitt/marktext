@@ -57,7 +57,7 @@ describe('pasted image base64 preview (image.js urlMap fallback)', () => {
       attrs: { src: '', alt: id, title: undefined, width: undefined, height: undefined },
       range: { start: 0, end: 12 }
     }
-    const block = { key: 'blockkey' }
+    const block = { key: 'blockkey', text: token.raw }
 
     const vnodes = image.call(ctx, h, {}, block, token, '')
     const props = findImgProps(vnodes)
@@ -81,7 +81,7 @@ describe('pasted image base64 preview (image.js urlMap fallback)', () => {
       attrs: { src: url, alt: 'pic', title: undefined, width: undefined, height: undefined },
       range: { start: 0, end: 40 }
     }
-    const block = { key: 'blockkey' }
+    const block = { key: 'blockkey', text: token.raw }
 
     const vnodes = image.call(ctx, h, {}, block, token, '')
     const props = findImgProps(vnodes)
