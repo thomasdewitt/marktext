@@ -12,11 +12,7 @@ class ImageSelector extends BaseFloat {
     const name = 'ag-image-selector'
     options = Object.assign(options, {
       placement: 'bottom',
-      modifiers: {
-        offset: {
-          offset: '0, 0'
-        }
-      },
+      modifiers: [{ name: 'offset', options: { offset: [0, 0] } }],
       showArrow: false
     })
     super(muya, name, options)

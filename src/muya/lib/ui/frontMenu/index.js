@@ -6,11 +6,7 @@ import './index.css'
 
 const defaultOptions = {
   placement: 'bottom',
-  modifiers: {
-    offset: {
-      offset: '0, 10'
-    }
-  },
+  modifiers: [{ name: 'offset', options: { offset: [0, 10] } }],
   showArrow: false
 }
 

@@ -1369,13 +1369,6 @@
     "input-mathematical-formula": "数式を入力",
     "fence": "フェンス",
     "indent": "インデント",
-    "front-matter-delimiter": "フロントマター区切り文字",
-    "math-delimiter": "数式区切り文字",
-    "mermaid-start": "mermaid開始",
-    "flowchart-start": "フローチャート開始",
-    "sequence-start": "シーケンス開始",
-    "plantuml-start": "plantuml開始",
-    "vega-lite-start": "vega-lite開始",
     "click-to-add-image": "クリックして画像を追加",
     "load-image-failed": "画像の読み込みに失敗しました"
   },

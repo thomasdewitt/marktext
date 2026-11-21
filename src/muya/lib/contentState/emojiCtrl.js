@@ -33,7 +33,10 @@ const emojiCtrl = ContentState => {
         start: { key, offset },
         end: { key, offset }
       }
-      return this.partialRender()
+      this.partialRender()
+      // The pick comes from a click or a key the picker handles, so no `input`
+      // event follows to report the change.
+      this.muya.eventCenter.dispatch('stateChange')
     }
   }
 }

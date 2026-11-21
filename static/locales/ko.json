@@ -1381,13 +1381,6 @@
     "input-mathematical-formula": "수학 공식 입력",
     "fence": "펜스",
     "indent": "들여쓰기",
-    "front-matter-delimiter": "프론트 매터 구분자",
-    "math-delimiter": "수학 구분자",
-    "mermaid-start": "mermaid 시작",
-    "flowchart-start": "플로우차트 시작",
-    "sequence-start": "시퀀스 시작",
-    "plantuml-start": "plantuml 시작",
-    "vega-lite-start": "vega-lite 시작",
     "click-to-add-image": "클릭하여 이미지 추가",
     "load-image-failed": "이미지 로드 실패"
   },

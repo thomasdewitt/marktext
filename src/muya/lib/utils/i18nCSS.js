@@ -55,34 +55,6 @@ class I18nCSS {
     root.style.setProperty('--i18n-fence', `"${getTranslation('editor.fence', 'fence')}"`)
     root.style.setProperty('--i18n-indent', `"${getTranslation('editor.indent', 'indent')}"`)
     root.style.setProperty(
-      '--i18n-front-matter-delimiter',
-      `"${getTranslation('editor.front-matter-delimiter', 'front matter delimiter')}"`
-    )
-    root.style.setProperty(
-      '--i18n-math-delimiter',
-      `"${getTranslation('editor.math-delimiter', 'math delimiter')}"`
-    )
-    root.style.setProperty(
-      '--i18n-mermaid-start',
-      `"${getTranslation('editor.mermaid-start', 'mermaid start')}"`
-    )
-    root.style.setProperty(
-      '--i18n-flowchart-start',
-      `"${getTranslation('editor.flowchart-start', 'flowchart start')}"`
-    )
-    root.style.setProperty(
-      '--i18n-sequence-start',
-      `"${getTranslation('editor.sequence-start', 'sequence start')}"`
-    )
-    root.style.setProperty(
-      '--i18n-plantuml-start',
-      `"${getTranslation('editor.plantuml-start', 'plantuml start')}"`
-    )
-    root.style.setProperty(
-      '--i18n-vega-lite-start',
-      `"${getTranslation('editor.vega-lite-start', 'vega-lite start')}"`
-    )
-    root.style.setProperty(
       '--i18n-click-to-add-image',
       `"${getTranslation('editor.click-to-add-image', 'Click to add image')}"`
     )

@@ -1204,7 +1204,7 @@
       "subtitle": "- List item"
     },
     "todoList": {
-      "title": "List",
+      "title": "Task List",
       "subtitle": "- [ ] Task item"
     },
     "vegaChart": {
@@ -1386,13 +1386,6 @@
     "input-mathematical-formula": "Input mathematical formula",
     "fence": "fence",
     "indent": "indent",
-    "front-matter-delimiter": "front matter delimiter",
-    "math-delimiter": "math delimiter",
-    "mermaid-start": "mermaid start",
-    "flowchart-start": "flowchart start",
-    "sequence-start": "sequence start",
-    "plantuml-start": "plantuml start",
-    "vega-lite-start": "vega-lite start",
     "click-to-add-image": "Click to add image",
     "load-image-failed": "Load image failed"
   }

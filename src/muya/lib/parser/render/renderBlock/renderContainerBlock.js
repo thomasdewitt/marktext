@@ -43,7 +43,7 @@ export default function renderContainerBlock (parent, block, activeBlocks, match
     this.renderingRowContainer = block
   }
 
-  const children = block.children.map(child => this.renderBlock(block, child, activeBlocks, matches, useCache, t))
+  let children = block.children.map(child => this.renderBlock(block, child, activeBlocks, matches, useCache, t))
   const data = {
     attrs: {},
     dataset: {}
@@ -144,6 +144,11 @@ export default function renderContainerBlock (parent, block, activeBlocks, match
   } else if (type === 'figure') {
     if (functionType) {
       Object.assign(data.dataset, { role: functionType.toUpperCase() })
+      if (functionType === 'table') {
+        // A wide table scrolls inside this wrapper, so that the tool bar and
+        // the gutter icon, which hang outside the figure, are not clipped.
+        children = [h('div.ag-table-scroll', children)]
+      }
       if (functionType === 'table' && activeBlocks[0] && activeBlocks[0].functionType === 'cellContent') {
         children.unshift(renderTableTools(activeBlocks, t))
       } else if (functionType !== 'footnote') {

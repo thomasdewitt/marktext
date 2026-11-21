@@ -4,13 +4,10 @@ import { noop } from '../../utils'
 import { EVENT_KEYS } from '../../config'
 import './index.css'
 
+// `modifiers` is passed to Popper as is: a list of Popper 2 modifiers.
 const defaultOptions = () => ({
   placement: 'bottom-start',
-  modifiers: {
-    offset: {
-      offset: '0, 12'
-    }
-  },
+  modifiers: [{ name: 'offset', options: { offset: [0, 12] } }],
   showArrow: true
 })
 

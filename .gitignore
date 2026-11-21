@@ -13,3 +13,6 @@ temp/
 logs/
 
 .codex
+
+# Generated from the .json files by `npm run minify-locales` (part of every packaging script)
+static/locales/*.min.json

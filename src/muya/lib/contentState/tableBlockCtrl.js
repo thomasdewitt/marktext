@@ -388,6 +388,20 @@ const tableBlockCtrl = ContentState => {
     this.muya.eventCenter.dispatch('stateChange')
   }
 
+  // Add an empty row at the end of the table and return it.
+  ContentState.prototype.appendTableRow = function (table) {
+    const tHead = table.children[0]
+    let tBody = table.children[1]
+    if (!tBody) {
+      tBody = this.createBlock('tbody')
+      this.appendChild(table, tBody)
+    }
+    const row = this.createRow(tHead.children[0], false)
+    this.appendChild(tBody, row)
+    table.row++
+    return row
+  }
+
   ContentState.prototype.getTableBlock = function () {
     const { start, end } = this.cursor
     const startBlock = this.getBlock(start.key)

@@ -19,23 +19,21 @@ function loadTranslations(language) {
 
   try {
     // This module runs in both the main and preload processes, so it can't
-    // use `global.__static` (main only). A packaged app keeps the locales
-    // under `resourcesPath`; `electron-vite dev` and an unpackaged build
-    // (`npm start`) run from the repository root.
+    // use `global.__static` (main only).
+    // A packaged app ships the minified files that the packaging scripts
+    // generate; a checkout may have none, or stale ones, so there the
+    // source .json wins.
+    const packagedDir =
+      process.resourcesPath && path.join(process.resourcesPath, 'static', 'locales')
+    const sourceDir = path.join(process.cwd(), 'static', 'locales')
     const candidates = [
-      process.resourcesPath && path.join(process.resourcesPath, 'static', 'locales'),
-      path.join(process.cwd(), 'static', 'locales')
+      packagedDir && path.join(packagedDir, `${language}.min.json`),
+      packagedDir && path.join(packagedDir, `${language}.json`),
+      path.join(sourceDir, `${language}.json`),
+      path.join(sourceDir, `${language}.min.json`)
     ].filter(Boolean)
-    if (process.env.NODE_ENV === 'development') {
-      candidates.reverse()
-    }
 
-    const localePath = candidates
-      .flatMap((dir) => [
-        path.join(dir, `${language}.min.json`),
-        path.join(dir, `${language}.json`)
-      ])
-      .find((file) => fs.existsSync(file))
+    const localePath = candidates.find((file) => fs.existsSync(file))
 
     if (!localePath) {
       throw new Error(`Translation file not found for language: ${language}`)

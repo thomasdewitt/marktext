@@ -155,27 +155,20 @@ class ClickEvent {
         const imageInfo = getImageInfo(imageWrapper)
         event.preventDefault()
         eventCenter.dispatch('select-image', imageInfo)
-        // Handle show image toolbar
-        const rect = imageWrapper.querySelector('.ag-image-container').getBoundingClientRect()
-        const reference = {
-          getBoundingClientRect () {
-            return rect
-          },
-          width: imageWrapper.offsetWidth,
-          height: imageWrapper.offsetHeight
-        }
-        eventCenter.dispatch('muya-image-toolbar', {
-          reference,
-          imageInfo
-        })
+        // Selecting the image renders its block again, and the block the
+        // caret leaves, which can move the image. So the toolbar and the
+        // transformer are placed against the image as it is afterwards.
         contentState.selectImage(imageInfo)
-        // Handle show image transformer
         const imageSelector = imageInfo.imageId.indexOf('_') > -1
           ? `#${imageInfo.imageId}`
           : `#${imageInfo.key}_${imageInfo.imageId}_${imageInfo.token.range.start}`
 
         const imageContainer = document.querySelector(`${imageSelector} .ag-image-container`)
 
+        eventCenter.dispatch('muya-image-toolbar', {
+          reference: imageContainer,
+          imageInfo
+        })
         eventCenter.dispatch('muya-transformer', {
           reference: imageContainer,
           imageInfo
@@ -208,6 +201,8 @@ class ClickEvent {
       }
 
       if (target.closest('div.ag-container-preview') || target.closest('div.ag-html-preview')) {
+        // The click stops here, so the float tools do not see it on the document.
+        this.muya.keyboard.hideAllFloatTools()
         event.stopPropagation()
         if (target.closest('div.ag-container-preview')) {
           event.preventDefault()

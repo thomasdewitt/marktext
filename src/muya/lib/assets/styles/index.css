@@ -698,34 +698,36 @@ pre > code {
   display: block;
 }
 
+/* The labels around an active block show the markdown that delimits it, so
+   they are literal syntax, not translated text. */
 pre.ag-active.ag-front-matter::before,
 pre.ag-active.ag-front-matter::after {
-  content: var(--i18n-front-matter-delimiter, '---');
+  content: '---';
 }
 
 pre.ag-active.ag-multiple-math::before,
 pre.ag-active.ag-multiple-math::after {
-  content: var(--i18n-math-delimiter, '$$');
+  content: '$$';
 }
 
 pre.ag-active[data-role='mermaid']::before {
-  content: var(--i18n-mermaid-start, '``` mermaid');
+  content: '``` mermaid';
 }
 
 pre.ag-active[data-role='flowchart']::before {
-  content: var(--i18n-flowchart-start, '``` flowchart');
+  content: '``` flowchart';
 }
 
 pre.ag-active[data-role='sequence']::before {
-  content: var(--i18n-sequence-start, '``` sequence');
+  content: '``` sequence';
 }
 
 pre.ag-active[data-role='plantuml']::before {
-  content: var(--i18n-plantuml-start, '``` plantuml');
+  content: '``` plantuml';
 }
 
 pre.ag-active[data-role='vega-lite']::before {
-  content: var(--i18n-vega-lite-start, '``` vega-lite');
+  content: '``` vega-lite';
 }
 
 pre.ag-active.ag-fence-code::before,
