@@ -198,7 +198,10 @@ const arrowCtrl = ContentState => {
       const { right } = selection.getCaretOffsets(node)
       if (right === 0 && start.key === end.key && start.offset === end.offset) {
         // It's not recommended to use such lower API, but it's work well.
-        return selection.select(node.parentNode.nextElementSibling, 0)
+        // The closing marker follows the text (display math) or the math element (inline math).
+        const next = node.nextElementSibling
+        const isMarker = next && next.classList.contains(CLASS_OR_ID.AG_MATH_MARKER)
+        return selection.select(isMarker ? next : node.parentNode.nextElementSibling, 0)
       }
     }
 

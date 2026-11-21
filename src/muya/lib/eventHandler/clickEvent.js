@@ -106,7 +106,7 @@ class ClickEvent {
       const codeCopy = target.closest('.ag-code-copy')
       const footnoteBackLink = target.closest('.ag-footnote-backlink')
       const imageDelete = target.closest('.ag-image-icon-delete') || target.closest('.ag-image-icon-close')
-      const mathText = mathRender && mathRender.previousElementSibling
+      const mathText = mathRender && mathRender.parentNode.querySelector(`.${CLASS_OR_ID.AG_MATH_TEXT}`)
       const rubyText = rubyRender && rubyRender.previousElementSibling
       if (markedImageText && markedImageText.classList.contains(CLASS_OR_ID.AG_IMAGE_MARKED_TEXT)) {
         eventCenter.dispatch('format-click', {

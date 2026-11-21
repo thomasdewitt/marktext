@@ -334,18 +334,44 @@ span.ag-math > .ag-math-render.ag-math-error {
 
 /* Single-line display math `$$...$$` */
 /* When the cursor leaves the equation (ag-hide), render it as a centered
- * block on its own line, like LaTeX display math / MarkText math blocks. */
+ * block on its own line, like LaTeX display math / MarkText math blocks.
+ * The block is a full-width inline-block whose hidden source takes no line,
+ * so the hidden source and markers add no blank lines around the equation. */
 .ag-hide.ag-math.ag-display-math {
-  display: block;
+  display: inline-block;
+  width: 100%;
+  line-height: 0;
   text-align: center;
+}
+.ag-hide.ag-math.ag-display-math > .ag-math-text,
+.ag-hide.ag-math.ag-display-math > .ag-math-marker {
+  vertical-align: top;
 }
 /* Full-width preview so KaTeX \tag{...} equation numbers sit at the right
  * margin of the editor line, like LaTeX. */
 .ag-hide.ag-math.ag-display-math > .ag-math-render {
   display: block;
+  line-height: normal;
 }
+/* While the caret is in the equation its source is shown as text, and the
+ * preview stays where it was, as a block under the source. */
+.ag-math.ag-display-math:not(.ag-hide) {
+  display: inline;
+}
+.ag-math.ag-display-math:not(.ag-hide) > .ag-math-render {
+  /* flow-root keeps the equation's margins inside the preview, as they are
+   * when the caret is elsewhere. */
+  display: flow-root;
+  position: static;
+  padding: 0;
+  text-align: center;
+  background: transparent;
+  box-shadow: none;
+}
+/* With the paragraph's own margin this is the space a math block has
+ * around its equation (figure margin plus KaTeX's display margin). */
 .ag-math.ag-display-math > .ag-math-render .katex-display {
-  margin: 0.2em 0;
+  margin: 0.9em 0;
 }
 /* Display equations keep KaTeX's normal display sizing (matching math
  * blocks), unlike inline math which is forced back to 1em above. */
