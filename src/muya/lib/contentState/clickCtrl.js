@@ -103,10 +103,17 @@ const clickCtrl = (ContentState) => {
         })
       }
     }
-    const { start, end } = selection.getCursorRange()
+    let { start, end } = selection.getCursorRange()
     // fix #625, the selection maybe not in edit area.
     if (!start || !end) {
       return
+    }
+    // A triple click selects the paragraph, but the browser ends that selection at the very
+    // start of the following block. Typing over it would then also remove the paragraph
+    // break and pull the next block up, so end the selection where the clicked block ends.
+    if (event.detail >= 3 && start.key !== end.key && end.offset === 0) {
+      end = { key: start.key, offset: this.getBlock(start.key).text.length }
+      selection.setCursorRange({ anchor: start, focus: end })
     }
     // format-click
     const node = selection.getSelectionStart()
