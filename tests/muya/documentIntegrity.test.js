@@ -201,6 +201,12 @@ describe('markdown round-trip integrity', () => {
     expect(roundTrip(cs, md)).toBe(md)
   })
 
+  it('keeps the blank line between lists of different kinds', () => {
+    const cs = createContentState()
+    const md = '- third item\n\n1. ordered one\n2. ordered two\n\n- [ ] todo open\n- [x] todo done\n'
+    expect(roundTrip(cs, md)).toBe(md)
+  })
+
   it('preserves task lists', () => {
     const cs = createContentState()
     const md = '- [x] Done\n- [ ] Todo\n'
