@@ -605,13 +605,22 @@ const backspaceCtrl = (ContentState) => {
       const { text } = block
       const key = preBlock.key
       const offset = preBlock.text.length
-      preBlock.text += text
-      // If block is a line block and its parent paragraph only has one text line,
-      // also need to remove the paragrah
-      if (this.isOnlyChild(block) && block.type === 'span') {
-        this.removeBlock(parent)
-      } else if (block.functionType !== 'languageInput' && block.functionType !== 'footnoteInput') {
-        this.removeBlock(block)
+      // Running text joins the running text before it. In front of anything
+      // else (code, math, a table, a thematic break) only an empty line is
+      // removed; other text stays where it is and just the cursor moves up.
+      const isProse = (b) => /^(?:paragraphContent|atxLine)$/.test(b.functionType)
+      const canJoin = isProse(block) && isProse(preBlock)
+      if (canJoin) {
+        preBlock.text += text
+      }
+      if (canJoin || (isProse(block) && text === '')) {
+        // If block is a line block and its parent paragraph only has one text line,
+        // also need to remove the paragrah
+        if (this.isOnlyChild(block) && block.type === 'span') {
+          this.removeBlock(parent)
+        } else {
+          this.removeBlock(block)
+        }
       }
 
       this.cursor = {

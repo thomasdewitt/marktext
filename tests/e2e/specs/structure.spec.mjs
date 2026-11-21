@@ -160,6 +160,65 @@ test('undo after typing over the whole document restores it', async () => {
   assert.deepEqual(t.errors(), [])
 })
 
+// --- Backspace and Delete next to blocks that are not running text ----------
+
+test('Backspace after a code block does not pull the paragraph into the code', async () => {
+  await openDoc('before\n\n```js\ncode\n```\n\nafter\n')
+  await caretIn('after', 0)
+  await press('Backspace')
+  assert.equal(await t.markdown(), 'before\n\n```js\ncode\n```\n\nafter\n')
+  assert.equal(await caret(), 'code|')
+})
+
+test('Backspace after a table does not pull the paragraph into the last cell', async () => {
+  await openDoc('before\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nafter\n')
+  await caretIn('after', 0)
+  await press('Backspace')
+  assert.match(await t.markdown(), /\| 1 {3}\| 2 {3}\|\n\nafter\n$/)
+  assert.equal(await caret(), '2|')
+})
+
+test('Backspace in an empty paragraph after a code block removes the paragraph', async () => {
+  await openDoc('before\n\n```js\ncode\n```\n\nafter\n')
+  await caretIn('after', 0)
+  await press('Enter', 'ArrowUp', 'Backspace')
+  assert.equal(await t.markdown(), 'before\n\n```js\ncode\n```\n\nafter\n')
+  assert.equal(await caret(), 'code|')
+})
+
+test('Delete before a table leaves the table whole', async () => {
+  await openDoc('alpha\n\n| a | b |\n| - | - |\n| 1 | 2 |\n')
+  await caretIn('alpha')
+  await press('Delete')
+  await type('X')
+  assert.equal(await t.markdown(), 'alphaX\n\n| a   | b   |\n| --- | --- |\n| 1   | 2   |\n')
+  assert.deepEqual(t.errors(), [])
+})
+
+test('Delete before a math block leaves the math block', async () => {
+  await openDoc('alpha\n\n$$\nx^2\n$$\n')
+  await caretIn('alpha')
+  await press('Delete')
+  await type('X')
+  assert.equal(await t.markdown(), 'alphaX\n\n$$\nx^2\n$$\n')
+})
+
+test('Delete at the end of a code block does not pull the next paragraph in', async () => {
+  await openDoc('alpha\n\n```js\ncode\n```\n\nafter\n')
+  await caretIn('code')
+  await press('Delete')
+  await type('X')
+  assert.equal(await t.markdown(), 'alpha\n\n```js\ncodeX\n```\n\nafter\n')
+})
+
+test('Delete in an empty paragraph before a code block removes the paragraph', async () => {
+  await openDoc('alpha\n\n```js\ncode\n```\n')
+  await caretIn('alpha')
+  await press('Enter', 'Delete')
+  assert.equal(await t.markdown(), 'alpha\n\n```js\ncode\n```\n')
+  assert.equal(await caret(), '|code')
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
