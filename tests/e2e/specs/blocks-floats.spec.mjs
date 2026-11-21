@@ -76,6 +76,29 @@ test('the front menu opens with a gap below its icon', async () => {
   await closeFrontMenu()
 })
 
+test('picking a language from the code picker is written to the markdown', async () => {
+  await t.caretAtEndOf('Another paragraph.')
+  await t.press('Enter')
+  await t.type('```pyth')
+  await win.waitForSelector('.ag-float-wrapper[data-popper-placement] .ag-list-picker li.item')
+  const picked = await win.locator('.ag-list-picker li.item.active').textContent()
+  assert.equal(picked, 'python')
+  await t.press('Enter')
+  await win.waitForSelector('pre.ag-fence-code.ag-active')
+  assert.ok((await t.markdown()).includes('```' + picked + '\n'), `the markdown names ${picked}`)
+})
+
+test('picking an emoji from the emoji picker is written to the markdown', async () => {
+  await t.caretAtEndOf('A plain paragraph.')
+  await t.type(' :smi:')
+  await t.press('ArrowLeft')
+  await win.waitForSelector('.ag-float-wrapper[data-popper-placement] .ag-emoji-picker .item.active')
+  const picked = await win.locator('.ag-emoji-picker .item.active').getAttribute('data-label')
+  await t.press('Enter')
+  await win.waitForFunction(() => !document.querySelector('.ag-float-wrapper[data-popper-placement] .ag-emoji-picker'))
+  assert.ok((await t.markdown()).includes(`A plain paragraph. :${picked}:`), `the markdown names :${picked}:`)
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })

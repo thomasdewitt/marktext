@@ -34,12 +34,15 @@ const codeBlockCtrl = (ContentState) => {
     return { lang, paragraph }
   }
 
+  // Set the language picked from the code picker.
   ContentState.prototype.selectLanguage = function (paragraph, lang) {
     const block = this.getBlock(paragraph.id)
-    if (lang === 'math' && this.isGitlabCompatibilityEnabled && this.updateMathBlock(block)) {
-      return
+    if (!(lang === 'math' && this.isGitlabCompatibilityEnabled && this.updateMathBlock(block))) {
+      this.updateCodeLanguage(block, lang)
     }
-    this.updateCodeLanguage(block, lang)
+    // The pick comes from a click or a key the picker handles, so no `input`
+    // event follows to report the change.
+    this.muya.eventCenter.dispatch('stateChange')
   }
 
   /**
