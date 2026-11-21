@@ -245,6 +245,27 @@ test('ArrowDown out of a code block that ends the document opens one paragraph',
   assert.equal(await t.markdown(), 'alpha\n\n```js\ncode\n```\n\nx\n')
 })
 
+// --- Enter in a heading -----------------------------------------------------
+
+test('Enter in the middle of a heading leaves the caret in the text of the new heading', async () => {
+  await openDoc('# Title here\n\ngamma\n')
+  await caretIn('Title here', 7)
+  await press('Enter')
+  assert.equal(await caret(), '# |here')
+  await type('X')
+  assert.equal(await t.markdown(), '# Title\n\n# Xhere\n\ngamma\n')
+})
+
+test('Enter at the start of the heading text moves the heading down', async () => {
+  await openDoc('# Title here\n\ngamma\n')
+  await caretIn('Title here', 2)
+  await press('Enter')
+  assert.equal(await caret(), '# |Title here')
+  assert.equal(await t.markdown(), '\n\n# Title here\n\ngamma\n')
+  await undo()
+  assert.equal(await t.markdown(), '# Title here\n\ngamma\n')
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })

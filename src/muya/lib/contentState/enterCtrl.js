@@ -445,6 +445,14 @@ const enterCtrl = (ContentState) => {
       if (firstParagraph && firstParagraph.key === block.key) {
         block = parent
         parent = this.getParent(block)
+    // Where the cursor goes in the block it ends up in.
+    let cursorOffset = 0
+
+    // The text of an ATX heading starts after its marker. With the cursor there,
+    // or inside the marker, Enter moves the heading down like Enter at the start
+    // of any other block; it must not break the marker off as a heading of its own.
+    const atxMarker = block.headingStyle === 'atx' ? /^ {0,3}(#{1,6})[ \t]*/.exec(text) : null
+    const atStart = left === 0 || (!!atxMarker && left <= atxMarker[0].length)
       }
     }
     const left = start.offset
@@ -453,13 +461,13 @@ const enterCtrl = (ContentState) => {
     let newBlock
 
     switch (true) {
-      case left !== 0 && right !== 0: {
+      case !atStart && right !== 0: {
         // cursor in the middle
         let { pre, post } = selection.chopHtmlByCursor(paragraph)
         if (/^h\d$/.test(block.type)) {
-          if (block.headingStyle === 'atx') {
-            const PREFIX = /^#+/.exec(pre)[0]
-            post = `${PREFIX} ${post}`
+          if (atxMarker) {
+            post = `${atxMarker[1]} ${post.trimStart()}`
+            cursorOffset = atxMarker[1].length + 1
           }
           block.children[0].text = pre
           newBlock = this.createBlock(type, {
@@ -526,8 +534,8 @@ const enterCtrl = (ContentState) => {
         // paragraph is empty
         return this.enterInEmptyParagraph(block)
       }
-      case left !== 0 && right === 0:
-      case left === 0 && right !== 0: {
+      case right === 0:
+      case atStart: {
         // cursor at end of block or at begin of block
         if (type === 'li') {
           if (block.listItemType === 'task') {
@@ -539,10 +547,11 @@ const enterCtrl = (ContentState) => {
           }
           newBlock.isLooseListItem = block.isLooseListItem
         } else {
+          cursorOffset = left
           newBlock = this.createBlockP()
         }
 
-        if (left === 0 && right !== 0) {
+        if (atStart && right !== 0) {
           this.insertBefore(newBlock, block)
           newBlock = block
         } else {
@@ -616,10 +625,10 @@ const enterCtrl = (ContentState) => {
 
     cursorBlock = getParagraphBlock(cursorBlock)
     const key =
-      (cursorBlock.type === 'p' || cursorBlock.type === 'pre') && cursorBlock.children?.[0]
+      /^(?:p|pre|hr|h\d)$/.test(cursorBlock.type) && cursorBlock.children?.[0]
         ? cursorBlock.children[0].key
         : cursorBlock.key
-    let offset = 0
+    let offset = cursorBlock === getParagraphBlock(newBlock) ? cursorOffset : 0
     if (htmlNeedFocus) {
       const { text } = cursorBlock
       const match = /^[^\n]+\n[^\n]*/.exec(text)
