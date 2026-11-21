@@ -6,6 +6,7 @@ import { tokenizer } from '../../'
 import { snakeToCamel, sanitize, escapeHTML, getLongUniqueId, getImageInfo } from '../../../utils'
 import { resolveEquation } from '../../../utils/eqLabels'
 import { h, htmlToVNode } from '../snabbdom'
+import DiagramPreviews from '../diagramPreviews'
 
 // todo@jocs any better solutions?
 const MARKER_HASK = {
@@ -179,37 +180,30 @@ export default function renderLeafBlock (parent, block, activeBlocks, matches, u
         }
         break
       }
-      case 'mermaid': {
-        selector += `.${CLASS_OR_ID.AG_CONTAINER_PREVIEW}`
-        Object.assign(data.attrs, { spellcheck: 'false' })
-        if (code === '') {
-          children = t('editor.emptyMermaidBlock')
-          selector += `.${CLASS_OR_ID.AG_EMPTY}`
-        } else {
-          children = t('editor.loading')
-          this.mermaidCache.set(`#${block.key}`, {
-            code,
-            functionType
-          })
-        }
-        break
-      }
+      case 'mermaid':
       case 'flowchart':
       case 'sequence':
       case 'plantuml':
       case 'vega-lite': {
         selector += `.${CLASS_OR_ID.AG_CONTAINER_PREVIEW}`
         Object.assign(data.attrs, { spellcheck: 'false' })
-        if (code === '') {
-          children = t('editor.emptyDiagramBlock')
+        const { isEmpty, isDrawn, isError } = this.diagramPreviews.request(`#${block.key}`, functionType, code, {
+          emptyText: t(functionType === 'mermaid' ? 'editor.emptyMermaidBlock' : 'editor.emptyDiagramBlock'),
+          loadingText: t('editor.loading')
+        })
+        if (isEmpty) {
           selector += `.${CLASS_OR_ID.AG_EMPTY}`
-        } else {
-          children = t('editor.loading')
-          this.diagramCache.set(`#${block.key}`, {
-            code,
-            functionType
-          })
         }
+        if (isError) {
+          selector += `.${CLASS_OR_ID.AG_MATH_ERROR}`
+        }
+        if (isDrawn && functionType === 'vega-lite') {
+          // vega-embed's stylesheet lays the chart out by this class.
+          selector += '.vega-embed'
+        }
+        // The content is filled in by `diagramPreviews` after the patch.
+        data.hook = DiagramPreviews.hook
+        children = undefined
         break
       }
     }

@@ -1,11 +1,11 @@
-import loadRenderer from '../../renderers'
-import { CLASS_OR_ID, PREVIEW_DOMPURIFY_CONFIG } from '../../config'
-import { conflict, mixins, camelToSnake, sanitize } from '../../utils'
+import { CLASS_OR_ID } from '../../config'
+import { conflict, mixins, camelToSnake } from '../../utils'
 import { collectEqLabelsFromTex } from '../../utils/eqLabels'
 import { patch, toVNode, toHTML, h } from './snabbdom'
 import { beginRules } from '../rules'
 import renderInlines from './renderInlines'
 import renderBlock from './renderBlock'
+import DiagramPreviews from './diagramPreviews'
 
 class StateRender {
   constructor(muya) {
@@ -14,8 +14,7 @@ class StateRender {
     this.codeCache = new Map()
     this.loadImageMap = new Map()
     this.loadMathMap = new Map()
-    this.mermaidCache = new Map()
-    this.diagramCache = new Map()
+    this.diagramPreviews = new DiagramPreviews(muya)
     this.tokenCache = new Map()
     this.labels = new Map()
     this.eqLabels = new Map()
@@ -127,82 +126,6 @@ class StateRender {
     return selector
   }
 
-  async renderMermaid() {
-    if (this.mermaidCache.size) {
-      const mermaid = await loadRenderer('mermaid')
-      mermaid.initialize({
-        securityLevel: 'strict',
-        theme: this.muya.options.mermaidTheme
-      })
-      for (const [key, value] of this.mermaidCache.entries()) {
-        const { code } = value
-        const target = document.querySelector(key)
-        if (!target) {
-          continue
-        }
-        try {
-          mermaid.parse(code)
-          target.innerHTML = sanitize(code, PREVIEW_DOMPURIFY_CONFIG, true)
-          mermaid.init(undefined, target)
-        } catch (err) {
-          target.innerHTML = '< Invalid Mermaid Codes >'
-          target.classList.add(CLASS_OR_ID.AG_MATH_ERROR)
-        }
-      }
-
-      this.mermaidCache.clear()
-    }
-  }
-
-  async renderDiagram() {
-    const cache = this.diagramCache
-    if (cache.size) {
-      const RENDER_MAP = {
-        flowchart: await loadRenderer('flowchart'),
-        sequence: await loadRenderer('sequence'),
-        plantuml: await loadRenderer('plantuml'),
-        'vega-lite': await loadRenderer('vega-lite')
-      }
-
-      for (const [key, value] of cache.entries()) {
-        const target = document.querySelector(key)
-        if (!target) {
-          continue
-        }
-        const { code, functionType } = value
-        const render = RENDER_MAP[functionType]
-        const options = {}
-        if (functionType === 'sequence') {
-          Object.assign(options, { theme: this.muya.options.sequenceTheme })
-        } else if (functionType === 'vega-lite') {
-          Object.assign(options, {
-            actions: false,
-            tooltip: false,
-            renderer: 'svg',
-            theme: this.muya.options.vegaTheme
-          })
-        }
-        try {
-          if (functionType === 'flowchart' || functionType === 'sequence') {
-            const diagram = render.parse(code)
-            target.innerHTML = ''
-            diagram.drawSVG(target, options)
-          } else if (functionType === 'plantuml') {
-            const diagram = render.parse(code)
-            target.innerHTML = ''
-            diagram.insertImgElement(target)
-          } else if (functionType === 'vega-lite') {
-            await render(key, JSON.parse(code), options)
-          }
-        } catch (err) {
-          target.innerHTML = `< Invalid ${functionType === 'flowchart' ? 'Flow Chart' : 'Sequence'} Codes >`
-          target.classList.add(CLASS_OR_ID.AG_MATH_ERROR)
-        }
-      }
-      this.diagramCache.clear()
-    }
-  }
-
   render(blocks, activeBlocks, matches) {
     const selector = `div#${CLASS_OR_ID.AG_EDITOR_ID}`
     const t = this.muya.options.t || ((key) => key) // 获取翻译函数，如果没有则返回原始键值
@@ -214,8 +137,7 @@ class StateRender {
     const oldVdom = toVNode(rootDom)
 
     patch(oldVdom, newVdom)
-    this.renderMermaid()
-    this.renderDiagram()
+    this.diagramPreviews.flush()
     this.codeCache.clear()
   }
 
@@ -269,8 +191,7 @@ class StateRender {
       }
     }
 
-    this.renderMermaid()
-    this.renderDiagram()
+    this.diagramPreviews.flush()
     this.codeCache.clear()
   }
 
@@ -288,8 +209,7 @@ class StateRender {
     const rootDom = document.querySelector(selector)
     const oldVdom = toVNode(rootDom)
     patch(oldVdom, newVdom)
-    this.renderMermaid()
-    this.renderDiagram()
+    this.diagramPreviews.flush()
     this.codeCache.clear()
   }
 

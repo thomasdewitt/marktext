@@ -54,6 +54,49 @@ test('the labels around an active block are its markdown delimiters', async () =
   assert.equal(await label('pre[data-role=mermaid]', '::after'), '```')
 })
 
+test('a diagram keeps its drawing when the caret enters and leaves the block', async () => {
+  // Note every state the preview goes through, as the DOM changes.
+  await win.evaluate((selector) => {
+    window.previewStates = []
+    const note = () => {
+      const preview = document.querySelector(selector)
+      window.previewStates.push(preview && preview.querySelector('svg') ? 'drawn' : preview ? preview.textContent : 'gone')
+    }
+    new MutationObserver(note).observe(document.querySelector('#ag-editor-id'), {
+      childList: true,
+      subtree: true,
+      characterData: true
+    })
+  }, MERMAID_PREVIEW)
+
+  await t.caretAtEndOf('Second paragraph.')
+  await win.waitForSelector('figure[data-role=MERMAID]:not(.ag-active)')
+  await win.locator(MERMAID_PREVIEW).click()
+  await win.waitForSelector('figure[data-role=MERMAID].ag-active')
+  await t.caretAtEndOf('Second paragraph.')
+  await win.waitForSelector('figure[data-role=MERMAID]:not(.ag-active)')
+  await win.waitForTimeout(300)
+
+  const states = await win.evaluate(() => window.previewStates)
+  assert.ok(states.length > 0, 'the editor re-rendered')
+  assert.deepEqual([...new Set(states)], ['drawn'])
+})
+
+test('unfinished mermaid code shows a message and raises no error', async () => {
+  await win.locator(MERMAID_PREVIEW).click()
+  await win.waitForSelector('figure[data-role=MERMAID].ag-active')
+  // The click puts the caret at the start of the code; go to the end of its last line.
+  await t.press('ArrowDown')
+  await t.press('End')
+  await t.type(' -->')
+  await win.waitForSelector(`${MERMAID_PREVIEW}.ag-math-error`)
+  assert.equal(await win.locator(MERMAID_PREVIEW).textContent(), '< Invalid Mermaid Codes >')
+
+  await t.type(' C')
+  await win.waitForSelector(`${MERMAID_PREVIEW}:not(.ag-math-error) svg`)
+  assert.match(await t.markdown(), /```mermaid\ngraph TD\n {2}A --> B --> C\n```/)
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
