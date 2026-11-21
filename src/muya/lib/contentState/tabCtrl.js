@@ -366,6 +366,9 @@ const tabCtrl = ContentState => {
 
     if (event.shiftKey && startBlock.functionType !== 'cellContent') {
       const unindentType = this.isUnindentableListItem(startBlock)
+    // Tab is an undo step of its own, apart from the typing before it.
+    this.history.commitPending()
+
       if (unindentType) {
         this.unindentListItem(startBlock, unindentType)
         return

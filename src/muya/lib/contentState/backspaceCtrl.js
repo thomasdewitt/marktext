@@ -123,6 +123,12 @@ const backspaceCtrl = (ContentState) => {
       return
     }
 
+    // Joining or unwrapping blocks, or deleting a selection, is an undo step of
+    // its own, apart from the typing before it.
+    if (start.key !== end.key || start.offset !== end.offset || start.offset === 0) {
+      this.history.commitPending()
+    }
+
     // handle delete selected image
     if (this.selectedImage) {
       event.preventDefault()

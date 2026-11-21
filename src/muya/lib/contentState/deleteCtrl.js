@@ -28,6 +28,12 @@ const deleteCtrl = ContentState => {
     if (startBlock.type === 'figure') event.preventDefault()
     // If select multiple paragraph or multiple characters in one paragraph, just let
     // updateCtrl to handle this case.
+    // Joining blocks or deleting a selection is an undo step of its own, apart
+    // from the typing before it.
+    if (start.key !== end.key || start.offset !== end.offset || start.offset === startBlock.text.length) {
+      this.history.commitPending()
+    }
+
     if (start.key !== end.key || start.offset !== end.offset) {
       return
     }

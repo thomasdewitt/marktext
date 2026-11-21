@@ -247,6 +247,9 @@ const enterCtrl = (ContentState) => {
     let block = this.getBlock(start.key)
     if (!block) return
     const { text } = block
+    // Enter is an undo step of its own, apart from the typing before it.
+    this.history.commitPending()
+
     const endBlock = this.getBlock(end.key)
     if (!endBlock) return
     let parent = this.getParent(block)
@@ -265,6 +268,7 @@ const enterCtrl = (ContentState) => {
       const offset = start.offset
 
       const startRemainText = block.text.substring(0, start.offset)
+      // Removing the selection and breaking the line are one undo step.
 
       const endRemainText = endBlock.text.substring(end.offset)
 
@@ -273,7 +277,8 @@ const enterCtrl = (ContentState) => {
       this.removeBlocks(block, endBlock)
       this.cursor = {
         start: { key, offset },
-        end: { key, offset }
+        end: { key, offset },
+        noHistory: true
       }
       this.partialRender()
       return this.enterHandler(event)
@@ -286,7 +291,8 @@ const enterCtrl = (ContentState) => {
       block.text = block.text.substring(0, start.offset) + block.text.substring(end.offset)
       this.cursor = {
         start: { key, offset },
-        end: { key, offset }
+        end: { key, offset },
+        noHistory: true
       }
       this.partialRender()
       return this.enterHandler(event)

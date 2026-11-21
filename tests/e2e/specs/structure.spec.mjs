@@ -109,6 +109,57 @@ test('indenting a list item with Tab changes the document that would be saved', 
   assert.equal(await isSaved(), false)
 })
 
+// --- Undo and redo ----------------------------------------------------------
+
+test('undo after typing and Enter takes back the Enter, not the typing', async () => {
+  await openDoc('alpha\n')
+  await caretIn('alpha')
+  await type(' more words')
+  await press('Enter')
+  await undo()
+  assert.equal(await t.markdown(), 'alpha more words\n')
+  assert.equal(await caret(), 'alpha more words|')
+})
+
+test('undo puts the caret back where the edit was made', async () => {
+  await openDoc('alpha beta\n\ngamma\n')
+  await caretIn('alpha beta', 5)
+  await press('Enter')
+  await undo()
+  assert.equal(await t.markdown(), 'alpha beta\n\ngamma\n')
+  assert.equal(await caret(), 'alpha| beta')
+})
+
+test('moving the caret is not an undo step', async () => {
+  await openDoc('alpha beta\n\ngamma\n')
+  await caretIn('alpha beta', 5)
+  await press('Enter', 'ArrowDown', 'ArrowUp', 'ArrowUp')
+  await undo()
+  assert.equal(await t.markdown(), 'alpha beta\n\ngamma\n')
+})
+
+test('redo still works after moving the caret', async () => {
+  await openDoc('alpha beta\n')
+  await caretIn('alpha beta', 5)
+  await press('Enter')
+  await undo()
+  await press('ArrowLeft')
+  await redo()
+  assert.equal(await t.markdown(), 'alpha\n\n beta\n')
+})
+
+test('undo after typing over the whole document restores it', async () => {
+  await openDoc('# T\n\n- a\n- b\n\n> q\n')
+  await caretIn('q')
+  await press('Control+a')
+  await type('new')
+  assert.equal(await t.markdown(), 'new\n')
+  await undo()
+  await undo()
+  assert.equal(await t.markdown(), '# T\n\n- a\n- b\n\n> q\n')
+  assert.deepEqual(t.errors(), [])
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })

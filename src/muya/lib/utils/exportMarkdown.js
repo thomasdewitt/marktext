@@ -183,7 +183,9 @@ class ExportMarkdown {
     const { headingStyle, marker } = block
     const { text } = block.children[0]
     if (headingStyle === 'atx') {
-      const match = text.match(/(#{1,6})(.*)/)
+      // A heading block is a heading of its level even when its text has no
+      // marker (yet); the document must still be written out.
+      const match = /^ {0,3}(#{1,6})(.*)/.exec(text) || [text, '#'.repeat(Number(block.type[1])), text]
       const atxHeadingText = `${match[1]} ${match[2].trim()}`
       return `${indent}${atxHeadingText}\n`
     } else if (headingStyle === 'setext') {

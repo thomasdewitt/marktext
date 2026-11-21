@@ -302,10 +302,9 @@ const inputCtrl = ContentState => {
       this.muya.eventCenter.dispatch('muya-quick-insert', null, block, false)
     }
 
-    this.cursor = { start, end }
-
     // Throttle render if edit in code block.
     if (block && block.type === 'span' && block.functionType === 'codeContent') {
+      this.cursor = { start, end }
       if (renderCodeBlockTimer) {
         clearTimeout(renderCodeBlockTimer)
       }
@@ -319,6 +318,12 @@ const inputCtrl = ContentState => {
       return
     }
 
+    // The new text may change what kind of block this is (a heading whose
+    // marker was typed over is a paragraph). The undo step is recorded after
+    // that, so it never holds a block whose type contradicts its text.
+    const cursorBeforeInput = this.cursor
+    this.cursor = { start, end, noHistory: true }
+
     const checkMarkedUpdate = /atxLine|paragraphContent|cellContent/.test(block.functionType)
       ? this.checkNeedRender()
       : false
@@ -326,6 +331,8 @@ const inputCtrl = ContentState => {
     if (/atxLine|paragraphContent|cellContent|thematicBreakLine/.test(block.functionType)) {
       inlineUpdatedBlock = this.isCollapse() && this.checkInlineUpdate(block)
     }
+    this.currentCursor.noHistory = false
+    this.recordHistory(cursorBeforeInput)
 
     // just for fix #707,need render All if in combines pre list and next list into one list.
     if (inlineUpdatedBlock) {

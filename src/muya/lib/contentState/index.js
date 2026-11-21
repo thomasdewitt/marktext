@@ -145,35 +145,36 @@ class ContentState {
     this.prevCursor = this.currentCursor
     this.currentCursor = cursor
 
-    const getHistoryState = () => {
-      const { blocks, renderRange, currentCursor } = this
-      return {
-        blocks,
-        renderRange,
-        cursor: currentCursor
-      }
-    }
-
     if (!cursor.noHistory) {
-      if (
-        this.prevCursor &&
-        (this.prevCursor.start.key !== cursor.start.key ||
-          this.prevCursor.end.key !== cursor.end.key)
-      ) {
-        // Push history immediately
-        this.history.push(getHistoryState())
-      } else {
-        // WORKAROUND: The current engine doesn't support a smart history and we
-        // need to store the whole state. Therefore, we push history only when the
-        // user stops typing. Pushing one pending entry allows us to commit the
-        // change before an undo action is triggered to partially solve #1321.
-        if (this.historyTimer) clearTimeout(this.historyTimer)
-        this.history.pushPending(getHistoryState())
+      this.recordHistory(this.prevCursor)
+    }
+  }
 
-        this.historyTimer = setTimeout(() => {
-          this.history.commitPending()
-        }, 2000)
-      }
+  /**
+   * Record the current blocks and cursor as an undo step. `previousCursor` is
+   * where the cursor was before the edit being recorded.
+   */
+  recordHistory(previousCursor) {
+    const { blocks, renderRange, currentCursor: cursor } = this
+    const state = { blocks, renderRange, cursor }
+
+    if (
+      previousCursor &&
+      (previousCursor.start.key !== cursor.start.key || previousCursor.end.key !== cursor.end.key)
+    ) {
+      // Push history immediately
+      this.history.push(state)
+    } else {
+      // WORKAROUND: The current engine doesn't support a smart history and we
+      // need to store the whole state. Therefore, we push history only when the
+      // user stops typing. Pushing one pending entry allows us to commit the
+      // change before an undo action is triggered to partially solve #1321.
+      if (this.historyTimer) clearTimeout(this.historyTimer)
+      this.history.pushPending(state)
+
+      this.historyTimer = setTimeout(() => {
+        this.history.commitPending()
+      }, 2000)
     }
   }
 
