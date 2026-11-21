@@ -18,15 +18,26 @@ function loadTranslations(language) {
   }
 
   try {
-    // 尝试多个可能的路径
+    // This module runs in both the main and preload processes, so it can't
+    // use `global.__static` (main only). A packaged app keeps the locales
+    // under `resourcesPath`; `electron-vite dev` and an unpackaged build
+    // (`npm start`) run from the repository root.
+    const candidates = [
+      process.resourcesPath && path.join(process.resourcesPath, 'static', 'locales'),
+      path.join(process.cwd(), 'static', 'locales')
+    ].filter(Boolean)
+    if (process.env.NODE_ENV === 'development') {
+      candidates.reverse()
+    }
 
-    // Since this script is used in both main and preload processes, we can't use global.__static directly here since it is only for the main process
-    const localePath =
-      process.env.NODE_ENV === 'development'
-        ? path.join(process.cwd(), 'static', 'locales', `${language}.min.json`)
-        : path.join(process.resourcesPath, 'static', 'locales', `${language}.min.json`)
+    const localePath = candidates
+      .flatMap((dir) => [
+        path.join(dir, `${language}.min.json`),
+        path.join(dir, `${language}.json`)
+      ])
+      .find((file) => fs.existsSync(file))
 
-    if (!fs.existsSync(localePath)) {
+    if (!localePath) {
       throw new Error(`Translation file not found for language: ${language}`)
     }
 
@@ -60,10 +71,10 @@ function getTranslation(key, language = 'en', params = {}) {
   const keys = key.split('.')
   let probe = translations
 
-  for (key of keys) {
+  for (const part of keys) {
     // Navigate through nested objects until the string
-    if (key in probe) {
-      probe = probe[key]
+    if (probe && typeof probe === 'object' && part in probe) {
+      probe = probe[part]
     } else {
       return key // Unable to find key, return the key itself
     }
@@ -73,9 +84,15 @@ function getTranslation(key, language = 'en', params = {}) {
     return key // If the final value is not a string, return the key
   }
 
-  // Parameter substitutions, for example "My name is: {{name}}"
+  // Parameter substitutions. The locale files are shared with vue-i18n in the
+  // renderer, which writes placeholders as `{name}`; older strings used
+  // `{{name}}`. Accept both.
   for (const [param, replacement] of Object.entries(params)) {
-    probe = probe.replace(new RegExp(`\\{\\{${param}\\}\\}`, 'g'), replacement)
+    const escaped = param.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    probe = probe.replace(
+      new RegExp(`\\{\\{${escaped}\\}\\}|\\{${escaped}\\}`, 'g'),
+      () => String(replacement)
+    )
   }
 
   return probe

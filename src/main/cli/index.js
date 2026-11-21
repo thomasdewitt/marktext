@@ -13,6 +13,17 @@ const cli = () => {
   if (process.env.NODE_ENV === 'development') {
     // Don't pass electron development arguments to MarkText and change user data path.
     argv = ['--user-data-dir', path.join(getPath('appData'), 'marktext-dev')]
+  } else if (process.defaultApp) {
+    // Unpackaged (`electron .`, `npm start`): the application directory is
+    // itself an argument. Drop it, or MarkText opens its own source tree as
+    // the project.
+    const appPath = app.getAppPath()
+    const index = argv.findIndex(
+      (value) => !value.startsWith('-') && path.resolve(value) === appPath
+    )
+    if (index !== -1) {
+      argv.splice(index, 1)
+    }
   }
 
   const args = parseArgs(argv, true)
