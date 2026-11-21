@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { addFile, unlinkFile, addDirectory, unlinkDirectory, moveEntry } from './treeCtrl'
+import { addFile, addFiles, unlinkFile, addDirectory, unlinkDirectory, moveEntry } from './treeCtrl'
 import bus from '../bus'
 import { create, paste, rename } from '../util/fileSystem'
 import { PATH_SEPARATOR } from '../config'
@@ -58,11 +58,30 @@ export const useProjectStore = defineStore('project', {
     LISTEN_FOR_UPDATE_PROJECT() {
       const editorStore = useEditorStore()
       const navigatorStore = useNavigatorStore()
+      // Opening a folder reports each of its files in a message of its own.
+      // They are collected and added together, so a large folder is listed
+      // in a few steps instead of one sort and one redraw per file.
+      let arrivingFiles = []
+      let arrivalTimer = null
+      const addArrivedFiles = () => {
+        clearTimeout(arrivalTimer)
+        arrivalTimer = null
+        if (arrivingFiles.length && this.projectTree) {
+          addFiles(this.projectTree, arrivingFiles)
+        }
+        arrivingFiles = []
+      }
+
       ipc.subscribe('mt::update-object-tree', (e, { type, change }) => {
+        if (type === 'add') {
+          arrivingFiles.push(change)
+          if (!arrivalTimer) arrivalTimer = setTimeout(addArrivedFiles, 30)
+          return
+        }
+        // Anything else has to see the tree with the files reported before it.
+        addArrivedFiles()
+
         switch (type) {
-          case 'add':
-            addFile(this.projectTree, change)
-            break
           case 'unlink':
             unlinkFile(this.projectTree, change)
             editorStore.SET_SAVE_STATUS_WHEN_REMOVE(change)

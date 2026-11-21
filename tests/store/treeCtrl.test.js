@@ -171,4 +171,43 @@ describe('treeCtrl mutations', () => {
       expect(treeCtrl.moveEntry(tree, '/notes/nowhere/x.md', '/notes/b.md')).toBe(false)
     })
   })
+
+  describe('addFiles', () => {
+    const file = (pathname) => ({
+      pathname,
+      name: path.basename(pathname),
+      isDirectory: false,
+      isFile: true,
+      isMarkdown: true,
+      data: { markdown: 'content the tree must not keep' }
+    })
+
+    it('adds a batch across folders, sorted as one-at-a-time adds would be', () => {
+      const names = ['9-25-25.md', 'notes.md', '10-30-25.md', '1-2-26.md', 'archive/old.md', 'Alpha.md']
+      const batch = createTree()
+      treeCtrl.addFiles(batch, names.map((name) => file(`/notes/${name}`)))
+
+      const single = createTree()
+      for (const name of names) treeCtrl.addFile(single, file(`/notes/${name}`))
+
+      const order = (tree) => tree.files.map((f) => f.name)
+      // Undated names first, alphabetically; then dated notes, newest first.
+      expect(order(batch)).toEqual(['Alpha.md', 'notes.md', '1-2-26.md', '10-30-25.md', '9-25-25.md'])
+      expect(order(batch)).toEqual(order(single))
+      expect(batch.folders[0].files.map((f) => f.name)).toEqual(['old.md'])
+    })
+
+    it('skips names already listed, in the tree or earlier in the batch', () => {
+      const tree = createTree()
+      treeCtrl.addFile(tree, file('/notes/a.md'))
+      treeCtrl.addFiles(tree, [file('/notes/a.md'), file('/notes/b.md'), file('/notes/b.md')])
+      expect(tree.files.map((f) => f.name)).toEqual(['a.md', 'b.md'])
+    })
+
+    it('keeps only what the tree shows, not file contents', () => {
+      const tree = createTree()
+      treeCtrl.addFiles(tree, [file('/notes/a.md')])
+      expect(tree.files[0].data).toBeUndefined()
+    })
+  })
 })

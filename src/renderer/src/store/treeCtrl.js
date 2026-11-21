@@ -37,27 +37,29 @@ const parseDateFromFilename = (name) => {
   }
 }
 
-const compareSidebarFiles = (a, b) => {
-  const aDate = parseDateFromFilename(a.name)
-  const bDate = parseDateFromFilename(b.name)
-
-  if (aDate && bDate) {
-    // Both have dates: sort by date, most recent first
-    if (aDate.time !== bDate.time) {
-      return bDate.time - aDate.time
+// Order of files in a folder: undated names first (alphabetically), then
+// dated notes, newest first. `a` and `b` are `{ name, date }`.
+const compareSortKeys = (a, b) => {
+  if (a.date && b.date) {
+    if (a.date.time !== b.date.time) {
+      return b.date.time - a.date.time
     }
-    // If dates are equal, sort alphabetically by full filename
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
-  } else if (aDate) {
-    // Only a has date: b (no date) goes first
+  } else if (a.date) {
     return 1
-  } else if (bDate) {
-    // Only b has date: a (no date) goes first
+  } else if (b.date) {
     return -1
   }
-
-  // Neither has dates: sort alphabetically
   return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+}
+
+// Sort a folder's files. The date is parsed once per file, not once per
+// comparison, and the folder's list is replaced in one assignment (it is
+// reactive state: sorting it in place would notify on every swap).
+const sortFiles = (folder) => {
+  folder.files = folder.files
+    .map((file) => ({ file, name: file.name, date: parseDateFromFilename(file.name) }))
+    .sort(compareSortKeys)
+    .map(({ file }) => file)
 }
 
 /**
@@ -75,26 +77,17 @@ const getSubdirectoriesFromRoot = (rootPath, pathname) => {
   return relativePath ? relativePath.split(PATH_SEPARATOR) : []
 }
 
-/**
- * Add a new file to the tree list.
- *
- * @param {*} tree Root file tree
- * @param {*} file The file that should be added
- */
-export const addFile = (tree, file) => {
-  const { pathname, name } = file
-  const dirname = window.path.dirname(pathname)
-  const subDirectories = getSubdirectoriesFromRoot(tree.pathname, dirname)
-
+// The folder a path's parent directory maps to, creating missing folders.
+const ensureFolder = (tree, dirname) => {
   let currentPath = tree.pathname
   let currentFolder = tree
-  let currentSubFolders = tree.folders
-  for (const directoryName of subDirectories) {
-    let childFolder = currentSubFolders.find((f) => f.name === directoryName)
+  for (const directoryName of getSubdirectoriesFromRoot(tree.pathname, dirname)) {
+    currentPath = `${currentPath}${PATH_SEPARATOR}${directoryName}`
+    let childFolder = currentFolder.folders.find((f) => f.name === directoryName)
     if (!childFolder) {
       childFolder = {
         id: getUniqueId(),
-        pathname: `${currentPath}${PATH_SEPARATOR}${directoryName}`,
+        pathname: currentPath,
         name: directoryName,
         isDirectory: true,
         isFile: false,
@@ -102,18 +95,33 @@ export const addFile = (tree, file) => {
         folders: [],
         files: []
       }
-      currentSubFolders.push(childFolder)
+      currentFolder.folders.push(childFolder)
     }
-
-    currentPath = `${currentPath}${PATH_SEPARATOR}${directoryName}`
     currentFolder = childFolder
-    currentSubFolders = childFolder.folders
   }
+  return currentFolder
+}
 
-  // Add file to related directory
-  if (!currentFolder.files.find((f) => f.name === name)) {
-    // Remove file content from object.
-    const fileCopy = {
+/**
+ * Add files to the tree list. Opening a folder reports every file in it, so
+ * they are added together: each folder is sorted once, however many files it
+ * received.
+ *
+ * @param {*} tree Root file tree
+ * @param {Array} files The files that should be added
+ */
+export const addFiles = (tree, files) => {
+  const touched = new Map()
+  for (const file of files) {
+    const folder = ensureFolder(tree, window.path.dirname(file.pathname))
+    if (!touched.has(folder)) {
+      touched.set(folder, new Set(folder.files.map((f) => f.name)))
+    }
+    const names = touched.get(folder)
+    if (names.has(file.name)) continue
+    names.add(file.name)
+    // Keep what the tree needs, not the file's content.
+    folder.files.push({
       id: getUniqueId(),
       birthTime: file.birthTime,
       isDirectory: file.isDirectory,
@@ -121,12 +129,20 @@ export const addFile = (tree, file) => {
       isMarkdown: file.isMarkdown,
       name: file.name,
       pathname: file.pathname
-    }
-
-    currentFolder.files.push(fileCopy)
-    currentFolder.files.sort(compareSidebarFiles)
+    })
+  }
+  for (const folder of touched.keys()) {
+    sortFiles(folder)
   }
 }
+
+/**
+ * Add a new file to the tree list.
+ *
+ * @param {*} tree Root file tree
+ * @param {*} file The file that should be added
+ */
+export const addFile = (tree, file) => addFiles(tree, [file])
 
 /**
  * Add a new directory to the tree list.
@@ -135,29 +151,7 @@ export const addFile = (tree, file) => {
  * @param {*} dir The directory that should be added
  */
 export const addDirectory = (tree, dir) => {
-  const subDirectories = getSubdirectoriesFromRoot(tree.pathname, dir.pathname)
-
-  let currentPath = tree.pathname
-  let currentSubFolders = tree.folders
-  for (const directoryName of subDirectories) {
-    let childFolder = currentSubFolders.find((f) => f.name === directoryName)
-    if (!childFolder) {
-      childFolder = {
-        id: getUniqueId(),
-        pathname: `${currentPath}${PATH_SEPARATOR}${directoryName}`,
-        name: directoryName,
-        isDirectory: true,
-        isFile: false,
-        isMarkdown: false,
-        folders: [],
-        files: []
-      }
-      currentSubFolders.push(childFolder)
-    }
-
-    currentPath = `${currentPath}${PATH_SEPARATOR}${directoryName}`
-    currentSubFolders = childFolder.folders
-  }
+  ensureFolder(tree, dir.pathname)
 }
 
 /**

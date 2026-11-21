@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-const { createMock, pasteMock, renameMock, noticeNotify, editorMock, navigatorMock, layoutMock, ipcHandlers, ipcSend, busOn, busEmit, addFileMock, unlinkFileMock, addDirectoryMock, unlinkDirectoryMock, moveEntryMock } = vi.hoisted(() => ({
+const { createMock, pasteMock, renameMock, noticeNotify, editorMock, navigatorMock, layoutMock, ipcHandlers, ipcSend, busOn, busEmit, addFileMock, addFilesMock, unlinkFileMock, addDirectoryMock, unlinkDirectoryMock, moveEntryMock } = vi.hoisted(() => ({
   createMock: vi.fn(),
   pasteMock: vi.fn(() => Promise.resolve()),
   renameMock: vi.fn(),
@@ -11,6 +11,7 @@ const { createMock, pasteMock, renameMock, noticeNotify, editorMock, navigatorMo
   busOn: vi.fn(),
   busEmit: vi.fn(),
   addFileMock: vi.fn(),
+  addFilesMock: vi.fn(),
   unlinkFileMock: vi.fn(),
   addDirectoryMock: vi.fn(),
   unlinkDirectoryMock: vi.fn(),
@@ -65,6 +66,7 @@ vi.mock('../../src/renderer/src/store/layout', () => ({
 
 vi.mock('../../src/renderer/src/store/treeCtrl', () => ({
   addFile: addFileMock,
+  addFiles: addFilesMock,
   unlinkFile: unlinkFileMock,
   addDirectory: addDirectoryMock,
   unlinkDirectory: unlinkDirectoryMock,
@@ -93,6 +95,7 @@ describe('project store', () => {
     busOn.mockReset()
     busEmit.mockReset()
     addFileMock.mockReset()
+    addFilesMock.mockReset()
     unlinkFileMock.mockReset()
     addDirectoryMock.mockReset()
     unlinkDirectoryMock.mockReset()
@@ -312,17 +315,28 @@ describe('project store', () => {
     store.projectTree = { pathname: '/root', files: [], folders: [] }
 
     store.LISTEN_FOR_UPDATE_PROJECT()
+    // Added files are collected and put in the tree together, at the latest
+    // when another kind of change arrives.
     ipcHandlers['mt::update-object-tree'](null, {
       type: 'add',
       change: { pathname: '/root/new.md', isMarkdown: true }
     })
-    expect(addFileMock).toHaveBeenCalled()
+    ipcHandlers['mt::update-object-tree'](null, {
+      type: 'add',
+      change: { pathname: '/root/newer.md', isMarkdown: true }
+    })
+    expect(addFilesMock).not.toHaveBeenCalled()
 
     ipcHandlers['mt::update-object-tree'](null, {
       type: 'change',
       change: { pathname: '/root/other.md' }
     })
     expect(navigatorMock.forgetHeadings).toHaveBeenCalledWith('/root/other.md')
+    expect(addFilesMock).toHaveBeenCalledTimes(1)
+    expect(addFilesMock.mock.calls[0][1].map((file) => file.pathname)).toEqual([
+      '/root/new.md',
+      '/root/newer.md'
+    ])
 
     ipcHandlers['mt::update-object-tree'](null, {
       type: 'unlinkDir',
