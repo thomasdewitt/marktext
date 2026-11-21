@@ -171,6 +171,21 @@ test('Enter in the image selector embeds the image and goes no further', async (
   assert.match(await t.markdown(), /\n!\[pic\]\(small\.png\)\n\nMiddle paragraph\.\n/)
 })
 
+test('an image that is loading takes the room of an image that failed to load', async () => {
+  await open('First paragraph.\n\n![missing](missing.png)\n\nLast paragraph.\n\n![pic](pic.png)\n')
+  await win.waitForSelector('.ag-inline-image.ag-image-fail')
+  const sizes = await win.evaluate(() => {
+    const failed = document.querySelector('.ag-inline-image.ag-image-fail')
+    const { width, height } = failed.getBoundingClientRect()
+    // The same element as it is drawn until its image has loaded or failed.
+    failed.classList.replace('ag-image-fail', 'ag-image-loading')
+    const loading = failed.getBoundingClientRect()
+    failed.classList.replace('ag-image-loading', 'ag-image-fail')
+    return { failed: [width, height], loading: [loading.width, loading.height] }
+  })
+  assert.deepEqual(sizes.loading, sizes.failed)
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })

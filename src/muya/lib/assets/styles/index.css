@@ -1052,10 +1052,12 @@ span.ag-warn.ag-emoji-marked-text {
   cursor: pointer;
 }
 
+/* While it loads, an image is the box a failed image gets. The document then
+   moves by less than the image's height when the image arrives, and not at
+   all when it does not. */
 .ag-inline-image.ag-image-loading {
-  width: 400px;
-  height: 250px;
-  margin: 0 auto;
+  width: 100%;
+  height: 50px;
   vertical-align: bottom;
 }
 
