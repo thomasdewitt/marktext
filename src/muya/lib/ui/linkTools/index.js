@@ -14,6 +14,11 @@ const defaultOptions = {
   showArrow: false
 }
 
+// How long the pointer has to rest on a link before the tools show, and how long they stay
+// after it has left the link, which is the time there is to reach them.
+const SHOW_DELAY = 300
+const HIDE_DELAY = 500
+
 class LinkTools extends BaseFloat {
   static pluginName = 'linkTools'
 
@@ -25,6 +30,7 @@ class LinkTools extends BaseFloat {
     this.linkInfo = null
     this.options = opts
     this.icons = icons
+    this.showTimer = null
     this.hideTimer = null
     const linkContainer = this.linkContainer = document.createElement('div')
     this.container.appendChild(linkContainer)
@@ -35,32 +41,38 @@ class LinkTools extends BaseFloat {
     const { eventCenter } = this.muya
     super.listen()
     eventCenter.subscribe('muya-link-tools', ({ reference, linkInfo }) => {
+      clearTimeout(this.showTimer)
+      clearTimeout(this.hideTimer)
       if (reference) {
-        this.linkInfo = linkInfo
-        setTimeout(() => {
+        // Wait until the pointer has settled on the link: tools that pop up while it only
+        // passes over would cover the line below, which may be where it is heading.
+        this.showTimer = setTimeout(() => {
+          this.linkInfo = linkInfo
           this.show(reference)
           this.render()
-        }, 0)
+        }, SHOW_DELAY)
       } else {
-        if (this.hideTimer) {
-          clearTimeout(this.hideTimer)
-        }
         this.hideTimer = setTimeout(() => {
           this.hide()
-        }, 500)
+        }, HIDE_DELAY)
       }
     })
 
     const mouseOverHandler = () => {
-      if (this.hideTimer) {
-        clearTimeout(this.hideTimer)
-      }
+      clearTimeout(this.hideTimer)
     }
 
     const mouseOutHandler = () => {
       this.hide()
     }
 
+    // The tools belong to pointing at a link. Once the text is being edited they are in the way.
+    const inputHandler = () => {
+      clearTimeout(this.showTimer)
+      this.hide()
+    }
+
+    eventCenter.attachDOMEvent(this.muya.container, 'input', inputHandler)
     eventCenter.attachDOMEvent(this.container, 'mouseover', mouseOverHandler)
     eventCenter.attachDOMEvent(this.container, 'mouseleave', mouseOutHandler)
   }
