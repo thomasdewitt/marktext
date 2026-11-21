@@ -104,6 +104,10 @@ export default function image(h, cursor, block, token, outerClass) {
     }
   }
 
+  // A picture that is not showing (loading, failed, or without an address) has no place
+  // for the caret behind it, so at the end of a line an empty span follows it.
+  const caretSpot = token.range.end === block.text.length ? [h('span.ag-image-caret')] : []
+
   if (src) {
     // image is loading...
     if (typeof isSuccess === 'undefined') {
@@ -153,9 +157,9 @@ export default function image(h, cursor, block, token, outerClass) {
             )
           ])
         ]
-      : [h(wrapperSelector, data, [...imageIcons, renderImageContainer()])]
+      : [h(wrapperSelector, data, [...imageIcons, renderImageContainer()]), ...caretSpot]
   } else {
     wrapperSelector += `.${CLASS_OR_ID.AG_EMPTY_IMAGE}`
-    return [h(wrapperSelector, data, [...imageIcons, renderImageContainer()])]
+    return [h(wrapperSelector, data, [...imageIcons, renderImageContainer()]), ...caretSpot]
   }
 }

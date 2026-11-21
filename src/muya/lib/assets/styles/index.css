@@ -991,6 +991,15 @@ span.ag-warn.ag-emoji-marked-text {
   background: transparent;
 }
 
+/* The caret's place behind a picture that is not showing, at the end of a line. The
+   browser only puts a caret in an empty element that has a box of its own. */
+.ag-image-caret {
+  display: inline-block;
+  min-width: 1px;
+  min-height: 1em;
+  vertical-align: text-bottom;
+}
+
 .ag-inline-image a.ag-image-icon-success,
 .ag-inline-image a.ag-image-icon-fail,
 .ag-inline-image a.ag-image-icon-close {

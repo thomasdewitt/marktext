@@ -443,24 +443,24 @@ class Selection {
           if (child.classList && child.classList.contains('ag-inline-image')) {
             const imageContainer = child.querySelector('.ag-image-container')
             const hasImg = imageContainer.querySelector('img')
+            const isBehindImage = count + textLength === offset
 
+            if (isBehindImage && child.nextElementSibling) {
+              return {
+                node: child.nextElementSibling,
+                offset: 0
+              }
+            }
             if (!hasImg) {
               return {
                 node: child,
                 offset: 0
               }
             }
-            if (count + textLength === offset) {
-              if (child.nextElementSibling) {
-                return {
-                  node: child.nextElementSibling,
-                  offset: 0
-                }
-              } else {
-                return {
-                  node: imageContainer,
-                  offset: 1
-                }
+            if (isBehindImage) {
+              return {
+                node: imageContainer,
+                offset: 1
               }
             } else if (count === offset && count === 0) {
               return {
