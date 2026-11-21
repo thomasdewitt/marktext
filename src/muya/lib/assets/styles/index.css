@@ -1200,7 +1200,8 @@ span.ag-reference-link {
   left: -35px;
   display: none;
   cursor: pointer;
-  z-index: 99999;
+  /* Above the block it belongs to, under the floating tools. */
+  z-index: 2;
 }
 
 .ag-front-icon i.icon:hover {

@@ -186,6 +186,11 @@ test('an image that is loading takes the room of an image that failed to load', 
   assert.deepEqual(sizes.loading, sizes.failed)
 })
 
+test('the gutter icon of a paragraph is under the floating tools', async () => {
+  const zIndex = (selector) => win.evaluate((sel) => Number(getComputedStyle(document.querySelector(sel)).zIndex), selector)
+  assert.ok((await zIndex('.ag-front-icon')) < (await zIndex('.ag-float-wrapper')))
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
