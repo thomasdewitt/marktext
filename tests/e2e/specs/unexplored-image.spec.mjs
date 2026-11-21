@@ -138,6 +138,21 @@ test('Escape in the image selector closes it and returns the keyboard to the edi
   assert.equal(await t.markdown(), DOCUMENT)
 })
 
+test('a relative path typed into the image selector is written as typed', async () => {
+  await open()
+  await selectImage()
+  await win.locator('.ag-image-toolbar li.item.edit').click()
+  await win.waitForSelector(`${SELECTOR} input.src:focus`)
+  await win.locator(`${SELECTOR} input.src`).fill('small.png')
+  await win.locator(`${SELECTOR} button.link`).click()
+  await win.waitForSelector('.ag-inline-image img[src*="small.png"]')
+
+  assert.match(await t.markdown(), /\n!\[pic\]\(small\.png\)\n/)
+  assert.deepEqual(await t.shownFloats(), [])
+  // The selector is gone, so the keyboard is back in the editor.
+  assert.equal(await focusIsInEditor(), true)
+})
+
 test('Enter in the image selector embeds the image and goes no further', async () => {
   await open()
   await selectImage()

@@ -495,8 +495,9 @@ const imageAction = async (image, id, alt = '') => {
     return null
   }
 
+  // A path that is not absolute is already relative to the document.
   let destImagePath = absolutePath
-  if (currentPathname && window.path) {
+  if (currentPathname && window.path && window.path.isAbsolute(absolutePath)) {
     try {
       const rel = window.path.relative(window.path.dirname(currentPathname), absolutePath)
       if (rel && !window.path.isAbsolute(rel)) {
