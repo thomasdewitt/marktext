@@ -126,7 +126,10 @@ const searchResultInfo = computed(() => {
     return acc + item.matches.length
   }, 0)
 
-  return t('search.searchResultInfo', { matchCount, fileCount })
+  return t('search.searchResultInfo', {
+    matches: t('search.searchMatchCount', { n: matchCount }, matchCount),
+    files: t('search.searchFileCount', { n: fileCount }, fileCount)
+  })
 })
 
 const showNoFolderOpenedMessage = computed(() => {

@@ -68,6 +68,13 @@ test('a hit in a file that is not open opens it with the match selected', async 
   await until(async () => (await selectedText()) === 'fjdksalh', 'match selected')
 })
 
+test('the result line counts in the singular and the plural', async () => {
+  const info = () => win.locator('.side-bar-search .search-result-info').textContent()
+  assert.equal((await info()).trim(), '1 match in 1 file')
+  await search('item')
+  await until(async () => /^[2-9]\d* matches in (1 file|[2-9]\d* files)$/.test((await info()).trim()), 'plural counts')
+})
+
 test('a hit in another open tab switches to it with the match selected', async () => {
   // The editor re-wrote this file's lists on opening, so the hit's line
   // number on disk is not its line in the tab.

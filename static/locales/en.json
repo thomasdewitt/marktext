@@ -222,7 +222,9 @@
     "invalidRegex": "Invalid regular expression",
     "regexMatchEmpty": "Regular expression matches empty string",
     "searchResultCount": "Search results",
-    "searchResultInfo": "{matchCount} matches in {fileCount} files"
+    "searchResultInfo": "{matches} in {files}",
+    "searchMatchCount": "{n} match | {n} matches",
+    "searchFileCount": "{n} file | {n} files"
   },
   "sideBar": {
     "search": {
