@@ -1377,7 +1377,7 @@
     "emptyHtmlBlock": "< Empty HTML Block >",
     "onlyTopBlockCanRenderIcon": "Only top most block can render front icon button.",
     "unhandledFunctionType": "Unhandled functionType: {functionType}",
-    "highlight-start": "[highlight end]",
+    "highlight-start": "[highlight start]",
     "highlight-end": "[highlight end]",
     "type-at-to-insert": "Type {'@'} to insert",
     "input-footnote-definition": "Input footnote definition",

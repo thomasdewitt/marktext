@@ -2,6 +2,7 @@ import { delay } from '@/util'
 import bus from '../bus'
 import getCommandDescriptionById from './descriptions'
 import { t } from '../i18n'
+import { dispatchIpcLocally } from '../util/ipcSubscriptions'
 
 const descriptions = ['Trim all trailing newlines', 'Ensure single newline', 'Disabled']
 
@@ -52,7 +53,7 @@ class TrailingNewlineCommand {
   }
 
   executeSubcommand = async (_, value) => {
-    window.electron.ipcRenderer.emit('mt::set-final-newline', null, value)
+    dispatchIpcLocally('mt::set-final-newline', value)
   }
 
   unload = () => {}

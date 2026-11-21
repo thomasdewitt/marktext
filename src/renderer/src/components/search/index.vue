@@ -16,8 +16,8 @@
             @keyup="searchFn($event)"
           />
           <div class="controls">
-            <span class="search-result">{{
-              t('search.searchResultCount', { current: highlightIndex + 1, total: highlightCount })
+            <span class="search-result" :title="t('search.searchResultCount')">{{
+              searchValue ? `${highlightIndex + 1} / ${highlightCount}` : ''
             }}</span>
             <span
               :title="t('search.caseSensitive')"
@@ -204,6 +204,13 @@ const listenFind = () => {
 const listenReplace = () => {
   showSearch.value = true
   type.value = 'replace'
+  // Type the search term first, as with Find; otherwise the keys go to the document.
+  nextTick(() => {
+    search.value.focus()
+    if (searchValue.value) {
+      searchFn()
+    }
+  })
 }
 
 const listenFindNext = () => {

@@ -36,6 +36,7 @@
 </template>
 
 <script setup>
+import { dispatchIpcLocally } from '@/util/ipcSubscriptions'
 import { computed, watch, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useMainStore } from '@/store'
 import { storeToRefs } from 'pinia'
@@ -110,7 +111,7 @@ watch(customCss, (value, oldValue) => {
 })
 
 watch(zoom, (zoomValue) => {
-  window.electron.ipcRenderer.emit('mt::window-zoom', null, zoomValue)
+  dispatchIpcLocally('mt::window-zoom', zoomValue)
 })
 
 const handleDragOver = (e) => {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createIpcRegistry } from '../../src/renderer/src/util/ipcSubscriptions'
+import { createIpcRegistry, dispatchIpcLocally } from '../../src/renderer/src/util/ipcSubscriptions'
 
 describe('createIpcRegistry', () => {
   const originalWindow = global.window
@@ -56,5 +56,30 @@ describe('createIpcRegistry', () => {
     b.tearDown()
 
     expect(window.electron.ipcRenderer.removeListener).not.toHaveBeenCalled()
+  })
+
+  it('dispatchIpcLocally runs the subscribed handlers of a channel, until they are torn down', () => {
+    const first = createIpcRegistry()
+    const second = createIpcRegistry()
+    const onZoom = vi.fn()
+    const alsoOnZoom = vi.fn()
+    const onOther = vi.fn()
+    first.subscribe('mt::window-zoom', onZoom)
+    second.subscribe('mt::window-zoom', alsoOnZoom)
+    second.subscribe('mt::other', onOther)
+
+    dispatchIpcLocally('mt::window-zoom', 1.25)
+    expect(onZoom).toHaveBeenCalledWith(null, 1.25)
+    expect(alsoOnZoom).toHaveBeenCalledWith(null, 1.25)
+    expect(onOther).not.toHaveBeenCalled()
+
+    first.tearDown()
+    dispatchIpcLocally('mt::window-zoom', 1.5)
+    expect(onZoom).toHaveBeenCalledTimes(1)
+    expect(alsoOnZoom).toHaveBeenCalledTimes(2)
+
+    // A channel nobody listens on is not an error.
+    expect(() => dispatchIpcLocally('mt::nobody')).not.toThrow()
+    second.tearDown()
   })
 })

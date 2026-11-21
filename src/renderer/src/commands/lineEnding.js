@@ -2,6 +2,7 @@ import { delay } from '@/util'
 import bus from '../bus'
 import getCommandDescriptionById from './descriptions'
 import { t } from '../i18n'
+import { dispatchIpcLocally } from '../util/ipcSubscriptions'
 
 const crlfDescription = 'Carriage return and line feed (CRLF)'
 const lfDescription = 'Line feed (LF)'
@@ -50,7 +51,7 @@ class LineEndingCommand {
   }
 
   executeSubcommand = async (_, value) => {
-    window.electron.ipcRenderer.emit('mt::set-line-ending', null, value)
+    dispatchIpcLocally('mt::set-line-ending', value)
   }
 
   unload = () => {}

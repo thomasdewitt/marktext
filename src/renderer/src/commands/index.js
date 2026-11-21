@@ -5,6 +5,7 @@ import { delay, isOsx } from '@/util'
 import { isUpdatable } from './utils'
 import getCommandDescriptionById from './descriptions'
 import { t } from '../i18n'
+import { dispatchIpcLocally } from '../util/ipcSubscriptions'
 
 export { default as FileEncodingCommand } from './fileEncoding'
 export { default as LineEndingCommand } from './lineEnding'
@@ -41,7 +42,7 @@ const commands = [
   {
     id: 'file.new-tab',
     execute: async () => {
-      window.electron.ipcRenderer.emit('mt::new-untitled-tab', null)
+      dispatchIpcLocally('mt::new-untitled-tab')
     }
   },
   {
@@ -65,13 +66,13 @@ const commands = [
   {
     id: 'file.save',
     execute: async () => {
-      window.electron.ipcRenderer.emit('mt::editor-ask-file-save', null)
+      dispatchIpcLocally('mt::editor-ask-file-save')
     }
   },
   {
     id: 'file.save-as',
     execute: async () => {
-      window.electron.ipcRenderer.emit('mt::editor-ask-file-save-as', null)
+      dispatchIpcLocally('mt::editor-ask-file-save-as')
     }
   },
   {
@@ -84,7 +85,7 @@ const commands = [
   {
     id: 'file.close-tab',
     execute: async () => {
-      window.electron.ipcRenderer.emit('mt::editor-close-tab', null)
+      dispatchIpcLocally('mt::editor-close-tab')
     }
   },
   {
@@ -103,14 +104,14 @@ const commands = [
   {
     id: 'file.move-file',
     execute: async () => {
-      window.electron.ipcRenderer.emit('mt::editor-move-file', null)
+      dispatchIpcLocally('mt::editor-move-file')
     }
   },
   {
     id: 'file.rename-file',
     execute: async () => {
       await delay(50)
-      window.electron.ipcRenderer.emit('mt::editor-rename-file', null)
+      dispatchIpcLocally('mt::editor-rename-file')
     }
   },
   {
@@ -208,7 +209,7 @@ const commands = [
     id: 'edit.find-in-folder',
     execute: async () => {
       await delay(150)
-      window.electron.ipcRenderer.emit('mt::editor-edit-action', null, 'findInFolder')
+      dispatchIpcLocally('mt::editor-edit-action', 'findInFolder')
     }
   },
 
@@ -509,7 +510,7 @@ const commands = [
       }
     ],
     executeSubcommand: async (_, value) => {
-      window.electron.ipcRenderer.emit('mt::window-zoom', null, value)
+      dispatchIpcLocally('mt::window-zoom', value)
     }
   },
 
@@ -646,13 +647,13 @@ const commands = [
   {
     id: 'tabs.cycleForward',
     execute: async () => {
-      window.electron.ipcRenderer.emit('mt::tabs-cycle-right', null)
+      dispatchIpcLocally('mt::tabs-cycle-right')
     }
   },
   {
     id: 'tabs.cycleBackward',
     execute: async () => {
-      window.electron.ipcRenderer.emit('mt::tabs-cycle-left', null)
+      dispatchIpcLocally('mt::tabs-cycle-left')
     }
   }
 ]
@@ -678,49 +679,42 @@ if (isOsx) {
   })
 }
 
-// Function to get commands with updated descriptions
-export const getCommandsWithDescriptions = async () => {
-  // Create a deep copy of commands to avoid modifying the original
-  const commandsCopy = JSON.parse(JSON.stringify(commands))
+const THEME_DESCRIPTION_KEYS = {
+  light: 'theme.cadmiumLight',
+  dark: 'theme.dark',
+  graphite: 'theme.graphiteLight',
+  'material-dark': 'theme.materialDark',
+  'one-dark': 'theme.oneDark',
+  ulysses: 'theme.ulyssesLight'
+}
 
-  // Update descriptions for all commands
-  const updateDescriptions = (commandList) => {
-    for (const item of commandList) {
-      const { id, subcommands } = item
-      // Always update description for commands with ID, regardless of existing description
-      if (id) {
-        item.description = getCommandDescriptionById(id)
-      }
+/**
+ * Re-read the descriptions of commands in the current language.
+ *
+ * This updates the command objects in place. They carry their `execute`
+ * functions (some are class instances registered at run time), so they must
+ * never be replaced by copies.
+ *
+ * @param {object[]} commandList Commands, e.g. the root command's subcommands.
+ */
+export const refreshCommandDescriptions = (commandList) => {
+  for (const command of commandList) {
+    const { id, subcommands } = command
+    // An id without a translation comes back unchanged; keep what the command has.
+    const description = id && getCommandDescriptionById(id)
+    if (description && description !== id) {
+      command.description = description
+    }
 
-      // Special handling for theme subcommands
-      if (id === 'window.change-theme' && subcommands && Array.isArray(subcommands)) {
-        for (const subcommand of subcommands) {
-          const { value } = subcommand
-          if (value === 'light') {
-            subcommand.description = t('theme.cadmiumLight')
-          } else if (value === 'dark') {
-            subcommand.description = t('theme.dark')
-          } else if (value === 'graphite') {
-            subcommand.description = t('theme.graphiteLight')
-          } else if (value === 'material-dark') {
-            subcommand.description = t('theme.materialDark')
-          } else if (value === 'one-dark') {
-            subcommand.description = t('theme.oneDark')
-          } else if (value === 'ulysses') {
-            subcommand.description = t('theme.ulyssesLight')
-          }
-        }
-      }
-
-      // Also update other subcommands descriptions
-      if (subcommands && Array.isArray(subcommands)) {
-        updateDescriptions(subcommands)
+    if (!Array.isArray(subcommands)) continue
+    if (id === 'window.change-theme') {
+      for (const subcommand of subcommands) {
+        const key = THEME_DESCRIPTION_KEYS[subcommand.value]
+        if (key) subcommand.description = t(key)
       }
     }
+    refreshCommandDescriptions(subcommands)
   }
-
-  updateDescriptions(commandsCopy)
-  return commandsCopy
 }
 
 // Complete all command descriptions for initial load.

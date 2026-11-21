@@ -3,6 +3,7 @@ import { delay } from '@/util'
 import bus from '../bus'
 import getCommandDescriptionById from './descriptions'
 import { t } from '../i18n'
+import { dispatchIpcLocally } from '../util/ipcSubscriptions'
 
 class FileEncodingCommand {
   constructor(editorState) {
@@ -61,7 +62,7 @@ class FileEncodingCommand {
   executeSubcommand = async (id) => {
     // NOTE: We support UTF-BOM encodings but don't allow to set them.
     if (!id.endsWith('-bom')) {
-      window.electron.ipcRenderer.emit('mt::set-file-encoding', null, id)
+      dispatchIpcLocally('mt::set-file-encoding', id)
     }
   }
 

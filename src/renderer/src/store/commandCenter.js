@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import log from 'electron-log'
 import bus from '../bus'
-import staticCommands, { RootCommand, getCommandsWithDescriptions } from '../commands'
+import staticCommands, { RootCommand, refreshCommandDescriptions } from '../commands'
 import { createIpcRegistry } from '../util/ipcSubscriptions'
 
 const ipc = createIpcRegistry()
@@ -18,30 +18,16 @@ export const useCommandCenterStore = defineStore('commandCenter', {
       this.rootCommand.subcommands.sort((a, b) => a.description.localeCompare(b.description))
     },
     async LISTEN_COMMAND_CENTER_BUS() {
-      // Wait for initial language setup before initializing commands
-      let isInitialized = false
-      
-      const initializeCommands = async () => {
-        if (!isInitialized) {
-          this.rootCommand.subcommands = await getCommandsWithDescriptions()
-          this.SORT_COMMANDS()
-          isInitialized = true
-        }
-      }
-      
-      // Listen for language changes and initialize/update command descriptions
-      bus.on('language-changed', async () => {
-        // Update all command descriptions when language changes
-        this.rootCommand.subcommands = await getCommandsWithDescriptions()
+      const refreshDescriptions = () => {
+        refreshCommandDescriptions(this.rootCommand.subcommands)
         this.SORT_COMMANDS()
-        isInitialized = true
-      })
-      
-      // Delay initial setup to allow language initialization
-      setTimeout(async () => {
-        await initializeCommands()
-      }, 100)
-      
+      }
+
+      // Descriptions are translated: read them once the language is set up,
+      // and again whenever it changes.
+      bus.on('language-changed', refreshDescriptions)
+      setTimeout(refreshDescriptions, 100)
+
       // Init stuff
       bus.on('cmd::sort-commands', () => {
         this.SORT_COMMANDS()
