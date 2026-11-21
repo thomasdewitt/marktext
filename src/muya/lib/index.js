@@ -376,6 +376,7 @@ class Muya {
 
   format(type) {
     this.contentState.format(type)
+    this.dispatchChange()
   }
 
   insertImage(imageInfo) {
@@ -392,6 +393,7 @@ class Muya {
   replace(value, opt) {
     this.contentState.replace(value, opt)
     this.contentState.render(false)
+    this.dispatchChange()
     return this.contentState.searchMatches
   }
 

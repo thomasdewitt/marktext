@@ -4,6 +4,18 @@ import { findNearestParagraph } from '../selection/dom'
 import { getParagraphReference, getImageInfo } from '../utils'
 import { checkEditEmoji } from '../ui/emojis'
 
+// Floats that are operated with Enter, Tab, Escape and the up/down arrows while the caret
+// stays in the editor. Only these may take those keys away from the editor; every other
+// float (format toolbar, link tools, image toolbar, ...) is mouse-only.
+const KEY_DRIVEN_FLOATS = new Set([
+  'ag-table-picker',
+  'ag-quick-insert',
+  'ag-emoji-picker',
+  'ag-front-menu',
+  'ag-list-picker',
+  'ag-image-selector'
+])
+
 class Keyboard {
   constructor(muya) {
     this.muya = muya
@@ -30,6 +42,10 @@ class Keyboard {
         }
       }
     })
+  }
+
+  isKeyDrivenFloatShown() {
+    return [...this.shownFloat].some((tool) => KEY_DRIVEN_FLOATS.has(tool.name))
   }
 
   hideAllFloatTools() {
@@ -64,7 +80,7 @@ class Keyboard {
       if (
         event.type === 'keyup' &&
         (event.key === EVENT_KEYS.ArrowUp || event.key === EVENT_KEYS.ArrowDown) &&
-        this.shownFloat.size > 0
+        this.isKeyDrivenFloatShown()
       ) {
         return
       }
@@ -137,33 +153,14 @@ class Keyboard {
       }
 
       if (
-        this.shownFloat.size > 0 &&
         (event.key === EVENT_KEYS.Enter ||
           event.key === EVENT_KEYS.Escape ||
           event.key === EVENT_KEYS.Tab ||
           event.key === EVENT_KEYS.ArrowUp ||
-          event.key === EVENT_KEYS.ArrowDown)
+          event.key === EVENT_KEYS.ArrowDown) &&
+        this.isKeyDrivenFloatShown()
       ) {
-        let needPreventDefault = false
-
-        for (const tool of this.shownFloat) {
-          if (
-            tool.name === 'ag-format-picker' ||
-            tool.name === 'ag-table-picker' ||
-            tool.name === 'ag-quick-insert' ||
-            tool.name === 'ag-emoji-picker' ||
-            tool.name === 'ag-front-menu' ||
-            tool.name === 'ag-list-picker' ||
-            tool.name === 'ag-image-selector'
-          ) {
-            needPreventDefault = true
-            break
-          }
-        }
-        if (needPreventDefault) {
-          event.preventDefault()
-        }
-        // event.stopPropagation()
+        event.preventDefault()
         return
       }
       switch (event.key) {
@@ -272,7 +269,7 @@ class Keyboard {
             contentState.checkNeedRender({ start, end })
           contentState.cursor = { anchor, focus }
           if (needRender) {
-            return contentState.partialRender()
+            contentState.partialRender()
           }
         }
       }
