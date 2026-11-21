@@ -31,13 +31,16 @@ class Transformer {
   listen () {
     const { eventCenter, container } = this.muya
     const scrollHandler = event => {
-      if (typeof this.lastScrollTop !== 'number') {
-        this.lastScrollTop = event.target.scrollTop
+      if (!this.status) {
         return
       }
-      // only when scoll distance great than 50px, then hide the float box.
-      if (!this.resizing && this.status && Math.abs(event.target.scrollTop - this.lastScrollTop) > 50) {
+      // The handles follow the image, and go away once it has been scrolled
+      // more than 50px from where it was selected.
+      const isScrolledAway = !this.resizing && Math.abs(event.target.scrollTop - this.lastScrollTop) > 50
+      if (isScrolledAway || !this.reference.isConnected) {
         this.hide()
+      } else {
+        this.update()
       }
     }
     eventCenter.attachDOMEvent(document, 'click', this.hide.bind(this))
@@ -64,6 +67,7 @@ class Transformer {
       this.hide()
     }
     this.status = true
+    this.lastScrollTop = this.muya.container.scrollTop
 
     this.createElements()
     this.update()

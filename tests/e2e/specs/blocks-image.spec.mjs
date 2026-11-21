@@ -111,6 +111,19 @@ test('the image toolbar and resize handles land on the image when the click move
   assertToolsOnImage(tools)
 })
 
+test('the image toolbar and resize handles follow the image while the editor scrolls', async () => {
+  const before = await imageTools()
+  await win.evaluate(() => {
+    document.querySelector('#ag-editor-id').parentElement.scrollTop += 30
+  })
+  await win.waitForFunction(
+    (top) => document.querySelector('.ag-inline-image-selected .ag-image-container').getBoundingClientRect().top < top - 20,
+    before.image.top
+  )
+  await win.waitForTimeout(100)
+  assertToolsOnImage(await imageTools())
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
