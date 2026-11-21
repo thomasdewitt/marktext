@@ -266,6 +266,64 @@ test('Enter at the start of the heading text moves the heading down', async () =
   assert.equal(await t.markdown(), '# Title here\n\ngamma\n')
 })
 
+// --- Enter and Backspace in nested lists ------------------------------------
+
+test('Enter on an empty item of a nested ordered list moves it out one level', async () => {
+  await openDoc('- one\n  1. sub a\n  2. sub b\n- two\n')
+  await caretIn('sub b')
+  await press('Enter', 'Enter')
+  await type('x')
+  assert.equal(await t.markdown(), '- one\n  1. sub a\n  2. sub b\n- x\n- two\n')
+})
+
+test('an item moved out of a nested list looks like the items it joins', async () => {
+  await openDoc('- one\n  - sub a\n  - sub b\n- two\n')
+  await caretIn('sub b')
+  await press('Enter', 'Enter')
+  await type('x')
+  const classes = await t.win.evaluate(() => {
+    const items = [...document.querySelectorAll('#ag-editor-id > ul > li')]
+    return items.map((item) => item.className.replace(/\s*ag-active/, '').replace(/ag-paragraph\s*/, ''))
+  })
+  assert.equal(classes.length, 3)
+  assert.equal(classes[1], classes[2])
+})
+
+test('Enter on an empty item nested under a task moves out as a task', async () => {
+  await openDoc('- [ ] task\n  - note\n- [ ] other\n')
+  await caretIn('note')
+  await press('Enter', 'Enter')
+  await type('X')
+  assert.equal(await t.markdown(), '- [ ] task\n  - note\n- [ ] X\n- [ ] other\n')
+  assert.deepEqual(t.errors(), [])
+})
+
+test('Enter on an emptied ordered item keeps its sublist', async () => {
+  await openDoc('1. one\n2. two\n   1. sub a\n   2. sub b\n3. three\n')
+  await caretIn('two')
+  await press('Backspace', 'Backspace', 'Backspace', 'Enter')
+  assert.match(await t.markdown(), /sub a\n.*sub b/)
+})
+
+test('Enter in an empty last paragraph of a list item starts the next item', async () => {
+  await openDoc('- one\n\n  second\n\n- three\n')
+  await caretIn('second')
+  await press('Enter', 'Enter')
+  await type('X')
+  assert.match(await t.markdown(), /second\n\n- X\n\n- three\n$/)
+})
+
+test('Backspace at the start of a nested item moves it out with everything in it', async () => {
+  await openDoc('- one\n  - sub a\n\n    para in sub a\n\n    1. deep\n  - sub b\n- two\n')
+  await caretIn('sub a', 0)
+  await press('Backspace')
+  const markdown = await t.markdown()
+  assert.match(markdown, /^- one\n\n- sub a\n/)
+  assert.match(markdown, /para in sub a/)
+  assert.match(markdown, /1\. deep/)
+  assert.match(markdown, /- sub b/)
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
