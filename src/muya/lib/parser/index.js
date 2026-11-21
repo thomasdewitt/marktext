@@ -205,6 +205,13 @@ const tokenizerFac = (src, beginRules, inlineRules, pos = 0, top, labels, option
       const to = inlineRules[rule].exec(src)
       if (to && isLengthEven(to[3])) {
         if (rule === 'emoji' && !lowerPriority(src, to[0].length, validateRules)) break
+        if (rule === 'del') {
+          // A run of three or more tildes is no strikethrough marker, and with subscripts
+          // switched on `~x~` is a subscript, as it is when the document is exported.
+          const isSubscript = superSubScript && to[1] === '~' && inlineRules.subscript.test(src)
+          const charBefore = originSrc[originSrc.length - src.length - 1]
+          if (charBefore === '~' || isSubscript) continue
+        }
         inChunk = true
         pushPending()
         const range = {

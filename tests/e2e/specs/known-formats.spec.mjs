@@ -129,6 +129,17 @@ test('a selection that starts inside bold closes it', async () => {
   assert.equal(await t.markdown(), 'The **qu**words here\n')
 })
 
+test('text between single tildes is struck through, as it is in an export', async () => {
+  await t.openDocument('\n')
+  await t.win.locator('#ag-editor-id').click()
+  await t.win.keyboard.type('x ~one~ y and ~~two~~ z', { delay: 10 })
+  assert.equal(await t.markdown(), 'x ~one~ y and ~~two~~ z\n')
+  const struck = await t.win.evaluate(() =>
+    [...document.querySelectorAll('#ag-editor-id del')].map((el) => el.textContent)
+  )
+  assert.deepEqual(struck, ['one', 'two'])
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
