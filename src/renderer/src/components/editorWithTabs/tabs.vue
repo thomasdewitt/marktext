@@ -29,7 +29,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
@@ -46,7 +46,24 @@ const tabDropContainer = ref(null)
 let autoScroller = null
 let drake = null
 
-// Computed properties
+// Keep the tab of the file being edited in view when the strip is scrolled
+// (many tabs open, or a file picked in the sidebar).
+const revealActiveTab = () => {
+  nextTick(() => {
+    const strip = tabContainer.value
+    const active = strip && strip.querySelector('li.active')
+    if (!active) return
+    const stripBox = strip.getBoundingClientRect()
+    const tabBox = active.getBoundingClientRect()
+    if (tabBox.left < stripBox.left) {
+      strip.scrollLeft -= stripBox.left - tabBox.left
+    } else if (tabBox.right > stripBox.right) {
+      strip.scrollLeft += tabBox.right - stripBox.right
+    }
+  })
+}
+
+watch(() => [currentFile.value.id, tabs.value.length], revealActiveTab)
 
 // Methods incorporated from tabsMixins
 const selectFile = (file) => {
@@ -131,6 +148,7 @@ const handleContextMenu = (event, tab) => {
 }
 
 onMounted(() => {
+  revealActiveTab()
   bus.on('TABS::close-this', closeTab)
   bus.on('TABS::close-others', closeOthers)
   bus.on('TABS::close-saved', closeSaved)

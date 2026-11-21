@@ -244,6 +244,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   flex: 1;
+  /* Take the room beside the sidebar and no more: without this, a long row
+     of tabs makes this column, and the editor in it, wider than the window. */
+  min-width: 0;
   min-height: 100vh;
   position: relative;
   & > .editor {

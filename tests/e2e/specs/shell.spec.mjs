@@ -78,6 +78,42 @@ test('Replace opens with the search field focused, so typing does not go into th
   await win.keyboard.press('Escape')
 })
 
+test('many open tabs scroll in their strip instead of stretching the editor off screen', async () => {
+  const names = Array.from({ length: 12 }, (_, i) => `a-long-file-name-for-tab-number-${i + 1}.md`)
+  for (const name of names) {
+    await t.store('project', (s, name) => {
+      s.START_CREATE({ dirname: s.projectTree.pathname, type: 'file' })
+      s.CREATE_FILE_DIRECTORY(name)
+    }, name)
+    await until(() => t.store('editor', (s, name) => s.currentFile.filename === name, name), `${name} opened`)
+  }
+
+  const layout = await win.evaluate(() => {
+    const strip = document.querySelector('.scrollable-tabs').getBoundingClientRect()
+    const active = document.querySelector('.scrollable-tabs li.active').getBoundingClientRect()
+    const editor = document.querySelector('.editor-component').getBoundingClientRect()
+    return {
+      window: window.innerWidth,
+      editorRight: editor.right,
+      activeInView: active.left >= strip.left - 1 && active.right <= strip.right + 1
+    }
+  })
+  assert.ok(layout.editorRight <= layout.window + 1, `editor ends inside the window (${layout.editorRight} of ${layout.window})`)
+  assert.ok(layout.activeInView, 'the active tab is scrolled into view')
+
+  // Picking an early file in the sidebar scrolls the strip back to its tab.
+  await win.locator('.nav-row.file', { hasText: 'kitchen-sink' }).click()
+  await until(
+    () => win.evaluate(() => {
+      const strip = document.querySelector('.scrollable-tabs').getBoundingClientRect()
+      const active = document.querySelector('.scrollable-tabs li.active')
+      const box = active.getBoundingClientRect()
+      return active.textContent.includes('kitchen-sink') && box.left >= strip.left - 1 && box.right <= strip.right + 1
+    }),
+    'first tab back in view'
+  )
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })

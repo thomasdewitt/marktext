@@ -261,25 +261,34 @@ class EditorWindow extends BaseWindow {
     const eol = preferences.getPreferredEol()
     const { autoGuessEncoding, trimTrailingNewline } = preferences.getAll()
 
-    for (const { filePath, options, selected } of fileList) {
-      loadMarkdownFile(filePath, eol, autoGuessEncoding, trimTrailingNewline)
-        .then((rawDocument) => {
-          if (this.lifecycle === WindowLifecycle.READY) {
-            this._doOpenTab(rawDocument, options, selected)
-          } else {
-            this._filesToOpen.push({ doc: rawDocument, options, selected })
-          }
-        })
-        .catch((err) => {
-          const { message, stack } = err
-          log.error(`[ERROR] Cannot open file or directory: ${message}\n\n${stack}`)
+    // Read the files at the same time, but open their tabs in the order
+    // given, not in the order the reads happen to finish.
+    const loads = fileList.map(({ filePath }) =>
+      loadMarkdownFile(filePath, eol, autoGuessEncoding, trimTrailingNewline).then(
+        (doc) => ({ doc }),
+        (error) => ({ error })
+      )
+    )
+
+    fileList.reduce(async (previous, { options, selected }, index) => {
+      await previous
+      const { doc, error } = await loads[index]
+      if (error) {
+        const { message, stack } = error
+        log.error(`[ERROR] Cannot open file or directory: ${message}\n\n${stack}`)
+        if (!browserWindow.isDestroyed()) {
           browserWindow.webContents.send('mt::show-notification', {
             title: t('dialog.cannotOpenTab'),
             type: 'error',
-            message: err.message
+            message
           })
-        })
-    }
+        }
+      } else if (this.lifecycle === WindowLifecycle.READY) {
+        this._doOpenTab(doc, options, selected)
+      } else {
+        this._filesToOpen.push({ doc, options, selected })
+      }
+    }, Promise.resolve())
   }
 
   /**

@@ -325,8 +325,10 @@ div.title > span {
   color: var(--themeColor);
 }
 
+/* The title is laid out right-to-left (so a long path is cut at its start),
+   which puts this dot before the path; keep a gap on both sides. */
 .active .save-dot {
-  margin-left: 3px;
+  margin: 0 6px;
   width: 7px;
   height: 7px;
   display: inline-block;
@@ -337,9 +339,6 @@ div.title > span {
 }
 .active .save-dot.show {
   visibility: visible;
-}
-.title:hover {
-  color: var(sideBarTitleColor);
 }
 
 .left-toolbar {
