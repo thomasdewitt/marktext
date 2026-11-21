@@ -324,6 +324,32 @@ test('Backspace at the start of a nested item moves it out with everything in it
   assert.match(markdown, /- sub b/)
 })
 
+// --- Shift+Tab --------------------------------------------------------------
+
+test('Shift+Tab on a top-level list item does not indent it', async () => {
+  await openDoc('- one\n- two\n- three\n')
+  await caretIn('two')
+  await press('Shift+Tab')
+  await type('X')
+  assert.equal(await t.markdown(), '- one\n- twoX\n- three\n')
+})
+
+test('Shift+Tab in a paragraph inserts nothing', async () => {
+  await openDoc('alpha beta\n')
+  await caretIn('alpha beta', 0)
+  await press('Shift+Tab')
+  await type('X')
+  assert.equal(await t.markdown(), 'Xalpha beta\n')
+})
+
+test('Shift+Tab in a code block unindents the line of the caret', async () => {
+  await openDoc('p\n\n```js\nif (a) {\n    b()\n}\n```\n')
+  await caretIn('b()')
+  await press('Shift+Tab')
+  await type('X')
+  assert.equal(await t.markdown(), 'p\n\n```js\nif (a) {\nb()X\n}\n```\n')
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
