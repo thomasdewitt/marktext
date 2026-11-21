@@ -26,6 +26,7 @@ class Clipboard {
         // when user use `cut` function, the dom has been deleted by default.
         // But should update content state manually.
         contentState.cutHandler()
+        this.muya.dispatchChange()
       }
       this._copyType = 'normal'
     }

@@ -95,7 +95,7 @@ class FormatPicker extends BaseFloat {
     event.stopPropagation()
     const { contentState } = this.muya
     contentState.render()
-    contentState.format(item.type)
+    this.muya.format(item.type)
     if (/link|image/.test(item.type)) {
       this.hide()
     } else {
