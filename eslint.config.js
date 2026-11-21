@@ -5,9 +5,25 @@ import pluginI18nJson from 'eslint-plugin-i18n-json'
 import pluginJsonc from 'eslint-plugin-jsonc'
 import neostandard from 'neostandard'
 import babelParser from '@babel/eslint-parser'
+import vueParser from 'vue-eslint-parser'
+import globals from 'globals'
 const { configs: js } = eslintJs
 
 export default [
+  // Never lint build output or vendored bundles.
+  {
+    ignores: [
+      'node_modules/**',
+      'out/**',
+      'dist/**',
+      'build/**',
+      'static/**',
+      'src/muya/dist/**',
+      'src/muya/webpack.config.js',
+      'src/muya/lib/assets/libs/**'
+    ]
+  },
+
   // 0. ESLint core recommended rules
 
   js.recommended,
@@ -29,6 +45,8 @@ export default [
         sourceType: 'module'
       },
       globals: {
+        ...globals.browser,
+        ...globals.node,
         MARKTEXT_VERSION_STRING: 'readonly',
         MARKTEXT_VERSION: 'readonly',
         __static: 'readonly'
@@ -47,9 +65,31 @@ export default [
       'prefer-const': 'off',
       'no-mixed-operators': 'off',
       'no-prototype-builtins': 'off',
-      'space-before-function-paren': ['error', 'never']
+      // Match Prettier: `function () {}`, `async () => {}`, `name() {}`.
+      'space-before-function-paren': 'off',
+      '@stylistic/space-before-function-paren': [
+        'error',
+        { anonymous: 'always', named: 'never', asyncArrow: 'always' }
+      ]
+    }
+  },
+
+  // Single-file components: vue-eslint-parser for the template, Babel for
+  // the <script> block.
+  {
+    files: ['**/*.vue'],
+    languageOptions: {
+      parser: vueParser,
+      parserOptions: {
+        parser: babelParser,
+        requireConfigFile: false,
+        ecmaVersion: 'latest',
+        sourceType: 'module'
+      }
     },
-    ignores: ['node_modules', 'src/muya/dist/**/*', 'src/muya/webpack.config.js']
+    rules: {
+      'vue/multi-word-component-names': 'off'
+    }
   },
 
   // 4. JSON files basic validation
