@@ -163,6 +163,9 @@ class Keyboard {
         event.preventDefault()
         return
       }
+      if (!this.isComposed && contentState.documentEdgeHandler(event)) {
+        return
+      }
       // A handler that edits the block tree itself cancels the native edit, so
       // no `input` event follows to announce the change.
       const dispatchHandledEdit = () => {
