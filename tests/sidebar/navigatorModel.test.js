@@ -237,3 +237,58 @@ describe('finding nodes', () => {
     expect(findCurrentFile(build().project.children)).toBeNull()
   })
 })
+
+describe('reusing nodes between builds', () => {
+  it('hands back the same node for files and folders that have not changed', () => {
+    const tree = projectTree()
+    const tab = { id: 't1', pathname: '/notes/journal.md', isSaved: true, tocList: [heading('A', 1)] }
+    const input = { projectTree: tree, tabs: [tab], headingCache: {}, currentFileId: 't1', normalize: path.normalize }
+
+    const first = buildNavigator(input).project
+    const second = buildNavigator(input).project
+    expect(second.children).toEqual(first.children)
+    second.children.forEach((node, index) => expect(node).toBe(first.children[index]))
+    expect(second).toBe(first)
+  })
+
+  it('rebuilds only the file whose headings changed, and the folders above it', () => {
+    const tree = projectTree()
+    const deepHeadings = [heading('Deep', 1)]
+    const tab = { id: 't1', pathname: '/notes/journal.md', isSaved: true, tocList: [heading('A', 1)] }
+    const input = () => ({
+      projectTree: tree,
+      tabs: [tab],
+      headingCache: { '/notes/zeta/deep.md': deepHeadings },
+      currentFileId: 't1',
+      normalize: path.normalize
+    })
+
+    const first = buildNavigator(input()).project
+    tab.tocList = [heading('A', 1), heading('B', 2)]
+    const second = buildNavigator(input()).project
+
+    const byName = (project, name) => project.children.find((n) => n.name === name)
+    expect(byName(second, 'journal.md')).not.toBe(byName(first, 'journal.md'))
+    expect(byName(second, 'journal.md').children[0].children[0].label).toBe('B')
+    expect(byName(second, 'plot.png')).toBe(byName(first, 'plot.png'))
+    expect(byName(second, 'zeta')).toBe(byName(first, 'zeta'))
+    expect(second).not.toBe(first)
+  })
+
+  it('rebuilds a file when its saved state or its being-current changes', () => {
+    const tree = projectTree()
+    const tab = { id: 't1', pathname: '/notes/journal.md', isSaved: true, tocList: [] }
+    const input = (currentFileId) => ({ projectTree: tree, tabs: [tab], headingCache: {}, currentFileId, normalize: path.normalize })
+    const journal = (result) => result.project.children.find((n) => n.name === 'journal.md')
+
+    const first = journal(buildNavigator(input('t1')))
+    tab.isSaved = false
+    const unsaved = journal(buildNavigator(input('t1')))
+    expect(unsaved).not.toBe(first)
+    expect(unsaved.isSaved).toBe(false)
+
+    const notCurrent = journal(buildNavigator(input(null)))
+    expect(notCurrent).not.toBe(unsaved)
+    expect(notCurrent.isCurrent).toBe(false)
+  })
+})

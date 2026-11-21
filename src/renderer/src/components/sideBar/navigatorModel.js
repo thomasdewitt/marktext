@@ -7,6 +7,10 @@ import { headingsFromMarkdown } from '../../store/markdownHeading'
 
 const MARKDOWN_NAME = /\.(md|markdown)$/i
 
+// The nodes built last time, by the store object they were built from.
+const builtFileNodes = new WeakMap()
+const builtFolderNodes = new WeakMap()
+
 // Headings read from a tab's text, remembered until the text changes.
 const textHeadings = new WeakMap()
 
@@ -95,7 +99,27 @@ export const buildNavigator = ({ projectTree, tabs, headingCache, currentFileId,
   const fileNode = ({ id, name, pathname, isMarkdown, item, tab }) => {
     // An open tab knows its own headings; a closed file's are read from disk.
     const headings = (tab && tabHeadings(tab)) || (pathname ? headingCache[pathname] : null)
-    return {
+    const isSaved = tab ? !!tab.isSaved : true
+    const isCurrent = !!tab && tab.id === currentFileId
+
+    // Hand back the node built last time when nothing about the file has
+    // changed. Rows are drawn per node, so an edit to one file's headings
+    // then redraws that file's rows and not every row of a large folder.
+    const owner = item || tab
+    const previous = builtFileNodes.get(owner)
+    if (
+      previous &&
+      previous.id === id &&
+      previous.name === name &&
+      previous.tab === tab &&
+      previous.isSaved === isSaved &&
+      previous.isCurrent === isCurrent &&
+      previous.headings === headings
+    ) {
+      return previous.node
+    }
+
+    const node = {
       id,
       kind: 'file',
       name,
@@ -105,11 +129,13 @@ export const buildNavigator = ({ projectTree, tabs, headingCache, currentFileId,
       item,
       tab,
       isOpen: !!tab,
-      isSaved: tab ? !!tab.isSaved : true,
-      isCurrent: !!tab && tab.id === currentFileId,
+      isSaved,
+      isCurrent,
       headingsLoaded: Array.isArray(headings),
       children: Array.isArray(headings) ? buildHeadingTree(headings, id) : []
     }
+    builtFileNodes.set(owner, { id, name, tab, isSaved, isCurrent, headings, node })
+    return node
   }
 
   const folderNode = (folder) => {
@@ -131,7 +157,19 @@ export const buildNavigator = ({ projectTree, tabs, headingCache, currentFileId,
       })
     })
     const children = [...folders, ...files]
-    return {
+
+    // The same for a folder whose entries are all unchanged.
+    const previous = builtFolderNodes.get(folder)
+    if (
+      previous &&
+      previous.pathname === pathname &&
+      previous.children.length === children.length &&
+      previous.children.every((child, index) => child === children[index])
+    ) {
+      return previous
+    }
+
+    const node = {
       id: `dir:${pathname}`,
       kind: 'folder',
       name: folder.name,
@@ -141,6 +179,8 @@ export const buildNavigator = ({ projectTree, tabs, headingCache, currentFileId,
       containsCurrent: children.some((child) => child.isCurrent || child.containsCurrent),
       children
     }
+    builtFolderNodes.set(folder, node)
+    return node
   }
 
   const project = projectTree ? folderNode(projectTree) : null

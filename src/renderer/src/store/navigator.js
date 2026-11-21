@@ -8,6 +8,9 @@ import { headingsFromMarkdown } from './markdownHeading'
 const loading = new Map()
 const queue = []
 let running = 0
+// Headings read but not yet put in the store, and the timer that will.
+let loaded = {}
+let commitTimer = null
 const MAX_PARALLEL_READS = 6
 
 const sameOrInside = (pathname, dir) => {
@@ -58,12 +61,15 @@ export const useNavigatorStore = defineStore('navigator', {
       this.headingCache = {}
       loading.clear()
       queue.length = 0
+      loaded = {}
     },
 
     /** Read the headings of each file that is not cached yet. */
     loadHeadings(pathnames) {
       for (const pathname of pathnames) {
-        if (!pathname || pathname in this.headingCache || loading.has(pathname)) continue
+        if (!pathname || pathname in this.headingCache || pathname in loaded || loading.has(pathname)) {
+          continue
+        }
         const token = Symbol(pathname)
         loading.set(pathname, token)
         queue.push({ pathname, token })
@@ -93,14 +99,28 @@ export const useNavigatorStore = defineStore('navigator', {
       }
       if (loading.get(pathname) === token) {
         loading.delete(pathname)
-        this.headingCache[pathname] = headings
+        loaded[pathname] = headings
+        this._commitLoadedSoon()
       }
+    },
+
+    // Every change to the cache redraws the navigator, so results are added a
+    // batch at a time: a folder of several hundred notes fills in over a
+    // handful of redraws instead of one per file.
+    _commitLoadedSoon() {
+      if (commitTimer) return
+      commitTimer = setTimeout(() => {
+        commitTimer = null
+        Object.assign(this.headingCache, loaded)
+        loaded = {}
+      }, 120)
     },
 
     /** Drop a file's cached headings; they are read again when next shown. */
     forgetHeadings(pathname) {
       const normalized = window.path.normalize(pathname)
       loading.delete(normalized)
+      delete loaded[normalized]
       delete this.headingCache[normalized]
     },
 
@@ -110,8 +130,11 @@ export const useNavigatorStore = defineStore('navigator', {
       for (const pathname of Object.keys(this.headingCache)) {
         if (sameOrInside(pathname, dir)) delete this.headingCache[pathname]
       }
-      for (const pathname of [...loading.keys()]) {
-        if (sameOrInside(pathname, dir)) loading.delete(pathname)
+      for (const pathname of [...loading.keys(), ...Object.keys(loaded)]) {
+        if (sameOrInside(pathname, dir)) {
+          loading.delete(pathname)
+          delete loaded[pathname]
+        }
       }
     }
   }

@@ -45,6 +45,7 @@
         <navigator-row
           v-for="row of otherRows"
           :key="row.node.id"
+          v-memo="rowState(row)"
           :row="row"
           :active-heading="isActiveHeading(row)"
           @toggle="toggle(row)"
@@ -56,43 +57,63 @@
       </template>
 
       <template v-if="projectTree">
-        <template v-for="row of projectRows" :key="row.key || row.node.id">
-          <div
-            v-if="row.kind === 'create'"
-            class="nav-input-row"
-            :style="{ paddingLeft: `${indentOf(row.depth)}px` }"
-          >
-            <input
-              v-model="inputValue"
-              v-focus
-              class="nav-input"
-              type="text"
-              :placeholder="createPlaceholder"
-              @click.stop
-              @keydown.enter.prevent="commitCreate"
-              @keydown.esc.prevent="cancelInput"
-              @blur="cancelInput"
-            />
-          </div>
-          <navigator-row
-            v-else
-            :row="row"
-            :active-heading="isActiveHeading(row)"
-            :selected="!!row.node.item && activeItem === row.node.item"
-            :drop-target="dropTargetId === row.node.id"
-            :renaming="!!row.node.item && renameCache === row.node.item.pathname"
-            @toggle="toggle(row)"
-            @open="activate(row)"
-            @close="closeTab(row.node)"
-            @menu="showRowMenu($event, row)"
-            @rename="commitRename"
-            @cancel-rename="cancelInput"
-            @dragstart="onDragStart($event, row.node)"
-            @dragover="onDragOver($event, row.node)"
-            @dragleave="onDragLeave($event, row.node.id)"
-            @drop="onDrop($event, row.node)"
+        <navigator-row
+          v-for="row of projectRows.before"
+          :key="row.node.id"
+          v-memo="rowState(row)"
+          :row="row"
+          :active-heading="isActiveHeading(row)"
+          :selected="!!row.node.item && activeItem === row.node.item"
+          :drop-target="dropTargetId === row.node.id"
+          :renaming="!!row.node.item && renameCache === row.node.item.pathname"
+          @toggle="toggle(row)"
+          @open="activate(row)"
+          @close="closeTab(row.node)"
+          @menu="showRowMenu($event, row)"
+          @rename="commitRename"
+          @cancel-rename="cancelInput"
+          @dragstart="onDragStart($event, row.node)"
+          @dragover="onDragOver($event, row.node)"
+          @dragleave="onDragLeave($event, row.node.id)"
+          @drop="onDrop($event, row.node)"
+        />
+        <div
+          v-if="projectRows.createDepth !== null"
+          class="nav-input-row"
+          :style="{ paddingLeft: `${indentOf(projectRows.createDepth)}px` }"
+        >
+          <input
+            v-model="inputValue"
+            v-focus
+            class="nav-input"
+            type="text"
+            :placeholder="createPlaceholder"
+            @click.stop
+            @keydown.enter.prevent="commitCreate"
+            @keydown.esc.prevent="cancelInput"
+            @blur="cancelInput"
           />
-        </template>
+        </div>
+        <navigator-row
+          v-for="row of projectRows.after"
+          :key="row.node.id"
+          v-memo="rowState(row)"
+          :row="row"
+          :active-heading="isActiveHeading(row)"
+          :selected="!!row.node.item && activeItem === row.node.item"
+          :drop-target="dropTargetId === row.node.id"
+          :renaming="!!row.node.item && renameCache === row.node.item.pathname"
+          @toggle="toggle(row)"
+          @open="activate(row)"
+          @close="closeTab(row.node)"
+          @menu="showRowMenu($event, row)"
+          @rename="commitRename"
+          @cancel-rename="cancelInput"
+          @dragstart="onDragStart($event, row.node)"
+          @dragover="onDragOver($event, row.node)"
+          @dragleave="onDragLeave($event, row.node.id)"
+          @drop="onDrop($event, row.node)"
+        />
 
         <div v-if="isProjectEmpty" class="nav-empty">
           <span>{{ t('sideBar.tree.emptyProject') }}</span>
@@ -165,29 +186,34 @@ const isProjectEmpty = computed(
   () => projectNodes.value.length === 0 && createCache.value.dirname === undefined
 )
 
-// The project's rows, with the "new file / new folder" input placed as the
-// first entry of the directory it will create in.
+// The project's rows, split around the place of the "new file / new folder"
+// input: it is the first entry of the directory it will create in.
+// `createDepth` is null when nothing is being created.
 const projectRows = computed(() => {
   const rows = flattenNavigator(projectNodes.value, expanded.value)
+  const whole = { before: rows, createDepth: null, after: [] }
   const { dirname } = createCache.value
-  if (!dirname || !tree.value.project) return rows
+  if (!dirname || !tree.value.project) return whole
 
-  const createRow = (depth) => ({ kind: 'create', key: 'create-input', depth })
   const target = window.path.normalize(dirname)
   if (target === tree.value.project.pathname) {
-    return [createRow(0), ...rows]
+    return { before: [], createDepth: 0, after: rows }
   }
   const index = rows.findIndex((row) => row.node.kind === 'folder' && row.node.pathname === target)
-  if (index === -1) return rows
-  return [...rows.slice(0, index + 1), createRow(rows[index].depth + 1), ...rows.slice(index + 1)]
+  if (index === -1) return whole
+  return {
+    before: rows.slice(0, index + 1),
+    createDepth: rows[index].depth + 1,
+    after: rows.slice(index + 1)
+  }
 })
 
 // Read the headings of every markdown file on screen that isn't open in a
 // tab, so each file shows whether it has an outline to unfold.
 watch(
   () =>
-    [...otherRows.value, ...projectRows.value]
-      .filter((row) => row.node?.kind === 'file' && row.node.isMarkdown && !row.node.headingsLoaded)
+    [...otherRows.value, ...projectRows.value.before, ...projectRows.value.after]
+      .filter((row) => row.node.kind === 'file' && row.node.isMarkdown && !row.node.headingsLoaded)
       .map((row) => row.node.pathname)
       .filter(Boolean),
   (pathnames) => {
@@ -199,6 +225,20 @@ watch(
 // --- Folding ----------------------------------------------------------------
 
 const toggle = (row) => navigatorStore.setExpanded(row.node.id, !row.expanded)
+
+// Everything a row's appearance depends on. A row whose values are all the
+// same as at the last draw is skipped (the tree model hands back the same
+// node object for a file that has not changed).
+const rowState = (row) => [
+  row.node,
+  row.depth,
+  row.expandable,
+  row.expanded,
+  isActiveHeading(row),
+  !!row.node.item && activeItem.value === row.node.item,
+  dropTargetId.value === row.node.id,
+  !!row.node.item && renameCache.value === row.node.item.pathname
+]
 
 const isActiveHeading = (row) =>
   row.node.kind === 'heading' && row.file.isCurrent && row.node.index === activeHeadingIndex.value

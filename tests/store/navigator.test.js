@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 vi.mock('electron-log', () => ({ default: { error: vi.fn() } }))
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+const flush = () => new Promise((resolve) => setTimeout(resolve, 200))
 
 describe('navigator store', () => {
   let useNavigatorStore
