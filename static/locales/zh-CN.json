@@ -1375,13 +1375,6 @@
     "input-mathematical-formula": "输入数学公式",
     "fence": "围栏",
     "indent": "缩进",
-    "front-matter-delimiter": "前置内容分隔符",
-    "math-delimiter": "数学分隔符",
-    "mermaid-start": "mermaid 开始",
-    "flowchart-start": "流程图 开始",
-    "sequence-start": "时序图 开始",
-    "plantuml-start": "plantuml 开始",
-    "vega-lite-start": "vega-lite 开始",
     "click-to-add-image": "点击添加图片",
     "load-image-failed": "图片加载失败"
   }

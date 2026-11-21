@@ -1412,13 +1412,6 @@
     "input-mathematical-formula": "Ingrese fórmula matemática",
     "fence": "cerca",
     "indent": "sangría",
-    "front-matter-delimiter": "delimitador de front matter",
-    "math-delimiter": "delimitador matemático",
-    "mermaid-start": "inicio de mermaid",
-    "flowchart-start": "inicio de diagrama de flujo",
-    "sequence-start": "inicio de secuencia",
-    "plantuml-start": "inicio de plantuml",
-    "vega-lite-start": "inicio de vega-lite",
     "click-to-add-image": "Haga clic para agregar imagen",
     "load-image-failed": "Error al cargar imagen"
   },
