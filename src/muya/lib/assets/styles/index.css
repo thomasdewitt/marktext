@@ -477,11 +477,15 @@ figure {
   margin-left: 16px;
 }
 
+/* The edit icon of a block with a preview is in the gutter to the right of
+   the block, where it covers nothing of the preview (an equation's number
+   is at the right edge). Its box touches the block, so the pointer can
+   reach it without leaving the block. */
 .ag-container-icon {
   position: absolute;
   top: 0px;
-  right: 10px;
-  width: 20px;
+  right: -30px;
+  width: 30px;
   height: 20px;
   cursor: pointer;
   z-index: 2;
@@ -516,8 +520,8 @@ figure {
 
 .ag-container-icon i.icon {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: 2px;
+  left: 10px;
 }
 
 .ag-tool-bar ul li.active i.icon {

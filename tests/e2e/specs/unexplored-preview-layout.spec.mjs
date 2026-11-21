@@ -85,6 +85,23 @@ test('a click on the preview of the block being edited leaves the caret where it
   await t.press('Backspace')
 })
 
+test('the edit icon of a numbered equation is beside the number, not on it', async () => {
+  await leaveBlocks()
+  await win.locator(MATH).hover()
+  await win.waitForSelector(`${MATH} .ag-container-icon`, { state: 'visible' })
+  const icon = await box(`${MATH} .ag-container-icon i.icon`)
+  const number = await box(`${MATH} .katex-html > .tag`)
+  assert.ok(icon.left >= number.right, 'the icon is to the right of the equation number')
+
+  // The pointer can go from the equation to the icon, and a click there opens the source.
+  const figure = await box(MATH)
+  await win.mouse.move(figure.right - 2, figure.top + 10)
+  await win.mouse.move((icon.left + icon.right) / 2, (icon.top + icon.bottom) / 2, { steps: 6 })
+  await win.mouse.down()
+  await win.mouse.up()
+  await win.waitForSelector(`${MATH}.ag-active`)
+})
+
 test('single-line display math has the room of a math block around it', async () => {
   await leaveBlocks()
   const paragraph = await box(`p:has(${DISPLAY})`)
