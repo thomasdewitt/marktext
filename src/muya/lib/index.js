@@ -249,11 +249,17 @@ class Muya {
       // This is because muyaIndexCursors are not based off a key to a specific block, so we don't know which it is
       // We get a muyaIndexCursor if we are using the Source Code editor.
       const cursorInfo = this.contentState.addCursorToMarkdown(markdown, muyaIndexCursor)
-      const newMarkdown = cursorInfo.markdown
-
-      this.contentState.importMarkdown(newMarkdown)
-
-      finalCursor = this.contentState.convertMuyaIndexCursortoCursor(muyaIndexCursor)
+      if (cursorInfo.isValid) {
+        this.contentState.importMarkdown(cursorInfo.markdown)
+        finalCursor = this.contentState.convertMuyaIndexCursortoCursor(muyaIndexCursor)
+      }
+      if (!finalCursor || !finalCursor.anchor || !finalCursor.focus) {
+        // The position is on an empty line, or in a place the editor has no
+        // caret for (a table's delimiter row, a code fence): parse the
+        // document without the markers and use the default caret position.
+        finalCursor = null
+        this.contentState.importMarkdown(markdown)
+      }
     } else {
       // No cursor defined, we can just parse the markdown
       this.contentState.importMarkdown(markdown)

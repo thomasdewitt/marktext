@@ -211,38 +211,39 @@ const search = () => {
   startShowSearchCancelAreaTimer()
 
   const newSearchResult = []
-  const promises = ripgrepDirectorySearcher
-    .search([rootDirectoryPath], keyword.value, {
-      didMatch: (res) => {
-        if (canceled) return
-        newSearchResult.push(res)
-      },
-      didSearchPaths: (numPathsFound) => {
-        // More than 100 files with (multiple) matches were found.
-        if (!canceled && numPathsFound > 100) {
-          canceled = true
-          if (promises.cancel) {
-            promises.cancel()
-          }
-          searchErrorString.value = t('sideBar.search.searchLimited', { count: 100 })
-        }
-      },
+  // Keep the searcher's own promise: it carries `cancel()`, which stops the
+  // grep process. The promise `.then()` returns does not.
+  const searching = ripgrepDirectorySearcher.search([rootDirectoryPath], keyword.value, {
+    didMatch: (res) => {
+      if (canceled) return
+      newSearchResult.push(res)
+    },
+    didSearchPaths: (numPathsFound) => {
+      // More than 100 files with (multiple) matches were found.
+      if (!canceled && numPathsFound > 100) {
+        canceled = true
+        searching.cancel()
+        searchErrorString.value = t('sideBar.search.searchLimited', { count: 100 })
+      }
+    },
 
-      // UI options
-      isCaseSensitive: isCaseSensitive.value,
-      isWholeWord: isWholeWord.value,
-      isRegexp: isRegexp.value,
+    // UI options
+    isCaseSensitive: isCaseSensitive.value,
+    isWholeWord: isWholeWord.value,
+    isRegexp: isRegexp.value,
 
-      // Options loaded from settings
-      exclusions: searchExclusions.value,
-      maxFileSize: searchMaxFileSize.value || null,
-      includeHidden: searchIncludeHidden.value,
-      noIgnore: searchNoIgnore.value,
-      followSymlinks: searchFollowSymlinks.value,
+    // Options loaded from settings
+    exclusions: searchExclusions.value,
+    maxFileSize: searchMaxFileSize.value || null,
+    includeHidden: searchIncludeHidden.value,
+    noIgnore: searchNoIgnore.value,
+    followSymlinks: searchFollowSymlinks.value,
 
-      // Only search markdown files
-      inclusions: window.fileUtils.MARKDOWN_INCLUSIONS
-    })
+    // Only search markdown files
+    inclusions: window.fileUtils.MARKDOWN_INCLUSIONS
+  })
+
+  searching
     .then(() => {
       if (superseded) return
 
@@ -297,9 +298,7 @@ const search = () => {
     if (canceled) return
     canceled = true
     if (bySupersede) superseded = true
-    if (promises.cancel) {
-      promises.cancel()
-    }
+    searching.cancel()
   }
 }
 
@@ -410,7 +409,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   align-items: center;
 }
-.search-input > input {
+.search-wrapper > input {
   color: var(--sideBarColor);
   background: transparent;
   height: 100%;
@@ -421,38 +420,38 @@ onBeforeUnmount(() => {
   font-size: 13px;
   width: 50%;
 }
-.search-input > .controls {
+.search-wrapper > .controls {
   display: flex;
   flex-shrink: 0;
   margin-top: 3px;
 }
-.search-input > .controls > span {
+.search-wrapper > .controls > span {
   cursor: pointer;
   width: 20px;
   height: 20px;
   margin-left: 2px;
   margin-right: 2px;
 }
-.search-input > .controls > span:hover {
+.search-wrapper > .controls > span:hover {
   color: var(--sideBarIconColor);
 }
-.search-input > .controls > span > svg {
+.search-wrapper > .controls > span > svg {
   fill: var(--sideBarIconColor);
 }
-.search-input > .controls > span > svg:hover {
+.search-wrapper > .controls > span > svg:hover {
   fill: var(--highlightThemeColor);
 }
-.search-input > .controls > span.active svg {
+.search-wrapper > .controls > span.active svg {
   fill: var(--highlightThemeColor);
 }
-.search-input > svg {
+.search-wrapper > svg {
   cursor: pointer;
   flex-shrink: 0;
   width: 20px;
   height: 20px;
   margin-right: 10px;
 }
-.search-input > svg:hover {
+.search-wrapper > svg:hover {
   color: var(--sideBarIconColor);
 }
 .cancel-area {

@@ -60,7 +60,7 @@ describe('store/help document state helpers', () => {
       adjustLineEndingOnSave: false,
       trimTrailingNewline: 1
     })
-    expect(fileState.tocList).toEqual([])
+    expect(fileState.tocList).toBeNull()
 
     const doc = help.createDocumentState({
       markdown: '# B',

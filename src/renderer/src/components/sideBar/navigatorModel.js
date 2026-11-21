@@ -3,7 +3,26 @@
 // plain data and flattens it into the rows the component draws. It has no
 // Vue or DOM dependencies, so it is unit-tested directly.
 
+import { headingsFromMarkdown } from '../../store/markdownHeading'
+
 const MARKDOWN_NAME = /\.(md|markdown)$/i
+
+// Headings read from a tab's text, remembered until the text changes.
+const textHeadings = new WeakMap()
+
+/**
+ * The headings of an open tab. The editor reports them for a document it has
+ * shown; a tab still waiting in the background only has its text.
+ */
+const tabHeadings = (tab) => {
+  if (Array.isArray(tab.tocList)) return tab.tocList
+  if (typeof tab.markdown !== 'string') return null
+  const known = textHeadings.get(tab)
+  if (known && known.markdown === tab.markdown) return known.headings
+  const headings = headingsFromMarkdown(tab.markdown)
+  textHeadings.set(tab, { markdown: tab.markdown, headings })
+  return headings
+}
 
 const naturalCompare = (a, b) =>
   a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })
@@ -74,9 +93,8 @@ export const buildNavigator = ({ projectTree, tabs, headingCache, currentFileId,
   const placedTabs = new Set()
 
   const fileNode = ({ id, name, pathname, isMarkdown, item, tab }) => {
-    // An open tab knows its headings exactly; a closed file's come from disk.
-    const headings =
-      tab && Array.isArray(tab.tocList) ? tab.tocList : pathname ? headingCache[pathname] : null
+    // An open tab knows its own headings; a closed file's are read from disk.
+    const headings = (tab && tabHeadings(tab)) || (pathname ? headingCache[pathname] : null)
     return {
       id,
       kind: 'file',

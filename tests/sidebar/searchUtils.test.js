@@ -6,6 +6,7 @@ import {
   collectProjectFiles,
   compareSearchResults,
   getSelectedText,
+  locateHitLine,
   parseDateFromFilename
 } from '../../src/renderer/src/components/sideBar/searchUtils'
 
@@ -154,5 +155,31 @@ describe('searchUtils', () => {
     })
 
     expect(output.results).toBe(input)
+  })
+})
+
+describe("locateHitLine (a search hit's line in an open tab)", () => {
+  const text = ['# Title', '', '- item', '- item', '', 'target line', '', 'target line', ''].join('\n')
+
+  it('returns the reported line when the text there matches', () => {
+    expect(locateHitLine(text, 'target line', 5)).toBe(5)
+  })
+
+  it('finds the line when the tab has fewer or more lines than the file', () => {
+    expect(locateHitLine(text, '# Title', 3)).toBe(0)
+    expect(locateHitLine(text, '- item', 0)).toBe(2)
+  })
+
+  it('takes the occurrence nearest to the reported line', () => {
+    expect(locateHitLine(text, 'target line', 8)).toBe(7)
+    expect(locateHitLine(text, 'target line', 4)).toBe(5)
+  })
+
+  it('ignores a carriage return left on the searched line', () => {
+    expect(locateHitLine(text, 'target line\r', 5)).toBe(5)
+  })
+
+  it('reports a line that is no longer in the text', () => {
+    expect(locateHitLine(text, 'deleted since the search ran', 2)).toBe(-1)
   })
 })

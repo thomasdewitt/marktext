@@ -55,6 +55,8 @@ import { ref, computed } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { storeToRefs } from 'pinia'
 import bus from '../../bus'
+import { adjustCursor } from '../../util'
+import { locateHitLine } from './searchUtils'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -113,43 +115,53 @@ const ellipsisText = (text) => {
   return len > MAX_PRETEXT_LEN ? `...${text.substring(len - MAX_PRETEXT_LEN)}` : text
 }
 
+// Select the hit in the editor, opening the file if needed.
 const handleSearchResultClick = (searchMatch) => {
-  const { range } = searchMatch
+  const { range, lineText } = searchMatch
   const { filePath } = props.searchResult
+  const [startCh, endCh] = [range[0][1], range[1][1]]
 
   const openedTab = tabs.value.find((file) =>
     window.fileUtils.isSamePathSync(file.pathname, filePath)
   )
-  const muyaIndexCursor = {
-    anchor: {
-      line: range[0][0],
-      ch: range[0][1]
-    },
-    focus: {
-      line: range[1][0],
-      ch: range[1][1]
-    }
+
+  // A cursor the editor can place: both ends on the hit's line, kept out of
+  // markdown syntax the editor has no caret position for.
+  const cursorAt = (line, previousLine, nextLine) => {
+    const anchor = adjustCursor({ line, ch: startCh }, previousLine, lineText, nextLine)
+    const focus = adjustCursor({ line, ch: endCh }, previousLine, lineText, nextLine)
+    return anchor && focus ? { anchor, focus } : null
   }
 
-  if (openedTab) {
+  if (!openedTab) {
+    const muyaIndexCursor = cursorAt(range[0][0], '', '')
+    window.electron.ipcRenderer.send(
+      'mt::open-file',
+      filePath,
+      muyaIndexCursor ? { muyaIndexCursor } : {}
+    )
+    return
+  }
+
+  const lines = openedTab.markdown.split('\n')
+  const line = locateHitLine(openedTab.markdown, lineText, range[0][0])
+  const muyaIndexCursor = line === -1 ? null : cursorAt(line, lines[line - 1], lines[line + 1])
+  if (muyaIndexCursor) {
     openedTab.muyaIndexCursor = muyaIndexCursor
     openedTab.cursor = null
-    if (currentFile.value !== openedTab) {
-      editorStore.UPDATE_CURRENT_FILE(openedTab)
-    } else {
-      const { id, markdown, history } = currentFile.value
-      bus.emit('file-changed', {
-        id,
-        markdown,
-        cursor: null,
-        muyaIndexCursor,
-        renderCursor: true,
-        history
-      })
-    }
-  } else {
-    window.electron.ipcRenderer.send('mt::open-file', filePath, {
-      muyaIndexCursor
+  }
+
+  if (currentFile.value.id !== openedTab.id) {
+    editorStore.UPDATE_CURRENT_FILE(openedTab)
+  } else if (muyaIndexCursor) {
+    const { id, markdown, history } = openedTab
+    bus.emit('file-changed', {
+      id,
+      markdown,
+      cursor: null,
+      muyaIndexCursor,
+      renderCursor: true,
+      history
     })
   }
 }

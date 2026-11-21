@@ -201,3 +201,28 @@ export const appendFilenameMatches = ({
     results: augmentedResults
   }
 }
+
+/**
+ * Where a search hit is in a document's current text.
+ *
+ * The search reads files from disk, but an open tab's text can differ from
+ * the file (unsaved edits, or lines the editor re-wrote on opening), so the
+ * hit's line number may be off. Find the hit's line by its text instead,
+ * taking the occurrence nearest to the reported line.
+ *
+ * @param {string} markdown The document's current text.
+ * @param {string} lineText The full text of the line the hit is on.
+ * @param {number} line The line number the search reported.
+ * @returns {number} The line to use, or -1 if the text has no such line.
+ */
+export const locateHitLine = (markdown, lineText, line) => {
+  const lines = markdown.split('\n')
+  const wanted = lineText.replace(/\r$/, '')
+  let best = -1
+  lines.forEach((text, index) => {
+    if (text === wanted && (best === -1 || Math.abs(index - line) < Math.abs(best - line))) {
+      best = index
+    }
+  })
+  return best
+}

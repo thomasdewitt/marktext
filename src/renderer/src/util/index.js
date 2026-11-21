@@ -50,7 +50,7 @@ export const adjustCursor = (cursor, preline, line, nextline) => {
   if (/\|[^|]+\|.+\|\s*$/.test(line)) {
     if (/\|\s*:?-+:?\s*\|[:-\s|]+\|\s*$/.test(line)) { // cursor in `| --- | :---: |` :the second line of table
       newCursor.line += 1 // reset the cursor to the next line
-      newCursor.ch = nextline.indexOf('|') + 1
+      newCursor.ch = (nextline || '').indexOf('|') + 1
     } else { // cursor is not at the second line to table
       if (cursor.ch <= line.indexOf('|')) newCursor.ch = line.indexOf('|') + 1
       if (cursor.ch >= line.lastIndexOf('|')) newCursor.ch = line.lastIndexOf('|') - 1
@@ -71,6 +71,13 @@ export const adjustCursor = (cursor, preline, line, nextline) => {
   // Need to adjust the cursor when cursor at the begin of the list
   if (/[*+-]\s.+/.test(line) && newCursor.ch <= 1) {
     newCursor.ch = 2
+  }
+
+  // Keep the cursor out of a heading's `## ` marker: a cursor marker placed
+  // inside it would stop the line from being parsed as a heading.
+  const headingMarker = /^ {0,3}#{1,6}\s+/.exec(line)
+  if (headingMarker && newCursor.ch < headingMarker[0].length) {
+    newCursor.ch = headingMarker[0].length
   }
 
   // Need to adjust the cursor when cursor at blank line or in a line contains HTML tag.

@@ -42,6 +42,11 @@ describe('renderer util helpers', () => {
 
   it('adjusts cursor for list/table/code and nulls on blank/html lines', () => {
     expect(adjustCursor({ line: 0, ch: 0 }, '', '- item', '')).toEqual({ line: 0, ch: 2 })
+    // A cursor inside a heading's marker moves to the start of its text.
+    expect(adjustCursor({ line: 0, ch: 0 }, '', '## Title', '')).toEqual({ line: 0, ch: 3 })
+    expect(adjustCursor({ line: 0, ch: 5 }, '', '## Title', '')).toEqual({ line: 0, ch: 5 })
+    // The table delimiter row with no following line to move to.
+    expect(() => adjustCursor({ line: 1, ch: 0 }, '', '| --- | --- |', undefined)).not.toThrow()
     expect(adjustCursor({ line: 1, ch: 0 }, '', '| --- | --- |', ' | a | b |')).toEqual({ line: 2, ch: 2 })
     expect(adjustCursor({ line: 1, ch: 0 }, '', '```js', 'const a = 1')).toEqual({ line: 2, ch: 0 })
     expect(adjustCursor({ line: 1, ch: 3 }, 'const a = 1', '```', '')).toEqual({ line: 0, ch: 11 })

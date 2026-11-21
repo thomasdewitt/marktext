@@ -110,13 +110,22 @@ describe('buildNavigator', () => {
     expect(others).toEqual([])
   })
 
-  it('falls back to disk headings for a tab the editor has not rendered yet', () => {
-    const tab = { id: 't1', pathname: '/notes/journal.md', isSaved: true }
+  it('reads the headings of a tab the editor has not shown yet from its text', () => {
+    const tab = {
+      id: 't1',
+      pathname: '/notes/journal.md',
+      isSaved: false,
+      tocList: null,
+      markdown: '# Unsaved title\n\ntext\n\n## Section\n'
+    }
     const { project } = build({
       tabs: [tab],
       headingCache: { '/notes/journal.md': [heading('On disk', 1)] }
     })
-    expect(project.children.find((n) => n.name === 'journal.md').children[0].label).toBe('On disk')
+    const file = project.children.find((n) => n.name === 'journal.md')
+    expect(file.headingsLoaded).toBe(true)
+    expect(file.children.map((n) => n.label)).toEqual(['Unsaved title'])
+    expect(file.children[0].children.map((n) => n.label)).toEqual(['Section'])
   })
 
   it('marks a closed file whose headings were never read as not loaded', () => {

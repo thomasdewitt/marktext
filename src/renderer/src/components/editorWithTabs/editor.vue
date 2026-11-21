@@ -927,18 +927,6 @@ const handleDialogTableConfirm = () => {
   editor.value && editor.value.createTable(tableChecker)
 }
 
-// listen for `open-single-file` event, it will call this method only when open a new file.
-const setMarkdownToEditor = ({ markdown: newMarkdown, cursor: newCursor }) => {
-  if (editor.value) {
-    editor.value.clearHistory()
-    if (newCursor) {
-      editor.value.setMarkdown(newMarkdown, newCursor, true)
-    } else {
-      editor.value.setMarkdown(newMarkdown)
-    }
-  }
-}
-
 // listen for markdown change form source mode or change tabs etc
 const handleFileChange = ({
   markdown: newMarkdown,
@@ -1094,6 +1082,13 @@ onMounted(() => {
   editor.value = new Muya(ele, options)
   const { container } = editor.value
 
+  // The first document can arrive with a place to put the caret (a search
+  // hit, a restored session).
+  const { cursor: initialCursor, muyaIndexCursor: initialIndexCursor } = currentFile.value
+  if (initialCursor || initialIndexCursor) {
+    editor.value.setMarkdown(props.markdown, initialCursor, true, initialIndexCursor)
+  }
+
   // Listen for language changes and update Muya's translation function
   bus.on('language-changed', handleLanguageChanged)
 
@@ -1109,7 +1104,6 @@ onMounted(() => {
   }
 
   // listen for bus events.
-  bus.on('file-loaded', setMarkdownToEditor)
   bus.on('invalidate-image-cache', handleInvalidateImageCache)
   bus.on('undo', handleUndo)
   bus.on('redo', handleRedo)
@@ -1197,7 +1191,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  bus.off('file-loaded', setMarkdownToEditor)
   bus.off('invalidate-image-cache', handleInvalidateImageCache)
   bus.off('undo', handleUndo)
   bus.off('redo', handleRedo)

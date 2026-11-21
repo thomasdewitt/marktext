@@ -995,9 +995,7 @@ export const useEditorStore = defineStore('editor', {
       }
 
       if (selected) {
-        const { id, markdown } = fileState
         this.UPDATE_CURRENT_FILE(fileState)
-        bus.emit('file-loaded', { id, markdown })
 
         // Auto-save daily files immediately if we have a project path
         if (!shouldCreateUntitled && projectPath) {
@@ -1067,11 +1065,9 @@ export const useEditorStore = defineStore('editor', {
       // Muya re-parses the markdown and emits a 'change' event with its own
       // re-exported version. Suppress the false "unsaved" mark on that first event.
       docState._pendingMuyaRoundtrip = true
-      const { id, cursor } = docState
 
       if (selected) {
         this.UPDATE_CURRENT_FILE(docState)
-        bus.emit('file-loaded', { id, markdown, cursor })
       } else {
         this.tabs.push(docState)
       }

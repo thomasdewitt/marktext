@@ -45,7 +45,9 @@ export const defaultFileState = {
   },
   // Per tab notifications
   notifications: [],
-  tocList: [],
+  // The headings the editor reported for this document, or null until the
+  // editor has shown it once.
+  tocList: null,
   muyaIndexCursor: null,
   // True between the moment we hand markdown to Muya for an initial parse and
   // the first 'change' event it dispatches. Muya's import + ExportMarkdown
@@ -85,7 +87,7 @@ export const getFileStateFromData = (data) => {
     adjustLineEndingOnSave,
     trimTrailingNewline,
     muyaIndexCursor: muyaIndexCursor || null,
-    tocList: Array.isArray(data.tocList) ? data.tocList : []
+    tocList: Array.isArray(data.tocList) ? data.tocList : null
   })
 }
 
@@ -190,7 +192,7 @@ export const createDocumentState = (markdownDocument, id = getUniqueId()) => {
     adjustLineEndingOnSave,
     trimTrailingNewline,
     muyaIndexCursor,
-    tocList: Array.isArray(markdownDocument.tocList) ? markdownDocument.tocList : []
+    tocList: Array.isArray(markdownDocument.tocList) ? markdownDocument.tocList : null
   })
 }
 

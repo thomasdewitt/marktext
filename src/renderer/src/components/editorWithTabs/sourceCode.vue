@@ -323,7 +323,6 @@ onMounted(() => {
     codeMirrorConfig.theme = 'one-dark'
   }
 
-  bus.on('file-loaded', handleFileChange)
   bus.on('invalidate-image-cache', handleInvalidateImageCache)
   bus.on('file-changed', handleFileChange)
   bus.on('selectAll', handleSelectAll)
@@ -359,7 +358,6 @@ onBeforeUnmount(() => {
   viewDestroyed.value = true
   if (commitTimer.value) clearTimeout(commitTimer.value)
 
-  bus.off('file-loaded', handleFileChange)
   bus.off('invalidate-image-cache', handleInvalidateImageCache)
   bus.off('file-changed', handleFileChange)
   bus.off('selectAll', handleSelectAll)
