@@ -1,97 +1,77 @@
 import selection from '../selection'
-import { tokenizer, generator } from '../parser/'
+import { tokenizer } from '../parser/'
 import { FORMAT_MARKER_MAP, FORMAT_TYPES } from '../config'
 import { getImageInfo } from '../utils/getImageInfo'
 
-const getOffset = (offset, { range: { start, end }, type, tag, anchor, alt }) => {
-  const dis = offset - start
-  const len = end - start
-  switch (type) {
+// The pieces of the block text that are the syntax of a format token, as `[from, to)`
+// offsets: deleting them leaves the formatted content.
+const getMarkerRanges = token => {
+  const { start, end } = token.range
+  switch (token.type) {
     case 'strong':
     case 'del':
     case 'em':
     case 'inline_code':
     case 'inline_math': {
-      const MARKER_LEN = (type === 'strong' || type === 'del') ? 2 : 1
-      if (dis < 0) return 0
-      if (dis >= 0 && dis < MARKER_LEN) return -dis
-      if (dis >= MARKER_LEN && dis <= len - MARKER_LEN) return -MARKER_LEN
-      if (dis > len - MARKER_LEN && dis <= len) return len - dis - 2 * MARKER_LEN
-      if (dis > len) return -2 * MARKER_LEN
-      break
+      const len = token.marker.length
+      return [[start, start + len], [end - len, end]]
     }
-    case 'html_tag': { // handle underline, sup, sub
-      const OPEN_MARKER_LEN = FORMAT_MARKER_MAP[tag].open.length
-      const CLOSE_MARKER_LEN = FORMAT_MARKER_MAP[tag].close.length
-      if (dis < 0) return 0
-      if (dis >= 0 && dis < OPEN_MARKER_LEN) return -dis
-      if (dis >= OPEN_MARKER_LEN && dis <= len - CLOSE_MARKER_LEN) return -OPEN_MARKER_LEN
-      if (dis > len - CLOSE_MARKER_LEN && dis <= len) return len - dis - OPEN_MARKER_LEN - CLOSE_MARKER_LEN
-      if (dis > len) return -OPEN_MARKER_LEN - CLOSE_MARKER_LEN
-      break
+    case 'html_tag': { // underline, sub, sup, mark
+      const closeLen = token.closeTag ? token.closeTag.length : 0
+      return [[start, start + token.openTag.length], [end - closeLen, end]]
     }
     case 'link': {
-      const MARKER_LEN = 1
-      if (dis < MARKER_LEN) return 0
-      if (dis >= MARKER_LEN && dis <= MARKER_LEN + anchor.length) return -1
-      if (dis > MARKER_LEN + anchor.length) return anchor.length - dis
-      break
+      const textEnd = start + token.marker.length + token.anchor.length + token.backlash.first.length
+      return [[start, start + token.marker.length], [textEnd, end]]
     }
     case 'image': {
-      const MARKER_LEN = 1
-      if (dis < MARKER_LEN) return 0
-      if (dis >= MARKER_LEN && dis < MARKER_LEN * 2) return -1
-      if (dis >= MARKER_LEN * 2 && dis <= MARKER_LEN * 2 + alt.length) return -2
-      if (dis > MARKER_LEN * 2 + alt.length) return alt.length - dis
-      break
+      const altEnd = start + token.marker.length + token.alt.length + token.backlash.first.length
+      return [[start, start + token.marker.length], [altEnd, end]]
     }
+    default:
+      return []
   }
 }
 
-const clearFormat = (token, { start, end }) => {
+// Remove the syntax of `tokens` from the block text, keeping what they format, and move
+// the given cursor ends (those that lie in this block) along with the text.
+const clearFormats = (block, tokens, { start, end }) => {
+  const ranges = tokens.flatMap(getMarkerRanges)
+  const shift = offset => ranges.reduce(
+    (shifted, [from, to]) => shifted - Math.max(0, Math.min(offset, to) - from),
+    offset
+  )
   if (start) {
-    const deltaStart = getOffset(start.offset, token)
-    start.delata += deltaStart
+    start.offset = shift(start.offset)
   }
   if (end) {
-    const delataEnd = getOffset(end.offset, token)
-    end.delata += delataEnd
+    end.offset = shift(end.offset)
   }
-  switch (token.type) {
-    case 'strong':
-    case 'del':
-    case 'em':
-    case 'link':
-    case 'html_tag': { // underline, sub, sup
-      const { parent } = token
-      const index = parent.indexOf(token)
-      parent.splice(index, 1, ...token.children)
-      break
-    }
-    case 'image': {
-      token.type = 'text'
-      token.raw = token.alt
-      delete token.marker
-      delete token.src
-      break
-    }
-    case 'inline_math':
-    case 'inline_code': {
-      token.type = 'text'
-      token.raw = token.content
-      delete token.marker
-      break
-    }
+  let { text } = block
+  for (const [from, to] of ranges.sort((a, b) => b[0] - a[0])) {
+    text = text.substring(0, from) + text.substring(to)
   }
+  block.text = text
+}
+
+// Inline formats only apply to running text, not to code, math or language lines.
+const takesInlineFormat = block => {
+  return block.type === 'span' && /paragraphContent|cellContent|atxLine/.test(block.functionType)
+}
+
+// Where the text of a block starts: after the `#` marker in a heading line.
+const getContentStart = block => {
+  return block.functionType === 'atxLine' ? /^ {0,3}#{0,6}\s*/.exec(block.text)[0].length : 0
 }
 
 const addFormat = (type, block, { start, end }) => {
-  if (
-    block.type !== 'span' ||
-    (block.type === 'span' && !/paragraphContent|cellContent|atxLine/.test(block.functionType))
-  ) {
+  if (!takesInlineFormat(block)) {
     return false
   }
+  // The `#` marker of a heading is not text a format can go around.
+  const contentStart = getContentStart(block)
+  start.offset = Math.max(start.offset, contentStart)
+  end.offset = Math.max(end.offset, contentStart)
   switch (type) {
     case 'em':
     case 'del':
@@ -100,11 +80,20 @@ const addFormat = (type, block, { start, end }) => {
     case 'inline_math': {
       const MARKER = FORMAT_MARKER_MAP[type]
       const oldText = block.text
-      block.text = oldText.substring(0, start.offset) +
-        MARKER + oldText.substring(start.offset, end.offset) +
-        MARKER + oldText.substring(end.offset)
-      start.offset += MARKER.length
-      end.offset += MARKER.length
+      let from = start.offset
+      let to = end.offset
+      // A marker next to a space does not format anything (`** bold **` stays as typed),
+      // so put the markers around the words when the selection includes the spaces around them.
+      const selected = oldText.substring(from, to)
+      if (/\S/.test(selected)) {
+        from += selected.length - selected.trimStart().length
+        to -= selected.length - selected.trimEnd().length
+      }
+      block.text = oldText.substring(0, from) +
+        MARKER + oldText.substring(from, to) +
+        MARKER + oldText.substring(to)
+      start.offset = from + MARKER.length
+      end.offset = to + MARKER.length
       break
     }
     case 'sub':
@@ -134,6 +123,11 @@ const addFormat = (type, block, { start, end }) => {
       break
     }
   }
+}
+
+// Whether `token` is the inline format the format command `type` stands for.
+const isFormat = (token, type) => {
+  return token.type === type || (token.type === 'html_tag' && token.tag === type)
 }
 
 const checkTokenIsInlineFormat = token => {
@@ -185,67 +179,33 @@ const formatCtrl = ContentState => {
     return { formats, tokens, neighbors }
   }
 
+  // The part of `block` that a selection from `start` to `end` covers, as one-block
+  // cursor ends. `block` must lie within the selection.
+  ContentState.prototype.selectedPartOfBlock = function (block, { start, end }) {
+    const { key } = block
+    return {
+      start: start.key === key ? start : { key, offset: getContentStart(block) },
+      end: end.key === key ? end : { key, offset: block.text.length }
+    }
+  }
+
   ContentState.prototype.clearBlockFormat = function (block, { start, end } = selection.getCursorRange(), type) {
     if (!start || !end) {
       return
     }
     if (block.type === 'pre') return false
     const { key } = block
-    let tokens
-    let neighbors
-    if (start.key === end.key && start.key === key) {
-      ({ tokens, neighbors } = this.selectionFormats({ start, end }))
-    } else if (start.key !== end.key && start.key === key) {
-      ({ tokens, neighbors } = this.selectionFormats({ start, end: { key: start.key, offset: block.text.length } }))
-    } else if (start.key !== end.key && end.key === key) {
-      ({ tokens, neighbors } = this.selectionFormats({
-        start: {
-          key: end.key,
-          offset: 0
-        },
-        end
-      }))
-    } else {
-      ({ tokens, neighbors } = this.selectionFormats({
-        start: {
-          key,
-          offset: 0
-        },
-        end: {
-          key,
-          offset: block.text.length
-        }
-      }))
+    let { neighbors } = this.selectionFormats(this.selectedPartOfBlock(block, { start, end }))
+    if (type) {
+      neighbors = neighbors.filter(token => isFormat(token, type))
     }
 
-    neighbors = type
-      ? neighbors.filter(n => {
-        return n.type === type ||
-        n.type === 'html_tag' && n.tag === type
-      })
-      : neighbors
-
-    // Only the cursor endpoint that actually lives in THIS block may have its
-    // offset adjusted by this block's tokens. When clearing format across
-    // multiple blocks, `start` belongs to the first block and `end` to the last;
-    // feeding an out-of-block offset to getOffset() computes a bogus delta that
-    // corrupts the other block's cursor (e.g. wrapping [0,0] and emitting stray
-    // empty markers in the end block).
-    const startInBlock = start.key === key
-    const endInBlock = end.key === key
-    for (const neighbor of neighbors) {
-      clearFormat(neighbor, {
-        start: startInBlock ? start : null,
-        end: endInBlock ? end : null
-      })
-    }
-    if (startInBlock) {
-      start.offset += start.delata
-    }
-    if (endInBlock) {
-      end.offset += end.delata
-    }
-    block.text = generator(tokens)
+    // Only a cursor end that lies in this block moves with this block's text. In a
+    // selection over several blocks `start` belongs to the first block and `end` to the last.
+    clearFormats(block, neighbors, {
+      start: start.key === key ? start : null,
+      end: end.key === key ? end : null
+    })
   }
 
   ContentState.prototype.format = function (type) {
@@ -256,41 +216,15 @@ const formatCtrl = ContentState => {
 
     const startBlock = this.getBlock(start.key)
     const endBlock = this.getBlock(end.key)
-    start.delata = end.delata = 0
     if (start.key === end.key) {
-      const { formats, tokens, neighbors } = this.selectionFormats()
-      const currentFormats = formats.filter(format => {
-        return format.type === type ||
-          format.type === 'html_tag' && format.tag === type
-      }).reverse()
-      const currentNeightbors = neighbors.filter(format => {
-        return format.type === type ||
-        format.type === 'html_tag' && format.tag === type
-      }).reverse()
-      // cache delata
+      const { formats, neighbors } = this.selectionFormats()
+      const currentFormats = formats.filter(token => isFormat(token, type))
       if (type === 'clear') {
-        for (const neighbor of neighbors) {
-          clearFormat(neighbor, { start, end })
-        }
-        start.offset += start.delata
-        end.offset += end.delata
-        startBlock.text = generator(tokens)
+        clearFormats(startBlock, neighbors, { start, end })
       } else if (currentFormats.length) {
-        for (const token of currentFormats) {
-          clearFormat(token, { start, end })
-        }
-        start.offset += start.delata
-        end.offset += end.delata
-        startBlock.text = generator(tokens)
+        clearFormats(startBlock, currentFormats, { start, end })
       } else {
-        if (currentNeightbors.length) {
-          for (const neighbor of currentNeightbors) {
-            clearFormat(neighbor, { start, end })
-          }
-        }
-        start.offset += start.delata
-        end.offset += end.delata
-        startBlock.text = generator(tokens)
+        clearFormats(startBlock, neighbors.filter(token => isFormat(token, type)), { start, end })
         addFormat(type, startBlock, { start, end })
         if (type === 'image') {
           // Show image selector when create a inline image by menu/shortcut/or just input `![]()`
@@ -313,31 +247,37 @@ const formatCtrl = ContentState => {
       this.cursor = { start, end }
       this.partialRender()
     } else {
-      let nextBlock = startBlock
-      const formatType = type !== 'clear' ? type : undefined
-      while (nextBlock && nextBlock !== endBlock) {
-        this.clearBlockFormat(nextBlock, { start, end }, formatType)
-        nextBlock = this.findNextBlockInLocation(nextBlock)
+      const blocks = [startBlock]
+      while (blocks[blocks.length - 1] !== endBlock) {
+        const nextBlock = this.findNextBlockInLocation(blocks[blocks.length - 1])
+        if (!nextBlock) break
+        blocks.push(nextBlock)
       }
-      this.clearBlockFormat(endBlock, { start, end }, formatType)
 
-      if (type !== 'clear') {
-        addFormat(type, startBlock, {
-          start,
-          end: { offset: startBlock.text.length }
-        })
-        nextBlock = this.findNextBlockInLocation(startBlock)
-        while (nextBlock && nextBlock !== endBlock) {
-          addFormat(type, nextBlock, {
-            start: { offset: 0 },
-            end: { offset: nextBlock.text.length }
-          })
-          nextBlock = this.findNextBlockInLocation(nextBlock)
+      // The blocks that have selected text an inline format can go around.
+      const hasSelectedText = block => {
+        const part = this.selectedPartOfBlock(block, { start, end })
+        return takesInlineFormat(block) && /\S/.test(block.text.substring(part.start.offset, part.end.offset))
+      }
+      // Like in one block, the format is taken off again when all of the selected text has it.
+      const isFormatted = block => {
+        const { formats } = this.selectionFormats(this.selectedPartOfBlock(block, { start, end }))
+        return formats.some(token => isFormat(token, type))
+      }
+      const textBlocks = blocks.filter(hasSelectedText)
+      const isToggleOff = textBlocks.length > 0 && textBlocks.every(isFormatted)
+
+      const formatType = type !== 'clear' ? type : undefined
+      for (const block of blocks) {
+        this.clearBlockFormat(block, { start, end }, formatType)
+      }
+
+      if (type !== 'clear' && !isToggleOff) {
+        // Blocks without selected text are left alone: empty markers (`****`) would be
+        // typed into the document, for example at the start of the block the selection ends in.
+        for (const block of blocks.filter(hasSelectedText)) {
+          addFormat(type, block, this.selectedPartOfBlock(block, { start, end }))
         }
-        addFormat(type, endBlock, {
-          start: { offset: 0 },
-          end
-        })
       }
 
       this.cursor = { start, end }
