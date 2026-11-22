@@ -3,7 +3,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { startApp } from '../harness.mjs'
+import { SHORTCUT_MODIFIER, startApp } from '../harness.mjs'
 
 /** Start the app with one document open and return the harness API plus the helpers below. */
 export const startWith = async (markdown) => {
@@ -127,7 +127,7 @@ export const startWith = async (markdown) => {
   t.shortcut = async (combination) => {
     const keys = combination.split('+')
     const keyCode = keys.pop()
-    const modifiers = keys.map((key) => key.toLowerCase())
+    const modifiers = keys.map((key) => (key === 'Control' ? SHORTCUT_MODIFIER : key.toLowerCase()))
     await t.app.evaluate(
       ({ BrowserWindow }, input) => {
         const { webContents } = BrowserWindow.getAllWindows()[0]

@@ -3,7 +3,7 @@
 
 import { test, after, before } from 'node:test'
 import assert from 'node:assert/strict'
-import { startApp } from '../harness.mjs'
+import { SHORTCUT_MODIFIER, startApp } from '../harness.mjs'
 
 let t
 before(async () => {
@@ -78,8 +78,8 @@ const chord = async (modifiers) => {
   }, modifiers)
   await t.win.waitForTimeout(200)
 }
-const undo = () => chord(['control'])
-const redo = () => chord(['control', 'shift'])
+const undo = () => chord([SHORTCUT_MODIFIER])
+const redo = () => chord([SHORTCUT_MODIFIER, 'shift'])
 
 const isSaved = () => t.store('editor', (s) => s.currentFile.isSaved)
 
@@ -151,7 +151,7 @@ test('redo still works after moving the caret', async () => {
 test('undo after typing over the whole document restores it', async () => {
   await openDoc('# T\n\n- a\n- b\n\n> q\n')
   await caretIn('q')
-  await press('Control+a')
+  await press('ControlOrMeta+a')
   await type('new')
   assert.equal(await t.markdown(), 'new\n')
   await undo()

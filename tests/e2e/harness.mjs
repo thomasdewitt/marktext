@@ -16,6 +16,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 export const REPO = path.resolve(HERE, '../..')
 const TMP_ROOT = process.env.MT_E2E_TMP || path.join(os.tmpdir(), 'marktext-e2e')
 
+/**
+ * The modifier of the app's shortcuts on this platform: the specs say `Control`,
+ * and on macOS MarkText binds the same shortcuts to Command.
+ */
+export const SHORTCUT_MODIFIER = process.platform === 'darwin' ? 'meta' : 'control'
+
 const loadPlaywright = () => {
   const require = createRequire(import.meta.url)
   const candidates = ['playwright-core', 'playwright']

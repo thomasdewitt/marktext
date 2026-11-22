@@ -47,7 +47,8 @@ test('cut changes the markdown and marks the file unsaved', async () => {
 test('replace all changes the markdown, and a save writes it', async () => {
   const file = await t.openDocument(DOCUMENT)
   await t.clickOn('quick')
-  await t.shortcut('Control+R')
+  // Replace is Ctrl+R on Linux and Windows, Command+Option+F on macOS.
+  await t.shortcut(process.platform === 'darwin' ? 'Control+Alt+F' : 'Control+R')
   const inputs = t.win.locator('.search-bar input')
   await inputs.nth(0).fill('cat')
   await inputs.nth(0).press('c') // a key in the field starts the search
