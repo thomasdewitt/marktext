@@ -106,7 +106,7 @@ class ClickEvent {
       const codeCopy = target.closest('.ag-code-copy')
       const footnoteBackLink = target.closest('.ag-footnote-backlink')
       const imageDelete = target.closest('.ag-image-icon-delete') || target.closest('.ag-image-icon-close')
-      const mathText = mathRender && mathRender.previousElementSibling
+      const mathText = mathRender && mathRender.parentNode.querySelector(`.${CLASS_OR_ID.AG_MATH_TEXT}`)
       const rubyText = rubyRender && rubyRender.previousElementSibling
       if (markedImageText && markedImageText.classList.contains(CLASS_OR_ID.AG_IMAGE_MARKED_TEXT)) {
         eventCenter.dispatch('format-click', {
@@ -159,11 +159,15 @@ class ClickEvent {
         // caret leaves, which can move the image. So the toolbar and the
         // transformer are placed against the image as it is afterwards.
         contentState.selectImage(imageInfo)
-        const imageSelector = imageInfo.imageId.indexOf('_') > -1
-          ? `#${imageInfo.imageId}`
-          : `#${imageInfo.key}_${imageInfo.imageId}_${imageInfo.token.range.start}`
-
-        const imageContainer = document.querySelector(`${imageSelector} .ag-image-container`)
+        // That render can also change the id of the image's element (an image
+        // drawn while it loaded gets its final id), and the image tools find
+        // the image again by that id.
+        const selectedWrapper = container.querySelector(`#${imageInfo.key} .${CLASS_OR_ID.AG_INLINE_IMAGE_SELECTED}`)
+        if (!selectedWrapper) {
+          return
+        }
+        imageInfo.imageId = selectedWrapper.id
+        const imageContainer = selectedWrapper.querySelector('.ag-image-container')
 
         eventCenter.dispatch('muya-image-toolbar', {
           reference: imageContainer,

@@ -273,9 +273,6 @@ li.ag-task-list-item > input::after {
 li.ag-task-list-item > input.ag-checkbox-checked::after {
   transform: rotate(-45deg) scale(1);
 }
-figure.ag-active.ag-container-block > div.ag-container-preview {
-  box-shadow: 0 3px 8px 0 var(--floatShadow) !important;
-}
 
 /* ------------------------------------ */
 

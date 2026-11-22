@@ -1,6 +1,14 @@
 import { URL_REG, DATA_URL_REG } from '../config'
 import { correctImageSrc } from '../utils/getImageInfo'
 
+// The `<img>` tag for `attrs`. An empty attribute is left out, except `alt`.
+const imageTag = attrs => {
+  const written = Object.keys(attrs)
+    .filter(name => attrs[name] !== '' || name === 'alt')
+    .map(name => `${name}="${name === 'src' ? correctImageSrc(attrs[name]) : attrs[name]}"`)
+  return `<img ${written.join(' ')}>`
+}
+
 const imageCtrl = ContentState => {
   /**
    * insert inline image at the cursor position.
@@ -104,28 +112,17 @@ const imageCtrl = ContentState => {
     const { range } = token
     const { start, end } = range
     const oldText = block.text
-    let imageText = ''
     const attrs = Object.assign({}, token.attrs)
     attrs[attrName] = attrValue
-
-    imageText = '<img '
-    for (const attr of Object.keys(attrs)) {
-      let value = attrs[attr]
-      if (value && attr === 'src') {
-        value = correctImageSrc(value)
-      }
-      imageText += `${attr}="${value}" `
-    }
-    imageText = imageText.trim()
-    imageText += '>'
-    block.text = oldText.substring(0, start) + imageText + oldText.substring(end)
+    block.text = oldText.substring(0, start) + imageTag(attrs) + oldText.substring(end)
 
     this.singleRender(block, false)
+    // Select the image again: its tools were put away for the change.
     const image = document.querySelector(`#${imageId} img`)
     if (image) {
       image.click()
-      return this.muya.dispatchChange()
     }
+    return this.muya.dispatchChange()
   }
 
   ContentState.prototype.replaceImage = function ({ key, token }, { alt = '', src = '', title = '' }) {
@@ -148,21 +145,16 @@ const imageCtrl = ContentState => {
       }
       imageText += ')'
     } else if (type === 'html_tag') {
-      const { attrs } = token
-      Object.assign(attrs, { alt, src, title })
-      imageText = '<img '
-      for (const attr of Object.keys(attrs)) {
-        let value = attrs[attr]
-        if (value && attr === 'src') {
-          value = correctImageSrc(value)
-        }
-        imageText += `${attr}="${value}" `
-      }
-      imageText = imageText.trim()
-      imageText += '>'
+      imageText = imageTag(Object.assign({}, token.attrs, { alt, src, title }))
     }
 
     block.text = oldText.substring(0, start) + imageText + oldText.substring(end)
+    // The caret goes after the image, which is drawn only while the caret is outside its text.
+    const offset = start + imageText.length
+    this.cursor = {
+      start: { key, offset },
+      end: { key, offset }
+    }
 
     this.singleRender(block)
     return this.muya.dispatchChange()

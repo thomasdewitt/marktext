@@ -46,16 +46,18 @@ export default function displayMath (h, cursor, block, token, outerClass) {
     }
   }
 
+  // The closing marker comes before the preview, so that the preview of a
+  // formula being edited can be a block under the whole source.
   return [
     h(`span.${className}.${CLASS_OR_ID.AG_MATH_MARKER}`, startMarker),
     h(mathSelector, [
       h(`span.${CLASS_OR_ID.AG_INLINE_RULE}.${CLASS_OR_ID.AG_MATH_TEXT}`, {
         attrs: { spellcheck: 'false' }
       }, content),
+      h(`span.${className}.${CLASS_OR_ID.AG_MATH_MARKER}`, endMarker),
       h(previewSelector, {
         attrs: { contenteditable: 'false' }
       }, mathVnode)
-    ]),
-    h(`span.${className}.${CLASS_OR_ID.AG_MATH_MARKER}`, endMarker)
+    ])
   ]
 }

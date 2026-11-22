@@ -86,6 +86,11 @@ const containerCtrl = ContentState => {
   ContentState.prototype.handleContainerBlockClick = function (figureEle) {
     const { id } = figureEle
     const mathBlock = this.getBlock(id)
+    const cursorBlock = this.getBlock(this.cursor.start.key)
+    if (cursorBlock && this.isInclude(mathBlock, cursorBlock)) {
+      // The block is being edited: a click on its preview leaves the caret where it is.
+      return this.setCursor()
+    }
     const preBlock = mathBlock.children[0]
     const firstLine = preBlock.children[0].children[0]
 

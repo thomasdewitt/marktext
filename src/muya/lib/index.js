@@ -355,8 +355,9 @@ class Muya {
   }
 
   focus() {
-    this.contentState.setCursor()
+    // Focus first: taking the focus can move the caret to the start of the document.
     this.container.focus()
+    this.contentState.setCursor()
   }
 
   blur(isRemoveAllRange = false, unSelect = false) {

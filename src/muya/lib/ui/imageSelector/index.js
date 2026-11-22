@@ -91,19 +91,50 @@ class ImageSelector extends BaseFloat {
     this.state[type] = value
   }
 
-  handleKeyDown(event) {
-    if (event.key === EVENT_KEYS.Enter) {
-      event.stopPropagation()
-      this.handleLinkButtonClick()
+  hide() {
+    if (this.status) {
+      // The list of paths hangs from the selector's input.
+      this.muya.imagePathPicker.hide()
+      // The keyboard does not stay in an input that is no longer shown.
+      if (this.container.contains(document.activeElement)) {
+        this.muya.focus()
+      }
     }
+    super.hide()
+  }
+
+  // Escape in one of the inputs puts the selector away.
+  cancel(event) {
+    event.preventDefault()
+    event.stopPropagation()
+    this.hide()
+  }
+
+  handleKeyDown(event) {
+    if (event.key === EVENT_KEYS.Escape) {
+      this.cancel(event)
+    } else if (event.key === EVENT_KEYS.Enter) {
+      this.embed(event)
+    }
+  }
+
+  // Enter in one of the inputs embeds the image. The key ends here: the
+  // selector closes and hands the keyboard to the editor, which must not get
+  // the rest of this Enter.
+  embed(event) {
+    event.preventDefault()
+    event.stopPropagation()
+    this.handleLinkButtonClick()
   }
 
   srcInputKeyDown(event) {
     const { imagePathPicker } = this.muya
+    if (event.key === EVENT_KEYS.Escape) {
+      return this.cancel(event)
+    }
     if (!imagePathPicker.status) {
       if (event.key === EVENT_KEYS.Enter) {
-        event.stopPropagation()
-        this.handleLinkButtonClick()
+        this.embed(event)
       }
       return
     }

@@ -166,7 +166,7 @@ figure:not(.ag-active).ag-container-block pre {
 }
 
 figure.ag-active.ag-container-block pre {
-  position: static;
+  position: relative;
   width: 100%;
   height: auto;
   opacity: 1;
@@ -334,18 +334,44 @@ span.ag-math > .ag-math-render.ag-math-error {
 
 /* Single-line display math `$$...$$` */
 /* When the cursor leaves the equation (ag-hide), render it as a centered
- * block on its own line, like LaTeX display math / MarkText math blocks. */
+ * block on its own line, like LaTeX display math / MarkText math blocks.
+ * The block is a full-width inline-block whose hidden source takes no line,
+ * so the hidden source and markers add no blank lines around the equation. */
 .ag-hide.ag-math.ag-display-math {
-  display: block;
+  display: inline-block;
+  width: 100%;
+  line-height: 0;
   text-align: center;
+}
+.ag-hide.ag-math.ag-display-math > .ag-math-text,
+.ag-hide.ag-math.ag-display-math > .ag-math-marker {
+  vertical-align: top;
 }
 /* Full-width preview so KaTeX \tag{...} equation numbers sit at the right
  * margin of the editor line, like LaTeX. */
 .ag-hide.ag-math.ag-display-math > .ag-math-render {
   display: block;
+  line-height: normal;
 }
+/* While the caret is in the equation its source is shown as text, and the
+ * preview stays where it was, as a block under the source. */
+.ag-math.ag-display-math:not(.ag-hide) {
+  display: inline;
+}
+.ag-math.ag-display-math:not(.ag-hide) > .ag-math-render {
+  /* flow-root keeps the equation's margins inside the preview, as they are
+   * when the caret is elsewhere. */
+  display: flow-root;
+  position: static;
+  padding: 0;
+  text-align: center;
+  background: transparent;
+  box-shadow: none;
+}
+/* With the paragraph's own margin this is the space a math block has
+ * around its equation (figure margin plus KaTeX's display margin). */
 .ag-math.ag-display-math > .ag-math-render .katex-display {
-  margin: 0.2em 0;
+  margin: 0.9em 0;
 }
 /* Display equations keep KaTeX's normal display sizing (matching math
  * blocks), unlike inline math which is forced back to 1em above. */
@@ -451,11 +477,15 @@ figure {
   margin-left: 16px;
 }
 
+/* The edit icon of a block with a preview is in the gutter to the right of
+   the block, where it covers nothing of the preview (an equation's number
+   is at the right edge). Its box touches the block, so the pointer can
+   reach it without leaving the block. */
 .ag-container-icon {
   position: absolute;
   top: 0px;
-  right: 10px;
-  width: 20px;
+  right: -30px;
+  width: 30px;
   height: 20px;
   cursor: pointer;
   z-index: 2;
@@ -490,8 +520,8 @@ figure {
 
 .ag-container-icon i.icon {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: 2px;
+  left: 10px;
 }
 
 .ag-tool-bar ul li.active i.icon {
@@ -793,19 +823,10 @@ figure.ag-container-block div.ag-container-preview > svg {
   width: 100%;
 }
 
+/* While its block is edited the preview stays in the document flow, under
+   the source and the label that closes it, so it covers nothing. */
 figure.ag-active.ag-container-block > div.ag-container-preview {
-  position: absolute;
-  top: calc(100% + 20px);
-  left: 50%;
-  width: 100%;
-  box-sizing: border-box;
-  z-index: 10000;
-  transform: translateX(-50%);
-  padding: 0.5rem;
-  background: var(--floatBgColor);
-  border: 1px solid var(--floatBorderColor);
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  margin-top: 30px;
 }
 
 div.ag-html-preview {
@@ -1040,10 +1061,12 @@ span.ag-warn.ag-emoji-marked-text {
   cursor: pointer;
 }
 
+/* While it loads, an image is the box a failed image gets. The document then
+   moves by less than the image's height when the image arrives, and not at
+   all when it does not. */
 .ag-inline-image.ag-image-loading {
-  width: 400px;
-  height: 250px;
-  margin: 0 auto;
+  width: 100%;
+  height: 50px;
   vertical-align: bottom;
 }
 
@@ -1186,7 +1209,8 @@ span.ag-reference-link {
   left: -35px;
   display: none;
   cursor: pointer;
-  z-index: 99999;
+  /* Above the block it belongs to, under the floating tools. */
+  z-index: 2;
 }
 
 .ag-front-icon i.icon:hover {
