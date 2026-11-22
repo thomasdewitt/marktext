@@ -151,3 +151,9 @@ test('the preview of display math being edited is a block under its source', asy
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
+
+test('a document with front matter opens with the caret in its text, not in the front matter', async () => {
+  await t.openDocument('---\ntitle: A post\ndate: 2026-11-21\n---\n\n# A post\n\nFirst paragraph.\n')
+  assert.deepEqual(await t.caret(), { caret: '# A post|' })
+  assert.equal(await win.locator('pre.ag-front-matter.ag-active').count(), 0)
+})

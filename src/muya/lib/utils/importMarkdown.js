@@ -613,11 +613,15 @@ const importRegister = (ContentState) => {
 
     if (!cursor) {
       cursor = {}
-      // The caret starts in the first block. A block with a preview (math,
-      // diagram, HTML) shows its source while the caret is in it, so one at
-      // the top of the document is passed over.
+      // The caret starts in the first block of the text. A block with a
+      // preview (math, diagram, HTML) shows its source while the caret is in
+      // it, so one at the top of the document is passed over, and so is
+      // front matter, which is not where writing starts.
       const hasPreview = ({ type, functionType }) => type === 'figure' && !/^(?:table|footnote)$/.test(functionType)
-      const firstBlock = this.firstInDescendant(this.blocks.find(block => !hasPreview(block)) || this.blocks[0])
+      const isFrontMatter = ({ type, functionType }) => type === 'pre' && functionType === 'frontmatter'
+      const firstBlock = this.firstInDescendant(
+        this.blocks.find(block => !hasPreview(block) && !isFrontMatter(block)) || this.blocks[0]
+      )
       const key = firstBlock.key
       const offset = firstBlock.text.length
       cursor.anchor = { key, offset }
