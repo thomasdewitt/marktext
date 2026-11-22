@@ -157,9 +157,6 @@ describe('Enter inside a later paragraph of a loose list item', () => {
       end: { key: secondSpan.key, offset: 3 }
     }
     vi.spyOn(selection, 'getCursorRange').mockReturnValue(range)
-    // The middle-of-text branch calls chopHtmlByCursor(paragraph); the <p> path does
-    // not use its result, but it is invoked unconditionally, so stub it.
-    vi.spyOn(selection, 'chopHtmlByCursor').mockReturnValue({ pre: 'sec', post: 'ond' })
 
     const event = { preventDefault: vi.fn() }
     expect(() => cs.enterHandler(event)).not.toThrow()
@@ -189,7 +186,6 @@ describe('Enter inside a later paragraph of a loose list item', () => {
       end: { key: alphaSpan.key, offset: 5 }
     }
     vi.spyOn(selection, 'getCursorRange').mockReturnValue(range)
-    vi.spyOn(selection, 'chopHtmlByCursor').mockReturnValue({ pre: 'alpha', post: '' })
 
     const event = { preventDefault: vi.fn() }
     expect(() => cs.enterHandler(event)).not.toThrow()

@@ -587,6 +587,7 @@ const backspaceCtrl = (ContentState) => {
         } else {
           this.removeBlock(block)
         }
+        this.joinListsAfter(preBlock)
       }
 
       this.cursor = {

@@ -19,28 +19,23 @@ const getIndentSpace = (text) => {
 }
 
 const enterCtrl = (ContentState) => {
-  // TODO@jocs this function need opti.
+  // Break the paragraph `block` in two inside its line `key`, at `offset`. Returns the new
+  // paragraph, which holds what came after the break, and the cursor's offset in it.
   ContentState.prototype.chopBlockByCursor = function (block, key, offset) {
-    const newBlock = this.createBlock('p')
+    const paragraph = this.createBlock('p')
     const { children } = block
     const index = children.findIndex((child) => child.key === key)
     const activeLine = this.getBlock(key)
-    const { text } = activeLine
-    newBlock.children = children.splice(index + 1)
-    newBlock.children.forEach((c) => (c.parent = newBlock.key))
+    const { pre, post, caret } = this.splitTextAt(activeLine, offset)
+    paragraph.children = children.splice(index + 1)
+    paragraph.children.forEach((c) => (c.parent = paragraph.key))
     children[index].nextSibling = null
-    if (newBlock.children.length) {
-      newBlock.children[0].preSibling = null
+    if (paragraph.children.length) {
+      paragraph.children[0].preSibling = null
     }
-    if (offset === 0) {
-      this.removeBlock(activeLine, children)
-      this.prependChild(newBlock, activeLine)
-    } else if (offset < text.length) {
-      activeLine.text = text.substring(0, offset)
-      const newLine = this.createBlock('span', { text: text.substring(offset) })
-      this.prependChild(newBlock, newLine)
-    }
-    return newBlock
+    activeLine.text = pre
+    this.prependChild(paragraph, this.createBlock('span', { text: post }))
+    return { paragraph, caret }
   }
 
   ContentState.prototype.chopBlock = function (block) {
@@ -58,6 +53,38 @@ const enterCtrl = (ContentState) => {
     })
     this.insertAfter(container, parent)
     return container
+  }
+
+  // A list directly followed by another list of its kind takes that list's items.
+  // Markdown cannot say that two such lists are two (they are read back as one), so the
+  // document must not hold them.
+  ContentState.prototype.joinListAfter = function (list) {
+    const isList = (block) => !!block && /^(?:ul|ol)$/.test(block.type)
+    const isSameKind = (other) =>
+      isList(other) &&
+      other.type === list.type &&
+      other.listType === list.listType &&
+      other.children[0].bulletMarkerOrDelimiter === list.children[0].bulletMarkerOrDelimiter
+    if (!isList(list)) return
+
+    let joined = false
+    for (let next = this.getNextSibling(list); isSameKind(next); next = this.getNextSibling(list)) {
+      next.children.splice(0).forEach((item) => this.appendChild(list, item))
+      this.removeBlock(next)
+      joined = true
+    }
+    if (joined) {
+      const isLooseListItem = list.children.some((item) => item.isLooseListItem)
+      list.children.forEach((item) => (item.isLooseListItem = isLooseListItem))
+    }
+  }
+
+  // Join the lists that are next to each other now that what stood between them, after
+  // `block`, is gone.
+  ContentState.prototype.joinListsAfter = function (block) {
+    for (let ancestor = block; ancestor; ancestor = this.getParent(ancestor)) {
+      this.joinListAfter(ancestor)
+    }
   }
 
   ContentState.prototype.createRow = function (row, isHeader = false) {
@@ -188,6 +215,9 @@ const enterCtrl = (ContentState) => {
       if (parent.children.length === 0) {
         this.removeBlock(parent)
       }
+      // A sublist that now stands in front of the rest of its parent's list is one list
+      // with it.
+      this.joinListAfter(this.getNextSibling(newBlock))
     } else {
       newBlock = this.createBlockP()
       if (block.type === 'li') {
@@ -259,15 +289,11 @@ const enterCtrl = (ContentState) => {
     // handle select multiple blocks
     if (start.key !== end.key) {
       const key = start.key
-      const offset = start.offset
-
-      const startRemainText = block.text.substring(0, start.offset)
-
-      const endRemainText = endBlock.text.substring(end.offset)
-
-      block.text = startRemainText + endRemainText
+      const { text: joined, caret: offset } = this.joinTextAcross(block, start.offset, endBlock, end.offset)
+      block.text = joined
 
       this.removeBlocks(block, endBlock)
+      this.joinListsAfter(block)
       // Removing the selection and breaking the line are one undo step.
       this.cursor = {
         start: { key, offset },
@@ -425,8 +451,6 @@ const enterCtrl = (ContentState) => {
       block = parent
       parent = this.getParent(block)
     }
-    const paragraph = document.querySelector(`#${block.key}`)
-
     // Handles custom enter logic in a list item (should not be selecting the p)
 
     // we only want to select the li if and only if we are currently in the FIRST
@@ -457,13 +481,15 @@ const enterCtrl = (ContentState) => {
     switch (true) {
       case !atStart && right !== 0: {
         // cursor in the middle
-        let { pre, post } = selection.chopHtmlByCursor(paragraph)
         if (/^h\d$/.test(block.type)) {
+          const split = this.splitTextAt(block.children[0], left)
+          let { post } = split
+          cursorOffset = split.caret
           if (atxMarker) {
             post = `${atxMarker[1]} ${post.trimStart()}`
-            cursorOffset = atxMarker[1].length + 1
+            cursorOffset += atxMarker[1].length + 1
           }
-          block.children[0].text = pre
+          block.children[0].text = split.pre
           newBlock = this.createBlock(type, {
             headingStyle: block.headingStyle
           })
@@ -476,16 +502,18 @@ const enterCtrl = (ContentState) => {
             newBlock.marker = block.marker
           }
         } else if (block.type === 'p') {
-          newBlock = this.chopBlockByCursor(block, start.key, start.offset)
+          const chopped = this.chopBlockByCursor(block, start.key, start.offset)
+          newBlock = chopped.paragraph
+          cursorOffset = chopped.caret
         } else if (type === 'li') {
-          // handle task item
-          if (block.listItemType === 'task') {
-            const { checked } = block.children[0] // block.children[0] is input[type=checkbox]
-            newBlock = this.chopBlockByCursor(block.children[1], start.key, start.offset)
-            newBlock = this.createTaskItemBlock(newBlock, checked)
+          const isTask = block.listItemType === 'task' // a task's first child is its checkbox
+          const chopped = this.chopBlockByCursor(block.children[isTask ? 1 : 0], start.key, start.offset)
+          cursorOffset = chopped.caret
+          if (isTask) {
+            const { checked } = block.children[0]
+            newBlock = this.createTaskItemBlock(chopped.paragraph, checked)
           } else {
-            newBlock = this.chopBlockByCursor(block.children[0], start.key, start.offset)
-            newBlock = this.createBlockLi(newBlock)
+            newBlock = this.createBlockLi(chopped.paragraph)
             newBlock.listItemType = block.listItemType
             newBlock.bulletMarkerOrDelimiter = block.bulletMarkerOrDelimiter
 

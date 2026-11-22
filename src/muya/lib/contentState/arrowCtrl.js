@@ -1,4 +1,4 @@
-import { EVENT_KEYS, CLASS_OR_ID } from '../config'
+import { EVENT_KEYS, CLASS_OR_ID, isOsx } from '../config'
 import { findNearestParagraph, getOffsetOfParagraph, getTextContent } from '../selection/dom'
 import selection from '../selection'
 
@@ -13,6 +13,20 @@ const adjustOffset = (offset, block) => {
     }
   }
   return offset
+}
+
+// Which end of the document a key press asks for, if any: Ctrl+Home and Ctrl+End, and on
+// macOS also Cmd+ArrowUp and Cmd+ArrowDown.
+const documentEdgeOf = ({ key, ctrlKey, metaKey }) => {
+  if (ctrlKey || metaKey) {
+    if (key === EVENT_KEYS.Home) return 'start'
+    if (key === EVENT_KEYS.End) return 'end'
+  }
+  if (isOsx && metaKey) {
+    if (key === EVENT_KEYS.ArrowUp) return 'start'
+    if (key === EVENT_KEYS.ArrowDown) return 'end'
+  }
+  return null
 }
 
 // The text offset of a place in the page (`node` and `nodeOffset`, as a DOM range gives
@@ -116,6 +130,32 @@ const arrowCtrl = ContentState => {
       this.muya.keyboard.hideAllFloatTools()
       return this.singleRender(block)
     }
+  }
+
+  // Move the caret to the start or the end of the document when `event` is the key for
+  // that, or extend the selection to there with Shift. Returns whether it was. The browser
+  // cannot be left to do it: the first place in the page is the paragraph icon of the
+  // first block and the last may be a rendered table, footnote or formula, none of which
+  // can take the caret, so from inside those blocks its own move does nothing or leaves
+  // the caret where nothing can be typed.
+  ContentState.prototype.documentEdgeHandler = function (event) {
+    const edge = documentEdgeOf(event)
+    if (!edge) return false
+    const { anchor } = selection.getCursorRange()
+    if (!anchor) return false
+
+    event.preventDefault()
+    const block = edge === 'start' ? this.getFirstBlock() : this.getLastBlock()
+    const focus = {
+      key: block.key,
+      offset: edge === 'start' ? adjustOffset(0, block) : block.text.length
+    }
+    this.cursor = { anchor: event.shiftKey ? anchor : focus, focus }
+    this.render()
+
+    const { container } = this.muya
+    container.scrollTop = edge === 'start' ? 0 : container.scrollHeight
+    return true
   }
 
   // The text offset in `block` closest to the horizontal position `x` on the block's first

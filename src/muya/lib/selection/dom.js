@@ -1,7 +1,6 @@
 import {
   LOWERCASE_TAGS, CLASS_OR_ID, blockContainerElementNames, emptyElementNames
 } from '../config'
-const CHOP_TEXT_REG = /(\*{1,3})([^*]+)(\1)/g
 
 export const getTextContent = (node, blackList) => {
   if (node.nodeType === 3) {
@@ -135,36 +134,6 @@ export const getClosestBlockContainer = node => {
   return traverseUp(node, node => {
     return isBlockContainer(node) || isMuyaEditorElement(node)
   })
-}
-
-export const getCursorPositionWithinMarkedText = (markedText, cursorOffset) => {
-  const chunks = []
-  let match
-  let result = { type: 'OUT' }
-
-  do {
-    match = CHOP_TEXT_REG.exec(markedText)
-    if (match) {
-      chunks.push({
-        index: match.index + match[1].length,
-        leftSymbol: match[1],
-        rightSymbol: match[3],
-        lastIndex: CHOP_TEXT_REG.lastIndex - match[3].length
-      })
-    }
-  } while (match)
-
-  chunks.forEach(chunk => {
-    const { index, leftSymbol, rightSymbol, lastIndex } = chunk
-    if (cursorOffset > index && cursorOffset < lastIndex) {
-      result = { type: 'IN', info: leftSymbol } // rightSymbol is also ok
-    } else if (cursorOffset === index) {
-      result = { type: 'LEFT', info: leftSymbol.length }
-    } else if (cursorOffset === lastIndex) {
-      result = { type: 'RIGHT', info: rightSymbol.length }
-    }
-  })
-  return result
 }
 
 export const compareParagraphsOrder = (paragraph1, paragraph2) => {

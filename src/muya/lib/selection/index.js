@@ -9,7 +9,6 @@ import {
   traverseUp,
   getFirstSelectableLeafNode,
   getClosestBlockContainer,
-  getCursorPositionWithinMarkedText,
   findNearestParagraph,
   getTextContent,
   getOffsetOfParagraph
@@ -300,36 +299,6 @@ class Selection {
     return html
   }
 
-  chopHtmlByCursor(root) {
-    const { left } = this.getCaretOffsets(root)
-    const markedText = root.textContent
-    const { type, info } = getCursorPositionWithinMarkedText(markedText, left)
-    const pre = markedText.slice(0, left)
-    const post = markedText.slice(left)
-    switch (type) {
-      case 'OUT':
-        return {
-          pre,
-          post
-        }
-      case 'IN':
-        return {
-          pre: `${pre}${info}`,
-          post: `${info}${post}`
-        }
-      case 'LEFT':
-        return {
-          pre: markedText.slice(0, left - info),
-          post: markedText.slice(left - info)
-        }
-      case 'RIGHT':
-        return {
-          pre: markedText.slice(0, left + info),
-          post: markedText.slice(left + info)
-        }
-    }
-  }
-
   /**
    *  Find the caret position within an element irrespective of any inline tags it may contain.
    *
@@ -474,24 +443,24 @@ class Selection {
           if (child.classList && child.classList.contains('ag-inline-image')) {
             const imageContainer = child.querySelector('.ag-image-container')
             const hasImg = imageContainer.querySelector('img')
+            const isBehindImage = count + textLength === offset
 
+            if (isBehindImage && child.nextElementSibling) {
+              return {
+                node: child.nextElementSibling,
+                offset: 0
+              }
+            }
             if (!hasImg) {
               return {
                 node: child,
                 offset: 0
               }
             }
-            if (count + textLength === offset) {
-              if (child.nextElementSibling) {
-                return {
-                  node: child.nextElementSibling,
-                  offset: 0
-                }
-              } else {
-                return {
-                  node: imageContainer,
-                  offset: 1
-                }
+            if (isBehindImage) {
+              return {
+                node: imageContainer,
+                offset: 1
               }
             } else if (count === offset && count === 0) {
               return {

@@ -75,6 +75,7 @@ const deleteCtrl = ContentState => {
         if (isProse(startBlock) && isProse(nextBlock)) {
           startBlock.text += nextBlock.text
           removeWithEmptiedParents(nextBlock)
+          this.joinListsAfter(startBlock)
 
           const offset = start.offset
           this.cursor = {

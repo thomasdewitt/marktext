@@ -2,6 +2,7 @@ import selection from '../selection'
 import { getTextContent } from '../selection/dom'
 import { beginRules } from '../parser/rules'
 import { tokenizer } from '../parser/'
+import { splitInline, joinInline } from '../parser/splitInline'
 import { CLASS_OR_ID } from '../config'
 import { CLOSING_CHAR, OPENING_CHAR, closingCharToInsert, typesOverClosingChar } from './autoPair'
 
@@ -26,6 +27,40 @@ const inputCtrl = ContentState => {
       options: this.muya.options
     })
     return tokens.filter(t => t.type === type).some(t => offset >= t.range.start && offset <= t.range.end)
+  }
+
+  // How the text of `block` is tokenized when it is rendered.
+  ContentState.prototype.tokenizerOptionsOf = function (block) {
+    return {
+      hasBeginRules: /paragraphContent|atxLine/.test(block.functionType),
+      labels: this.stateRender.labels,
+      options: this.muya.options
+    }
+  }
+
+  // Break the text of `block` in two at `offset`, keeping the inline formats around the
+  // break whole on both sides. Returns `{ pre, post, caret }`, `caret` being the cursor's
+  // offset in `post`.
+  ContentState.prototype.splitTextAt = function (block, offset) {
+    return splitInline(block.text, offset, this.tokenizerOptionsOf(block))
+  }
+
+  // The text that is left when a selection from `startOffset` in `startBlock` to
+  // `endOffset` in `endBlock` is removed, and the offset in it where the two ends meet.
+  // Between two lines of running text, inline formats cut by the selection stay whole.
+  // `typed` is text that takes the selection's place.
+  ContentState.prototype.joinTextAcross = function (startBlock, startOffset, endBlock, endOffset, typed = '') {
+    const isProse = (block) => /^(?:paragraphContent|atxLine)$/.test(block.functionType)
+    const startText =
+      startBlock.text.substring(0, startOffset) + typed + startBlock.text.substring(startOffset)
+    startOffset += typed.length
+    if (startBlock !== endBlock && isProse(startBlock) && isProse(endBlock)) {
+      return joinInline(startText, startOffset, endBlock.text, endOffset, this.tokenizerOptionsOf(startBlock))
+    }
+    return {
+      text: startText.substring(0, startOffset) + endBlock.text.substring(endOffset),
+      caret: startOffset
+    }
   }
 
   ContentState.prototype.checkNotSameToken = function (functionType, oldText, text) {
@@ -145,6 +180,23 @@ const inputCtrl = ContentState => {
         this.removeBlocks(startBlock, endBlock)
       } else {
         this.removeBlocks(startBlock, endBlock)
+      }
+      this.joinListsAfter(startBlock)
+      // The browser removed the selection from the rendered text, where it can take one
+      // marker of a pair (`**`) and leave the other. Remove it from the markdown instead.
+      const head = startBlock.text.substring(0, oldStart.offset)
+      const tail = endBlock.text.substring(oldEnd.offset)
+      if (
+        block === startBlock &&
+        start.key === end.key &&
+        text.length >= head.length + tail.length &&
+        text.startsWith(head) &&
+        text.endsWith(tail)
+      ) {
+        const typed = text.substring(head.length, text.length - tail.length)
+        const joined = this.joinTextAcross(startBlock, oldStart.offset, endBlock, oldEnd.offset, typed)
+        text = joined.text
+        start.offset = end.offset = joined.caret
       }
       if (this.blocks.length === 1) {
         needRenderAll = true

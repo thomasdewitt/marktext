@@ -158,6 +158,8 @@ export const EVENT_KEYS = Object.freeze(
     'ArrowDown',
     'ArrowLeft',
     'ArrowRight',
+    'Home',
+    'End',
     'Tab',
     'Escape'
   ])

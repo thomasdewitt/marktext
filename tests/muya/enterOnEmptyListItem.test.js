@@ -146,7 +146,6 @@ function pressEnter (cs, span) {
     end: { key: span.key, offset: 0 }
   }
   vi.spyOn(selection, 'getCursorRange').mockReturnValue(range)
-  vi.spyOn(selection, 'chopHtmlByCursor').mockReturnValue({ pre: '', post: '' })
   cs.enterHandler({ preventDefault: vi.fn() })
 }
 

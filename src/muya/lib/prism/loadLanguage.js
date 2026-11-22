@@ -1,6 +1,5 @@
 import components from 'prismjs/components.js'
 import getLoader from 'prismjs/dependencies'
-import { getDefer } from '../utils'
 /**
  * The set of all languages which have been loaded using the below function.
  *
@@ -38,7 +37,22 @@ export const transformAliasToOrigin = (langs) => {
   return result
 }
 
+// Each language's module is imported once; a language asked for again while it is on its
+// way waits for the same import.
+const imports = new Map()
+
 function initLoadLanguage(Prism) {
+  const importLanguage = (lang) => {
+    if (!imports.has(lang)) {
+      const loader = prismJsComponents[`../../../../node_modules/prismjs/components/prism-${lang}.js`]
+      imports.set(
+        lang,
+        loader().then(() => loadedLanguages.add(lang))
+      )
+    }
+    return imports.get(lang)
+  }
+
   return async function loadLanguages(langs) {
     // If no argument is passed, load all components
     if (!langs) {
@@ -55,39 +69,34 @@ function initLoadLanguage(Prism) {
       langs = [langs]
     }
 
-    const promises = []
+    const infoList = []
     // The user might have loaded languages via some other way or used `prism.js` which already includes some
     // We don't need to validate the ids because `getLoader` will ignore invalid ones
     const loaded = [...loadedLanguages, ...Object.keys(Prism.languages)]
 
-    getLoader(components, langs, loaded).load(async (lang) => {
-      const defer = getDefer()
-      promises.push(defer.promise)
+    const loadLanguage = async (lang) => {
+      let status = 'loaded'
       if (!(lang in components.languages)) {
-        defer.resolve({
-          lang,
-          status: 'noexist'
-        })
+        status = 'noexist'
       } else if (loadedLanguages.has(lang)) {
-        defer.resolve({
-          lang,
-          status: 'cached'
-        })
+        status = 'cached'
       } else {
-        delete Prism.languages[lang]
-
-        const loaderName = `../../../../node_modules/prismjs/components/prism-${lang}.js`
-        const loader = prismJsComponents[loaderName]
-        await loader()
-        defer.resolve({
-          lang,
-          status: 'loaded'
-        })
-        loadedLanguages.add(lang)
+        await importLanguage(lang)
       }
+      infoList.push({ lang, status })
+    }
+
+    // A grammar that builds on another one (javadoc on java, c++ on c) reads it while its
+    // module runs, so a module is only imported once the modules it requires have run.
+    await getLoader(components, langs, loaded).load(loadLanguage, {
+      series: async (before, after) => {
+        await before
+        await after()
+      },
+      parallel: (values) => Promise.all(values)
     })
 
-    return Promise.all(promises)
+    return infoList
   }
 }
 
