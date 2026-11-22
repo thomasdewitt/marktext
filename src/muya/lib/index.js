@@ -230,6 +230,11 @@ class Muya {
     muyaIndexCursor = undefined,
     blocks = undefined
   ) {
+    // Tools floating over the previous document (the format toolbar of a
+    // selection, a menu) belong to it; left up, they take the next click.
+    this.hideAllFloatTools()
+    this.eventCenter.dispatch('muya-format-picker', { reference: null })
+
     let finalCursor = null
     if (cursor) {
       // We have a cursor defined. If blocks are also provided we can restore them

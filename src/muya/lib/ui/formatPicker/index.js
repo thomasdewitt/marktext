@@ -35,9 +35,14 @@ class FormatPicker extends BaseFloat {
     const { eventCenter } = this.muya
     super.listen()
     eventCenter.subscribe('muya-format-picker', ({ reference, formats }) => {
+      // The toolbar is shown a moment after the selection is made. If it is
+      // told to go away in between (the selection collapsed, another document
+      // was loaded), that pending show must not happen: the toolbar would
+      // come up over text it does not belong to and take the next click.
+      clearTimeout(this.showTimer)
       if (reference) {
         this.formats = formats
-        setTimeout(() => {
+        this.showTimer = setTimeout(() => {
           this.show(reference)
           this.render()
         }, 0)
