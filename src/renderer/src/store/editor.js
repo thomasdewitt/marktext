@@ -1,4 +1,3 @@
-import equal from 'deep-equal'
 import dayjs from 'dayjs'
 import log from 'electron-log'
 import bus from '../bus'
@@ -29,6 +28,21 @@ import { createIpcRegistry } from '../util/ipcSubscriptions'
 const ipc = createIpcRegistry()
 
 const autoSaveTimers = new Map()
+
+// Whether two heading lists show the same outline. This runs on every
+// keystroke, so it compares the few fields directly (a generic deep-equal
+// took several milliseconds on these lists).
+const sameHeadings = (a, b) =>
+  a.length === b.length &&
+  a.every((heading, index) => {
+    const other = b[index]
+    return (
+      heading.content === other.content &&
+      heading.lvl === other.lvl &&
+      heading.slug === other.slug &&
+      heading.line === other.line
+    )
+  })
 
 export const useEditorStore = defineStore('editor', {
   state: () => ({
@@ -1191,7 +1205,7 @@ export const useEditorStore = defineStore('editor', {
       // The WYSIWYG editor reports its headings; the source-code editor does
       // not, so read them from the text.
       const headings = Array.isArray(toc) ? toc : headingsFromMarkdown(markdown)
-      if (!equal(headings, this.listToc)) {
+      if (!sameHeadings(headings, this.listToc)) {
         this.listToc = headings
       }
       this.currentFile.tocList = this.listToc

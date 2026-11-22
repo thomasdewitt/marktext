@@ -742,6 +742,11 @@ const handleGoToHeading = (target) => {
   }
 }
 
+// What the last report was computed for. The editor announces "scroll" on
+// every selection change too, so while typing this is called once per key;
+// measuring the headings again is only worth it when something moved.
+let reportedFor = { scrollTop: -1, headingCount: -1, height: -1 }
+
 const reportHeadingInView = () => {
   if (!editor.value || sourceCode.value) return
   const { container } = editor.value
@@ -750,6 +755,20 @@ const reportHeadingInView = () => {
     return
   }
   jumpedHeading = null
+
+  const current = {
+    scrollTop: container.scrollTop,
+    headingCount: editorStore.listToc.length,
+    height: container.scrollHeight
+  }
+  if (
+    current.scrollTop === reportedFor.scrollTop &&
+    current.headingCount === reportedFor.headingCount &&
+    current.height === reportedFor.height
+  ) {
+    return
+  }
+  reportedFor = current
 
   const limit = container.getBoundingClientRect().top + HEADING_TOP_GAP + 10
   let inView = -1
@@ -969,6 +988,7 @@ const handleFileChange = ({
     }
 
     jumpedHeading = null
+    reportedFor = { scrollTop: -1, headingCount: -1, height: -1 }
     if (pendingHeadingJump && isCurrentFile(pendingHeadingJump)) {
       const { index } = pendingHeadingJump
       pendingHeadingJump = null
