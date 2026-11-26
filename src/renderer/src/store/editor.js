@@ -1220,7 +1220,7 @@ export const useEditorStore = defineStore('editor', {
         this.SHOW_TAB_VIEW(false)
       }
 
-      const { markdown, isMixedLineEndings } = markdownDocument
+      const { isMixedLineEndings } = markdownDocument
       const docState = createDocumentState(Object.assign(markdownDocument, options))
       docState.markdown = adjustTrailingNewlines(docState.markdown, docState.trimTrailingNewline)
       // Muya re-parses the markdown and emits a 'change' event with its own
@@ -1240,7 +1240,7 @@ export const useEditorStore = defineStore('editor', {
       if (isMixedLineEndings) {
         const { filename, lineEnding } = markdownDocument
         this.pushTabNotification({
-          tabId: id,
+          tabId: docState.id,
           msg: i18n.global.t('store.editor.mixedLineEndingsNormalized', {
             name: filename,
             lineEnding: lineEnding.toUpperCase()
