@@ -79,16 +79,31 @@ test('Enter straight after typing goes to the first match, then on to the next',
   await win.keyboard.press('Escape')
 })
 
+// Where on screen `word` is, after scrolling its paragraph into view.
+const centreOfWord = (word) =>
+  win.evaluate((word) => {
+    const walker = document.createTreeWalker(document.querySelector('#ag-editor-id'), NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const at = node.data.indexOf(word)
+      if (at === -1) continue
+      node.parentElement.scrollIntoView({ block: 'center' })
+      const range = document.createRange()
+      range.setStart(node, at)
+      range.setEnd(node, at + word.length)
+      const box = range.getBoundingClientRect()
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    }
+    return null
+  }, word)
+
 test('selected text opens the find bar already searched for', async () => {
-  await win.locator('#ag-editor-id span', { hasText: 'unusual zebra' }).first().scrollIntoViewIfNeeded()
-  const word = win.locator('#ag-editor-id').getByText('zebra', { exact: false }).first()
-  const box = await word.boundingBox()
-  // Double-click the last word of the line ("zebra.").
-  const text = await word.textContent()
-  const fraction = (text.indexOf('zebra') + 2) / text.length
-  await win.mouse.dblclick(box.x + box.width * fraction, box.y + box.height / 2)
-  const selected = await win.evaluate(() => String(document.getSelection()))
-  assert.equal(selected.trim(), 'zebra')
+  const { x, y } = await centreOfWord('zebra')
+  await win.mouse.dblclick(x, y)
+  await until(
+    async () => (await win.evaluate(() => String(document.getSelection()))).trim() === 'zebra',
+    'the word is selected'
+  )
+  await win.waitForTimeout(200) // the editor reports a selection a moment after the click
 
   await openFindBar()
   await until(async () => (await field().inputValue()) === 'zebra', 'field holds the selection')
@@ -97,6 +112,24 @@ test('selected text opens the find bar already searched for', async () => {
   await win.waitForTimeout(600)
   assert.equal(await counter(), '1 / 1')
   await win.keyboard.press('Escape')
+})
+
+test('a key released in the editor as the focus leaves it raises no error', async () => {
+  // Cmd/Ctrl+F does this: the F key comes up in the editor, and before the
+  // editor's deferred handler for it runs, the focus is in the find field.
+  await win.locator('#ag-editor-id').click()
+  await win.waitForTimeout(100)
+  await win.evaluate(() => {
+    const inEditor = document.getSelection().anchorNode.parentElement
+    inEditor.dispatchEvent(new KeyboardEvent('keyup', { key: 'f', bubbles: true }))
+    const elsewhere = document.createElement('input')
+    elsewhere.id = 'focus-thief'
+    document.body.appendChild(elsewhere)
+    elsewhere.focus()
+  })
+  await win.waitForTimeout(300)
+  await win.evaluate(() => document.querySelector('#focus-thief').remove())
+  assert.deepEqual(t.errors(), [])
 })
 
 test('the counter sits beside a long search phrase, not on top of it', async () => {

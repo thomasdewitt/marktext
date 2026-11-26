@@ -105,7 +105,10 @@ export const startApp = async ({
       ...open.map((file) => path.join(workspace, file))
     ],
     cwd: REPO,
-    env: { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: '1' }
+    // MARKTEXT_ERROR_INTERACTION: an unexpected error is logged (and fails the
+    // spec's "no renderer errors" test) instead of opening a dialog that
+    // blocks the run until someone clicks it away.
+    env: { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: '1', MARKTEXT_ERROR_INTERACTION: '1' }
   })
 
   const logs = []
