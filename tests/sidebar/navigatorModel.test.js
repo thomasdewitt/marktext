@@ -181,6 +181,49 @@ describe('folding', () => {
     ])
   })
 
+  it('shows the current file\'s top-level headings with everything under them folded', () => {
+    const nodes = build({
+      tabs: [
+        {
+          id: 't1',
+          pathname: '/notes/journal.md',
+          isSaved: true,
+          tocList: [
+            heading('Bread', 1),
+            heading('Sponge', 2),
+            heading('Starter', 3),
+            heading('Baking', 2),
+            heading('Pizza', 1),
+            heading('Sauce', 2)
+          ]
+        }
+      ],
+      currentFileId: 't1'
+    }).project.children
+    expect(labels(flattenNavigator(nodes))).toEqual(['alpha', 'zeta', 'journal', '  Bread', '  Pizza', 'plot.png'])
+
+    // Opening a heading shows its sub-headings, themselves folded.
+    const bread = nodes.find((n) => n.name === 'journal.md').children[0]
+    expect(labels(flattenNavigator(nodes, { [bread.id]: true }))).toEqual([
+      'alpha',
+      'zeta',
+      'journal',
+      '  Bread',
+      '    Sponge',
+      '    Baking',
+      '  Pizza',
+      'plot.png'
+    ])
+  })
+
+  it('opens a lone top-level heading, so a titled document does not fold into its title', () => {
+    const [title] = buildHeadingTree([heading('Title', 1), heading('A', 2), heading('A.1', 3)], 'f')
+    expect(defaultExpanded(title)).toBe(true)
+    expect(defaultExpanded(title.children[0])).toBe(false)
+    const twoRoots = buildHeadingTree([heading('A', 1), heading('B', 1)], 'f')
+    expect(twoRoots.map(defaultExpanded)).toEqual([false, false])
+  })
+
   it('lets the user\'s choice override the default either way', () => {
     const nodes = withOutline()
     const journal = nodes.find((n) => n.name === 'journal.md')
@@ -201,7 +244,7 @@ describe('folding', () => {
     const rows = flattenNavigator(nodes)
     expect(rows.find((r) => r.node.name === 'journal.md').expandable).toBe(false)
     expect(rows.find((r) => r.node.name === 'plot.png').expandable).toBe(false)
-    expect(defaultExpanded({ kind: 'heading' })).toBe(true)
+    expect(defaultExpanded({ kind: 'heading' })).toBe(false)
   })
 
   it('unfolds the whole tree one level at a time', () => {

@@ -240,8 +240,22 @@ const rowState = (row) => [
   !!row.node.item && renameCache.value === row.node.item.pathname
 ]
 
+// The heading row marked as in view: the heading on screen, or, when it is
+// folded away, the nearest heading above it that is showing (in document
+// order that is its closest visible ancestor).
+const markedHeadingIndex = computed(() => {
+  const active = activeHeadingIndex.value
+  if (active < 0) return -1
+  let marked = -1
+  for (const row of [...otherRows.value, ...projectRows.value.before, ...projectRows.value.after]) {
+    if (row.node.kind !== 'heading' || !row.file?.isCurrent) continue
+    if (row.node.index <= active && row.node.index > marked) marked = row.node.index
+  }
+  return marked
+})
+
 const isActiveHeading = (row) =>
-  row.node.kind === 'heading' && row.file.isCurrent && row.node.index === activeHeadingIndex.value
+  row.node.kind === 'heading' && row.file.isCurrent && row.node.index === markedHeadingIndex.value
 
 // Show the file being edited: unfold the folders above it and its own
 // outline, and scroll its row into view.
@@ -274,7 +288,8 @@ const openFile = (node) => {
 // The editor jumps at once if the file is showing, or as soon as it is.
 const goToHeading = ({ node, file }) => {
   const target = file.tab ? { tabId: file.tab.id } : { pathname: file.pathname }
-  bus.emit('navigator:go-to-heading', { ...target, index: node.index })
+  navigatorStore.pendingHeadingJump = { ...target, index: node.index }
+  bus.emit('navigator:go-to-heading', navigatorStore.pendingHeadingJump)
   openFile(file)
 }
 

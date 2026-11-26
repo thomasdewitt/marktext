@@ -71,6 +71,10 @@ export const buildHeadingTree = (headings, fileId) => {
     open.push(node)
   })
 
+  // A document whose headings all sit under one title would otherwise unfold
+  // into that title alone.
+  if (roots.length === 1) roots[0].loneRoot = true
+
   return roots
 }
 
@@ -212,13 +216,14 @@ export const isExpandable = (node) => {
 
 /**
  * A node's folded state when the user has not set one: folders start closed,
- * the file being edited shows its outline, and headings show their
- * sub-headings.
+ * the file being edited shows its top-level headings, and headings start
+ * closed, except a file's only top-level heading (a document title), which
+ * shows the headings under it.
  */
 export const defaultExpanded = (node) => {
   if (node.kind === 'folder') return false
   if (node.kind === 'file') return node.isCurrent
-  return true
+  return !!node.loneRoot
 }
 
 /**

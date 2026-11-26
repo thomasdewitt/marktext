@@ -36,7 +36,7 @@ before(async () => {
 })
 after(() => t?.close())
 
-test('shows folders, then files without their .md, with the open file unfolded into its headings', async () => {
+test('shows folders, then files without their .md, with the open file unfolded one level into its headings', async () => {
   assert.deepEqual(await rowLabels(), [
     'archive',
     'projects',
@@ -46,7 +46,6 @@ test('shows folders, then files without their .md, with the open file unfolded i
     'Code',
     'Table',
     'Math',
-    'Deep heading',
     '10-30-25',
     '10-9-25',
     '10-6-25',
@@ -79,10 +78,20 @@ test('clicking a heading scrolls the editor to it, puts the caret there and mark
 })
 
 test('a heading too near the end to reach the top is still the one marked after jumping to it', async () => {
+  // Sub-headings start folded: Deep heading sits under Math.
+  await row('heading', 'Math').locator('.twisty').click()
   await row('heading', 'Deep heading').click()
   await until(() => isInView('Deep heading'), 'Deep heading marked in view')
   const offset = await headingOffset('Deep heading')
   assert.ok(offset > 60 && offset < 800, `heading is on screen but not at the top (${offset})`)
+})
+
+test('folding the heading in view moves the mark to the heading above it that still shows', async () => {
+  await row('heading', 'Math').locator('.twisty').click()
+  assert.ok(!(await rowLabels()).includes('Deep heading'))
+  await until(() => isInView('Math'), 'Math marked in place of the folded Deep heading')
+  await row('heading', 'Math').locator('.twisty').click()
+  await until(() => isInView('Deep heading'), 'Deep heading marked again once it shows')
 })
 
 test('scrolling the editor moves the in-view mark to the section on screen', async () => {

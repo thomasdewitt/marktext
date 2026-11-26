@@ -29,6 +29,11 @@ export const useNavigatorStore = defineStore('navigator', {
     unfoldLevels: 0,
     // Index of the heading the editor is showing, in the current file's list.
     activeHeadingIndex: -1,
+    // A jump to a heading of a file that is not showing yet: { tabId } or
+    // { pathname }, plus the heading's index. It is kept here rather than in
+    // the editor because with no tab open there is no editor to keep it until
+    // the file has opened.
+    pendingHeadingJump: null,
     // Headings of files that are not open in a tab, read from disk, by
     // normalized path. Open tabs carry their own (live) heading list.
     headingCache: {}

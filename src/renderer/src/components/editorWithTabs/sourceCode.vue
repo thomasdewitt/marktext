@@ -135,12 +135,7 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
   }
   tabId.value = id
 
-  if (pendingHeadingJump && isCurrentFile(pendingHeadingJump)) {
-    const { index } = pendingHeadingJump
-    pendingHeadingJump = null
-    // After the scroll position restored above has been applied.
-    requestAnimationFrame(() => requestAnimationFrame(() => goToHeadingIndex(index)))
-  }
+  takePendingHeadingJump()
 }
 
 const handleInvalidateImageCache = () => {
@@ -239,9 +234,6 @@ const goToHeadingIndex = (index) => {
   sourceCodeContainer.value.scrollTop = editor.value.heightAtLine(line, 'local') + 50 - 30
 }
 
-// A jump requested for a file that is not showing yet; done once it is.
-let pendingHeadingJump = null
-
 const isCurrentFile = ({ tabId: targetTabId, pathname }) => {
   const current = currentTab.value
   if (targetTabId) return current.id === targetTabId
@@ -251,10 +243,19 @@ const isCurrentFile = ({ tabId: targetTabId, pathname }) => {
 const handleGoToHeading = (target) => {
   if (!editor.value) return
   if (isCurrentFile(target) && tabId.value === currentTab.value.id) {
+    navigatorStore.pendingHeadingJump = null
     goToHeadingIndex(target.index)
-  } else {
-    pendingHeadingJump = target
   }
+  // Otherwise the jump waits in the navigator store until the file shows.
+}
+
+// Do a jump the navigator asked for before this file was showing.
+const takePendingHeadingJump = () => {
+  const pending = navigatorStore.pendingHeadingJump
+  if (!pending || !editor.value || !isCurrentFile(pending)) return
+  navigatorStore.pendingHeadingJump = null
+  // After the scroll position restored for the file has been applied.
+  requestAnimationFrame(() => requestAnimationFrame(() => goToHeadingIndex(pending.index)))
 }
 
 const reportHeadingAtCursor = (cm) => {
@@ -328,6 +329,8 @@ onMounted(() => {
   bus.on('selectAll', handleSelectAll)
   bus.on('image-action', handleImageAction)
   bus.on('navigator:go-to-heading', handleGoToHeading)
+  // The first file opened into an empty window (see editor.vue).
+  takePendingHeadingJump()
 
   // For some reason, code mirror does not seem to play well with Vue's refs if we reference editor.value directly.
   // See https://github.com/codemirror/codemirror5/issues/6886 - hence, we need to use a local variable first.

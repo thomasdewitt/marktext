@@ -725,9 +725,6 @@ const goToHeadingIndex = (index) => {
   })
 }
 
-// A jump requested for a file that is not showing yet; done once it is.
-let pendingHeadingJump = null
-
 const isCurrentFile = ({ tabId, pathname }) => {
   const current = currentFile.value
   if (tabId) return current.id === tabId
@@ -737,10 +734,19 @@ const isCurrentFile = ({ tabId, pathname }) => {
 const handleGoToHeading = (target) => {
   if (sourceCode.value) return
   if (isCurrentFile(target)) {
+    navigatorStore.pendingHeadingJump = null
     goToHeadingIndex(target.index)
-  } else {
-    pendingHeadingJump = target
   }
+  // Otherwise the jump waits in the navigator store until the file shows.
+}
+
+// Do a jump the navigator asked for before this file was showing.
+const takePendingHeadingJump = () => {
+  const pending = navigatorStore.pendingHeadingJump
+  if (!pending || sourceCode.value || !isCurrentFile(pending)) return
+  navigatorStore.pendingHeadingJump = null
+  // After the scroll position restored for the file has been applied.
+  requestAnimationFrame(() => requestAnimationFrame(() => goToHeadingIndex(pending.index)))
 }
 
 // What the last report was computed for. The editor announces "scroll" on
@@ -990,12 +996,7 @@ const handleFileChange = ({
 
     jumpedHeading = null
     reportedFor = { scrollTop: -1, headingCount: -1, height: -1 }
-    if (pendingHeadingJump && isCurrentFile(pendingHeadingJump)) {
-      const { index } = pendingHeadingJump
-      pendingHeadingJump = null
-      // After the scroll position restored above has been applied.
-      requestAnimationFrame(() => requestAnimationFrame(() => goToHeadingIndex(index)))
-    }
+    takePendingHeadingJump()
   }
 }
 
@@ -1150,6 +1151,9 @@ onMounted(() => {
   bus.on('insertParagraph', handleInsertParagraph)
   bus.on('scroll-to-header', scrollToHeader)
   bus.on('navigator:go-to-heading', handleGoToHeading)
+  // The first file opened into an empty window: the editor is created for it
+  // after the file-changed event that would otherwise carry out the jump.
+  takePendingHeadingJump()
   bus.on('screenshot-captured', handleScreenShot)
   bus.on('switch-spellchecker-language', switchSpellcheckLanguage)
   bus.on('open-command-spellchecker-switch-language', openSpellcheckerLanguageCommand)
