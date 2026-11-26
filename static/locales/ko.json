@@ -132,6 +132,8 @@
       "toc": "목차",
       "toggleTableOfContents": "목차 토글",
       "reloadImages": "이미지 새로고침",
+      "toggleBlogPreview": "블로그 미리보기 전환",
+      "revealInBlogPreview": "블로그 미리보기에서 커서 위치 표시",
       "showDeveloperTools": "개발자 도구 보기",
       "reloadWindow": "창 새로고침"
     },
@@ -1391,5 +1393,12 @@
     "copy": "복사",
     "paste": "붙여넣기",
     "selectAll": "모두 선택"
+  },
+  "blogPreview": {
+    "pageNotUpdated": "페이지가 업데이트되지 않음",
+    "noMatchInEditor": "편집기에서 이 텍스트를 찾을 수 없습니다",
+    "notOnPage": "페이지에서 이 블록을 찾을 수 없습니다",
+    "notPaired": "이 파일에 연결된 페이지가 없습니다",
+    "leaveSourceCode": "페이지와 텍스트 사이를 이동하려면 소스 코드 모드를 종료하세요"
   }
 }

@@ -132,6 +132,8 @@
       "toc": "Inhaltsverzeichnis",
       "toggleTableOfContents": "Inhaltsverzeichnis umschalten",
       "reloadImages": "Bilder neu laden",
+      "toggleBlogPreview": "Blog-Vorschau ein/aus",
+      "revealInBlogPreview": "Cursor in der Blog-Vorschau zeigen",
       "showDeveloperTools": "Entwicklertools anzeigen",
       "reloadWindow": "Fenster neu laden"
     },
@@ -1379,5 +1381,12 @@
     "copy": "Kopieren",
     "paste": "Einfügen",
     "selectAll": "Alles auswählen"
+  },
+  "blogPreview": {
+    "pageNotUpdated": "Seite nicht aktualisiert",
+    "noMatchInEditor": "Dieser Text wurde im Editor nicht gefunden",
+    "notOnPage": "Dieser Block wurde auf der Seite nicht gefunden",
+    "notPaired": "Diese Datei hat keine verknüpfte Seite",
+    "leaveSourceCode": "Verlassen Sie den Quellcode-Modus, um zwischen Seite und Text zu springen"
   }
 }

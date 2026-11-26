@@ -67,6 +67,22 @@ export default function (keybindings) {
         actions.showTableOfContents(focusedWindow)
       }
     }, {
+      type: 'separator'
+    }, {
+      label: t('menu.view.toggleBlogPreview'),
+      accelerator: keybindings.getAccelerator('view.toggle-blog-preview'),
+      click (_, focusedWindow) {
+        actions.toggleBlogPreview(focusedWindow)
+      }
+    }, {
+      label: t('menu.view.revealInBlogPreview'),
+      accelerator: keybindings.getAccelerator('view.reveal-in-blog-preview'),
+      click (_, focusedWindow) {
+        actions.revealInBlogPreview(focusedWindow)
+      }
+    }, {
+      type: 'separator'
+    }, {
       label: t('menu.view.reloadImages'),
       accelerator: keybindings.getAccelerator('view.reload-images'),
       click (item, focusedWindow) {

@@ -132,6 +132,8 @@
       "toc": "目錄",
       "toggleTableOfContents": "切換目錄",
       "reloadImages": "重新載入圖片",
+      "toggleBlogPreview": "切換部落格預覽",
+      "revealInBlogPreview": "在部落格預覽中顯示游標位置",
       "showDeveloperTools": "顯示開發者工具",
       "reloadWindow": "重新載入視窗"
     },
@@ -1387,5 +1389,12 @@
     "copy": "複製",
     "paste": "貼上",
     "selectAll": "全選"
+  },
+  "blogPreview": {
+    "pageNotUpdated": "頁面未更新",
+    "noMatchInEditor": "在編輯器中找不到這段文字",
+    "notOnPage": "在頁面中找不到這個區塊",
+    "notPaired": "此檔案沒有配對的頁面",
+    "leaveSourceCode": "離開原始碼模式後才能在頁面和文字之間跳轉"
   }
 }

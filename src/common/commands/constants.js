@@ -99,6 +99,8 @@ const COMMANDS = Object.freeze({
     VIEW_TOGGLE_SIDEBAR: 'view.toggle-sidebar',
     VIEW_TOGGLE_TABBAR: 'view.toggle-tabbar',
     VIEW_TOGGLE_TOC: 'view.toggle-toc',
+    VIEW_TOGGLE_BLOG_PREVIEW: 'view.toggle-blog-preview',
+    VIEW_REVEAL_IN_BLOG_PREVIEW: 'view.reveal-in-blog-preview',
     VIEW_TYPEWRITER_MODE: 'view.typewriter-mode',
 
     WINDOW_MINIMIZE: 'window.minimize',

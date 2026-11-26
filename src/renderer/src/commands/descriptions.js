@@ -170,6 +170,8 @@ const getCommandDescriptions = () => {
         'view.toggle-sidebar': t('commands.view.toggleSidebar'),
         'view.toggle-tabbar': t('commands.view.toggleTabbar'),
         'view.toggle-toc': t('commands.view.toggleToc'),
+        'view.toggle-blog-preview': t('menu.view.toggleBlogPreview'),
+        'view.reveal-in-blog-preview': t('menu.view.revealInBlogPreview'),
 
         // 编辑模式
         'view.toggle-source-code-mode': t('commands.view.toggleSourceCodeMode'),

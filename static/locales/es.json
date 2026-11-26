@@ -132,6 +132,8 @@
       "toc": "Tabla de Contenidos",
       "toggleTableOfContents": "Alternar Tabla de Contenidos",
       "reloadImages": "Recargar Imágenes",
+      "toggleBlogPreview": "Alternar vista previa del blog",
+      "revealInBlogPreview": "Mostrar cursor en la vista previa del blog",
       "showDeveloperTools": "Mostrar Herramientas de Desarrollador",
       "reloadWindow": "Recargar Ventana"
     },
@@ -1423,5 +1425,12 @@
     "copy": "Copiar",
     "paste": "Pegar",
     "selectAll": "Seleccionar"
+  },
+  "blogPreview": {
+    "pageNotUpdated": "Página no actualizada",
+    "noMatchInEditor": "No se encontró este texto en el editor",
+    "notOnPage": "No se encontró este bloque en la página",
+    "notPaired": "Este archivo no tiene una página asociada",
+    "leaveSourceCode": "Sal del modo de código fuente para saltar entre la página y el texto"
   }
 }

@@ -132,6 +132,8 @@
       "toc": "目次",
       "toggleTableOfContents": "目次の切り替え",
       "reloadImages": "画像を再読み込み",
+      "toggleBlogPreview": "ブログプレビューの切り替え",
+      "revealInBlogPreview": "カーソル位置をブログプレビューで表示",
       "showDeveloperTools": "開発者ツールを表示",
       "reloadWindow": "ウィンドウを再読み込み"
     },
@@ -1379,5 +1381,12 @@
     "copy": "コピー",
     "paste": "貼り付け",
     "selectAll": "すべて選択"
+  },
+  "blogPreview": {
+    "pageNotUpdated": "ページは更新されていません",
+    "noMatchInEditor": "このテキストはエディタに見つかりません",
+    "notOnPage": "このブロックはページに見つかりません",
+    "notPaired": "このファイルには対応するページがありません",
+    "leaveSourceCode": "ページとテキストの間を移動するにはソースコードモードを終了してください"
   }
 }

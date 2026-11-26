@@ -133,6 +133,8 @@
       "toc": "Table of Contents",
       "toggleTableOfContents": "Toggle Table of Contents",
       "reloadImages": "Reload Images",
+      "toggleBlogPreview": "Toggle Blog Preview",
+      "revealInBlogPreview": "Show Caret in Blog Preview",
       "showDeveloperTools": "Show Developer Tools",
       "reloadWindow": "Reload Window"
     },
@@ -1390,5 +1392,12 @@
     "indent": "indent",
     "click-to-add-image": "Click to add image",
     "load-image-failed": "Load image failed"
+  },
+  "blogPreview": {
+    "pageNotUpdated": "Page not updated",
+    "noMatchInEditor": "Could not find this text in the editor",
+    "notOnPage": "Could not find this block on the page",
+    "notPaired": "This file has no paired page",
+    "leaveSourceCode": "Leave source code mode to jump between the page and the text"
   }
 }

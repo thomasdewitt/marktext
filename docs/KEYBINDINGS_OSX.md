@@ -115,6 +115,8 @@ MarkText key bindings for macOS. Please see [general key bindings](KEYBINDINGS.m
 | `view.focus-mode`       | <kbd>Command</kbd>+<kbd>Shift</kbd>+<kbd>J</kbd>  | Enable focus mode                        |
 | `view.toggle-sidebar`   | <kbd>Command</kbd>+<kbd>J</kbd>                   | Toggle sidebar                           |
 | `view.toggle-tabbar`    | <kbd>Command</kbd>+<kbd>Option</kbd>+<kbd>B</kbd> | Toggle tabbar                            |
+| `view.toggle-blog-preview` | <kbd>Command</kbd>+<kbd>Option</kbd>+<kbd>P</kbd> | Toggle the blog preview pane |
+| `view.reveal-in-blog-preview` | <kbd>Command</kbd>+<kbd>Option</kbd>+<kbd>G</kbd> | Scroll the blog preview to the caret's block |
 | `view.toggle-toc` .     | <kbd>Command</kbd>+<kbd>K</kbd>                   | Toggle table of contents                 |
 | `view.toggle-dev-tools` | <kbd>Command</kbd>+<kbd>Option</kbd>+<kbd>I</kbd> | Toggle developer tools (debug mode only) |
 | `view.dev-reload`       | <kbd>Command</kbd>+<kbd>Option</kbd>+<kbd>R</kbd> | Reload window (debug mode only)          |

@@ -70,6 +70,21 @@ export const toggleTypewriterMode = (win) => {
   toggleTypeMode(win, 'typewriter')
 }
 
+// The blog preview: the paired .html page beside the editor
+// (renderer/src/components/blogPreview).
+export const toggleBlogPreview = (win) => {
+  if (win && win.webContents) {
+    win.webContents.send('mt::blog-preview-toggle')
+  }
+}
+
+// Scroll the blog preview to the block the caret is in.
+export const revealInBlogPreview = (win) => {
+  if (win && win.webContents) {
+    win.webContents.send('mt::blog-preview-reveal-caret')
+  }
+}
+
 export const reloadImageCache = (win) => {
   if (win && win.webContents) {
     win.webContents.send('mt::invalidate-image-cache')
@@ -86,6 +101,8 @@ export const loadViewCommands = (commandManager) => {
   commandManager.add(COMMANDS.VIEW_TOGGLE_SIDEBAR, toggleSidebar)
   commandManager.add(COMMANDS.VIEW_TOGGLE_TABBAR, toggleTabBar)
   commandManager.add(COMMANDS.VIEW_TOGGLE_TOC, showTableOfContents)
+  commandManager.add(COMMANDS.VIEW_TOGGLE_BLOG_PREVIEW, toggleBlogPreview)
+  commandManager.add(COMMANDS.VIEW_REVEAL_IN_BLOG_PREVIEW, revealInBlogPreview)
   commandManager.add(COMMANDS.VIEW_TYPEWRITER_MODE, toggleTypewriterMode)
 
   commandManager.add(COMMANDS.VIEW_DEV_RELOAD, debugReloadWindow)

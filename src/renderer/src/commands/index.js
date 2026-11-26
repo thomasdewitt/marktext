@@ -589,6 +589,18 @@ const commands = [
       bus.emit('view:toggle-layout-entry', 'showTabBar')
     }
   },
+  {
+    id: 'view.toggle-blog-preview',
+    execute: async () => {
+      dispatchIpcLocally('mt::blog-preview-toggle')
+    }
+  },
+  {
+    id: 'view.reveal-in-blog-preview',
+    execute: async () => {
+      dispatchIpcLocally('mt::blog-preview-reveal-caret')
+    }
+  },
 
   {
     id: 'view.text-direction',
