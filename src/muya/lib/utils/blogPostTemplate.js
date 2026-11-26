@@ -155,12 +155,12 @@ const sanitizeForComment = (str) =>
 // when the post actually has math. MarkText pre-renders math at export
 // time into <span class="katex">…</span> markup, which renders broken
 // without KaTeX's font / layout CSS.
-const hasKatex = (body) => typeof body === 'string' && /class="katex/.test(body)
+export const hasKatex = (body) => typeof body === 'string' && /class="katex/.test(body)
 
 // CDN-pinned to the version MarkText was built against. SRI omitted on
 // purpose — the user can pin further or self-host by tweaking the file
 // after export.
-const KATEX_CSS_LINK =
+export const KATEX_CSS_LINK =
   '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">'
 
 // Asset references for the post shell, as a live thought-cloud/<slug>/
