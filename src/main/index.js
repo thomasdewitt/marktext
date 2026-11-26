@@ -11,6 +11,7 @@ import setupEnvironment from './app/env'
 import { getLogLevel } from './utils'
 import Accessor from './app/accessor'
 import App from './app'
+import { registerBlogPreviewScheme } from './blogPreview'
 import { t } from './i18n'
 
 // Set version strings into global and process.versions
@@ -102,6 +103,9 @@ try {
   }
   process.exit(1)
 }
+// Custom schemes must be registered before the app is ready.
+registerBlogPreviewScheme()
+
 const appController = new App(accessor, args)
 appController.init()
 

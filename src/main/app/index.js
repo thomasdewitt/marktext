@@ -18,6 +18,7 @@ import { WindowType } from '../windows/base'
 import EditorWindow from '../windows/editor'
 import SettingWindow from '../windows/setting'
 import { setLanguage } from '../i18n'
+import { guardBlogPreviewGuest, prepareBlogPreviewWebview, setupBlogPreview } from '../blogPreview'
 
 class App {
   /**
@@ -102,10 +103,13 @@ class App {
       }
     })
 
-    // Prevent to load webview and opening links or new windows via HTML/JS.
+    // Prevent loading webviews (except the blog preview) and opening links
+    // or new windows via HTML/JS.
     app.on('web-contents-created', (event, contents) => {
-      contents.on('will-attach-webview', (event) => {
-        event.preventDefault()
+      contents.on('will-attach-webview', (event, webPreferences, params) => {
+        if (!prepareBlogPreviewWebview(webPreferences, params)) {
+          event.preventDefault()
+        }
       })
       contents.on('will-navigate', (event) => {
         event.preventDefault()
@@ -113,6 +117,7 @@ class App {
       contents.setWindowOpenHandler((details) => {
         return { action: 'deny' }
       })
+      guardBlogPreviewGuest(contents)
     })
   }
 
@@ -144,6 +149,7 @@ class App {
   ready = () => {
     const { _args: args, _openFilesCache } = this
     const { preferences } = this._accessor
+    setupBlogPreview()
 
     // Seed i18n with the persisted language.
     const { language } = preferences.getAll()

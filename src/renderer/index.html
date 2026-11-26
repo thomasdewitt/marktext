@@ -3,10 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <title>MarkText</title>
-    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
+         frame-src: the blog preview's webview (src/main/blogPreview). -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self';
+                  frame-src 'self' mt-blog-preview:;
                   script-src 'self';
                   style-src 'self' 'unsafe-inline';
                   img-src * data: file:;
