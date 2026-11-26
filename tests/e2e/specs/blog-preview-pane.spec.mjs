@@ -159,6 +159,36 @@ test('the page reloads when its revision changes and keeps the same text in view
   await win.waitForTimeout(600)
 })
 
+test('with the editor dragged to its narrowest, its text wraps inside it', async () => {
+  const divider = await win.locator('.blog-preview-divider').boundingBox()
+  const y = divider.y + divider.height / 2
+  await win.mouse.move(divider.x + divider.width / 2, y)
+  await win.mouse.down()
+  await win.mouse.move(divider.x - 2000, y, { steps: 8 }) // as far left as it goes
+  await win.mouse.up()
+  await win.waitForTimeout(300)
+
+  const { paneRight, textRight, paneWidth } = await win.evaluate(() => {
+    const pane = document.querySelector('.editor-side').getBoundingClientRect()
+    const paragraphs = [...document.querySelectorAll('#ag-editor-id .ag-paragraph')]
+    return {
+      paneRight: pane.right,
+      paneWidth: pane.width,
+      textRight: Math.max(...paragraphs.map((p) => p.getBoundingClientRect().right))
+    }
+  })
+  assert.ok(paneWidth < 400, `the editor is narrow (${paneWidth})`)
+  assert.ok(textRight <= paneRight, `text ends at ${textRight}, inside the editor that ends at ${paneRight}`)
+
+  // Put the divider back near the middle for the tests that follow.
+  const moved = await win.locator('.blog-preview-divider').boundingBox()
+  await win.mouse.move(moved.x + moved.width / 2, y)
+  await win.mouse.down()
+  await win.mouse.move(divider.x + divider.width / 2, y, { steps: 8 })
+  await win.mouse.up()
+  await win.waitForTimeout(300)
+})
+
 test('a held page shows that it is not being updated', async () => {
   await setBlogPost({ htmlPath, held: true, revision: 1 })
   await win.locator('.blog-preview-hint').waitFor({ state: 'visible' })

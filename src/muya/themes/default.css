@@ -147,7 +147,9 @@ kbd {
 @media not print {
   #ag-editor-id {
     max-width: var(--editorAreaWidth);
-    min-width: 400px;
+    /* No min-width: beside the blog preview, or in a small window with the
+       sidebar open, the editor can be narrower than any fixed minimum, and
+       text that wraps tightly is better than text cut off at the edge. */
     min-height: 100%;
     margin: 0 auto;
     padding: 20px 50px 100px 50px;
