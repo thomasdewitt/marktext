@@ -103,6 +103,14 @@ class Keyboard {
 
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
+        // The selection can leave the editor between the event and this
+        // timeout: a key released in the editor just as Find moves the focus
+        // to its field, for one. There is then nothing to report, and
+        // reporting it would throw.
+        const range = selection.getCursorRange()
+        if (!range.start || !range.end) {
+          return
+        }
         this.muya.dispatchSelectionChange()
         this.muya.dispatchSelectionFormats()
         if (!this.isComposed && event.type === 'click') {
