@@ -14,6 +14,8 @@ import { getPath, getRecommendTitleFromMarkdownString } from '../../utils'
 import pandoc from '../../utils/pandoc'
 import { t } from '../../i18n'
 import { applyPostAssets, findSiblingPostAssets } from '../../filesystem/blogPostAssets'
+import { readBlogHtml } from '../../filesystem/blogPostFrontMatter'
+import { createPage, pairNote, readNote, syncPage } from '../../filesystem/blogPostSync'
 
 // TODO(refactor): "save" and "save as" should be moved to the editor window (editor.js) and
 // the renderer should communicate only with the editor window for file relevant stuff.
@@ -137,6 +139,22 @@ const handleResponseForPrint = async (e) => {
   })
 }
 
+// A note was just written. If it is paired with a blog page (it has
+// `blog_html` in its front matter), the renderer renders the body from
+// exactly this text and asks for the page to be updated (mt::blog-post-sync
+// below). Working from the written text rather than the editor's state means
+// it also works in source-code mode and for every save route (save, save
+// all, auto-save, save before close).
+const notifyBlogPostNoteSaved = (win, id, pathname, markdown) => {
+  // The text goes along only when it names a page; null tells the renderer
+  // the note is not (or no longer) paired.
+  safeSend(win, 'mt::blog-post-note-saved', {
+    id,
+    pathname,
+    markdown: readBlogHtml(markdown) ? markdown : null
+  })
+}
+
 // Exported for testing; production callers go through the ipcMain handlers
 // registered below.
 export const handleResponseForSave = async (e, id, filename, pathname, markdown, options, defaultPath) => {
@@ -192,6 +210,7 @@ export const handleResponseForSave = async (e, id, filename, pathname, markdown,
 
   return writeMarkdownFile(filePath, markdown, options)
     .then(() => {
+      notifyBlogPostNoteSaved(win, id, filePath, markdown)
       if (!alreadyTracked) {
         // This tab wasn't tracking a file before
         ipcMain.emit('window-add-file-path', win.id, filePath)
@@ -352,6 +371,7 @@ ipcMain.on(
 
       writeMarkdownFile(filePath, markdown, options)
         .then(() => {
+          notifyBlogPostNoteSaved(win, id, filePath, markdown)
           if (!alreadyTracked) {
             ipcMain.emit('window-add-file-path', win.id, filePath)
             ipcMain.emit('menu-add-recently-used', filePath)
@@ -447,6 +467,33 @@ ipcMain.on('mt::close-window-confirm', async (e, unsavedFiles) => {
 ipcMain.on('mt::response-file-save', handleResponseForSave)
 
 ipcMain.on('mt::response-export', handleResponseForExport)
+
+// Blog-post pairing (see filesystem/blogPostSync.js). All page I/O is here in
+// the main process; the renderer renders and asks.
+ipcMain.handle('mt::blog-post-sync', (e, request) => syncPage(request))
+ipcMain.handle('mt::blog-post-read-note', (e, mdPath) => readNote(mdPath))
+ipcMain.handle('mt::blog-post-pair', (e, request) => pairNote(request))
+ipcMain.handle('mt::blog-post-create', (e, request) => createPage(request))
+ipcMain.handle('mt::blog-post-choose', async (e, { kind, defaultPath }) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  const filters =
+    kind === 'html'
+      ? [{ name: 'Hypertext Markup Language', extensions: ['html', 'htm'] }]
+      : [{ name: 'Markdown', extensions: MARKDOWN_EXTENSIONS }]
+  if (kind === 'new-html') {
+    const { filePath, canceled } = await dialog.showSaveDialog(win, {
+      defaultPath,
+      filters: getExportExtensionFilter('blogPost')
+    })
+    return canceled ? null : filePath || null
+  }
+  const { filePaths, canceled } = await dialog.showOpenDialog(win, {
+    defaultPath,
+    properties: ['openFile'],
+    filters
+  })
+  return canceled || !filePaths.length ? null : filePaths[0]
+})
 
 ipcMain.on('mt::response-print', handleResponseForPrint)
 
@@ -614,6 +661,12 @@ ipcMain.on('mt::cmd-import-file', (e) => {
 export const exportFile = (win, type) => {
   if (win && win.webContents) {
     win.webContents.send('mt::show-export-dialog', type)
+  }
+}
+
+export const openBlogPost = (win) => {
+  if (win && win.webContents) {
+    win.webContents.send('mt::show-blog-post-dialog')
   }
 }
 

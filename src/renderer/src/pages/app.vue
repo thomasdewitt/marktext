@@ -28,6 +28,7 @@
       <command-palette></command-palette>
       <about-dialog></about-dialog>
       <export-setting-dialog></export-setting-dialog>
+      <blog-post-dialogs></blog-post-dialogs>
       <rename></rename>
       <tweet></tweet>
       <import-modal></import-modal>
@@ -48,6 +49,7 @@ import SideBar from '@/components/sideBar'
 import AboutDialog from '@/components/about'
 import CommandPalette from '@/components/commandPalette'
 import ExportSettingDialog from '@/components/exportSettings'
+import BlogPostDialogs from '@/components/blogPost'
 import Rename from '@/components/rename'
 import Tweet from '@/components/tweet'
 import ImportModal from '@/components/import'
@@ -181,6 +183,7 @@ onMounted(async () => {
   editorStore.LISTEN_FOR_PRINT_SERVICE_CLEARUP()
   editorStore.LISTEN_FOR_EXPORT_SUCCESS()
   editorStore.LISTEN_FOR_FILE_CHANGE()
+  editorStore.LISTEN_FOR_BLOG_POST()
   editorStore.LISTEN_WINDOW_ZOOM()
   editorStore.LISTEN_FOR_RELOAD_IMAGES()
   editorStore.LISTEN_FOR_CONTEXT_MENU()

@@ -24,6 +24,14 @@ import { useNavigatorStore } from './navigator'
 import { headingsFromMarkdown } from './markdownHeading'
 import { i18n } from '../i18n'
 import { createIpcRegistry } from '../util/ipcSubscriptions'
+import {
+  pairedPagePath,
+  rememberSaved,
+  savedMarkdown,
+  forgetTab as forgetBlogPostTab,
+  pageLabel,
+  syncWithPage
+} from '../components/blogPost/pairing'
 
 const ipc = createIpcRegistry()
 
@@ -160,6 +168,7 @@ export const useEditorStore = defineStore('editor', {
       // Backup few entries that we need to restore later.
       const oldId = tab.id
       const oldNotifications = tab.notifications
+      const oldBlogPost = tab.blogPost
       let oldHistory = null
       if (tab.history.index >= 0 && tab.history.stack.length >= 1) {
         // Allow to restore the old document.
@@ -177,9 +186,13 @@ export const useEditorStore = defineStore('editor', {
       Object.assign(tab, newFileState)
       tab.id = oldId
       tab.notifications = oldNotifications
+      tab.blogPost = oldBlogPost
       if (oldHistory) {
         tab.history = oldHistory
       }
+      // The reloaded text may name another page, or none (e.g. after pairing
+      // from the Open Blog Post dialog wrote the key into the file).
+      this.BLOG_POST_ATTACH(tab)
 
       // Handing the reloaded markdown to Muya triggers an import/export
       // round-trip that can normalise the text (whitespace, list indentation,
@@ -394,6 +407,139 @@ export const useEditorStore = defineStore('editor', {
           style: 'crit'
         })
       })
+    },
+
+    // --- blog-post pairing -------------------------------------------------
+    //
+    // A note with `blog_html` in its front matter is paired with that page:
+    // every save of the note rewrites the page's article body (and only
+    // that). `tab.blogPost` is { htmlPath, held, revision }: `held` is true
+    // while a question about the page is unanswered or after choosing to
+    // hold, and then saves leave the page alone; `revision` goes up by one
+    // after every write of the page, for the preview pane to reload on.
+
+    /** Pair `tab` with the page its text names, or unpair it if none. */
+    BLOG_POST_ATTACH(tab) {
+      if (!tab) return
+      const htmlPath = pairedPagePath(tab.pathname, tab.markdown)
+      if (!htmlPath) {
+        if (tab.blogPost) this.clearTabNotifications(tab.id, 'blog_post')
+        tab.blogPost = null
+        forgetBlogPostTab(tab.id)
+        return
+      }
+      rememberSaved(tab.id, tab.markdown)
+      if (tab.blogPost && tab.blogPost.htmlPath === htmlPath) return
+      tab.blogPost = { htmlPath, held: false, revision: 0 }
+      // Look once on open: has the page's body been edited since MarkText
+      // last wrote it?
+      this.BLOG_POST_SYNC(tab.id, 'check')
+    },
+
+    LISTEN_FOR_BLOG_POST() {
+      // The main process wrote a note that names a page (any save route).
+      // `markdown` is null when the saved text names no page.
+      ipc.subscribe('mt::blog-post-note-saved', (_, { id, pathname, markdown }) => {
+        const tab = this.tabs.find((t) => t.id === id)
+        if (!tab) return
+        const htmlPath = markdown === null ? null : pairedPagePath(pathname, markdown)
+        if (!htmlPath) {
+          // The key was taken out of the note: it is no longer paired.
+          if (tab.blogPost) {
+            this.clearTabNotifications(id, 'blog_post')
+            tab.blogPost = null
+            forgetBlogPostTab(id)
+          }
+          return
+        }
+        rememberSaved(id, markdown)
+        if (!tab.blogPost || tab.blogPost.htmlPath !== htmlPath) {
+          tab.blogPost = { htmlPath, held: false, revision: 0 }
+        }
+        if (!tab.blogPost.held) {
+          this.BLOG_POST_SYNC(id, 'save')
+        }
+      })
+    },
+
+    /**
+     * Check or update the tab's page from the note as last saved.
+     * mode: 'check' | 'save' | 'overwrite' (see main/filesystem/blogPostSync.js).
+     */
+    async BLOG_POST_SYNC(tabId, mode) {
+      const tab = this.tabs.find((t) => t.id === tabId)
+      if (!tab || !tab.blogPost) return
+      const { htmlPath } = tab.blogPost
+      let result
+      try {
+        result = await syncWithPage(tabId, {
+          htmlPath,
+          markdown: savedMarkdown(tabId),
+          mode,
+          preferences: usePreferencesStore()
+        })
+      } catch (err) {
+        log.error('Blog post sync failed:', err)
+        result = { status: 'error', reason: err.message }
+      }
+
+      // The tab may have been closed or re-paired while the page was read.
+      if (!tab.blogPost || tab.blogPost.htmlPath !== htmlPath) return
+
+      const { t } = i18n.global
+      const page = pageLabel(htmlPath)
+      switch (result.status) {
+        case 'written':
+          tab.blogPost.revision++
+        // fall through
+        case 'ok':
+        case 'unchanged':
+          if (mode !== 'check') tab.blogPost.held = false
+          if (!tab.blogPost.held) this.clearTabNotifications(tabId, 'blog_post')
+          return
+        case 'drift':
+        case 'unmarked':
+        case 'missing':
+        case 'refused':
+        case 'error':
+          tab.blogPost.held = true
+          this.pushTabNotification({
+            tabId,
+            msg: t('blogPost.heldNotice', { page }),
+            style: result.status === 'drift' || result.status === 'unmarked' ? 'warn' : 'crit',
+            exclusiveType: 'blog_post'
+          })
+          bus.emit('blog-post:ask', {
+            tabId,
+            kind: result.status,
+            htmlPath,
+            mdPath: tab.pathname,
+            diff: result.diff || null,
+            reason: result.reason || ''
+          })
+          return
+        default:
+          log.error(`BLOG_POST_SYNC: unknown status "${result.status}"`)
+      }
+    },
+
+    /** Hold saves to the page (true), or resume them (false: check and write now). */
+    BLOG_POST_HOLD(tabId, held) {
+      const tab = this.tabs.find((t) => t.id === tabId)
+      if (!tab || !tab.blogPost) return
+      if (held) {
+        tab.blogPost.held = true
+        const htmlPath = tab.blogPost.htmlPath
+        const page = pageLabel(htmlPath)
+        this.pushTabNotification({
+          tabId,
+          msg: i18n.global.t('blogPost.heldNotice', { page }),
+          style: 'warn',
+          exclusiveType: 'blog_post'
+        })
+      } else {
+        this.BLOG_POST_SYNC(tabId, 'save')
+      }
     },
 
     LISTEN_FOR_CLOSE() {
@@ -740,6 +886,7 @@ export const useEditorStore = defineStore('editor', {
         clearTimeout(timer)
         autoSaveTimers.delete(file.id)
       }
+      forgetBlogPostTab(file.id)
 
       if (file.id === currentFile.id) {
         const fileState = this.tabs[index] || this.tabs[index - 1] || this.tabs[0] || {}
@@ -1073,7 +1220,7 @@ export const useEditorStore = defineStore('editor', {
         this.SHOW_TAB_VIEW(false)
       }
 
-      const { markdown, isMixedLineEndings } = markdownDocument
+      const { isMixedLineEndings } = markdownDocument
       const docState = createDocumentState(Object.assign(markdownDocument, options))
       docState.markdown = adjustTrailingNewlines(docState.markdown, docState.trimTrailingNewline)
       // Muya re-parses the markdown and emits a 'change' event with its own
@@ -1085,11 +1232,15 @@ export const useEditorStore = defineStore('editor', {
       } else {
         this.tabs.push(docState)
       }
+      // Every route that opens a file (navigator, recent files, Finder, File >
+      // Open) comes through here, so a note that names its blog page is
+      // paired however it was opened.
+      this.BLOG_POST_ATTACH(this.tabs.find((t) => t.id === docState.id))
 
       if (isMixedLineEndings) {
         const { filename, lineEnding } = markdownDocument
         this.pushTabNotification({
-          tabId: id,
+          tabId: docState.id,
           msg: i18n.global.t('store.editor.mixedLineEndingsNormalized', {
             name: filename,
             lineEnding: lineEnding.toUpperCase()

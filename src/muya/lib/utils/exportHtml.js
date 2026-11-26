@@ -352,6 +352,18 @@ class ExportHtml {
    * exported HTML is saved alongside the source markdown's image folder.
    */
   async generateBlogPost() {
+    const { meta, title, date, body } = await this.renderBlogPostBody()
+    const slug = meta.slug || slugify(title)
+    return buildBlogPostHtml({ title, date, slug, body })
+  }
+
+  /**
+   * The parts of a blog post that come from the markdown: the front matter,
+   * the page title and date, and the article body exactly as it goes inside
+   * the page's body container. Saving a note paired with a page writes this
+   * body into the page, so it must stay what `generateBlogPost` puts there.
+   */
+  async renderBlogPostBody() {
     const { meta, body: strippedMarkdown } = extractFrontmatter(this.markdown)
 
     // Temporarily swap markdown so renderHtml() works off the stripped
@@ -370,9 +382,7 @@ class ExportHtml {
     // the page title, so a section heading isn't silently deleted when the
     // title comes from frontmatter.
     const { title, date, body: postBody } = resolveBlogPost(meta, body)
-    const slug = meta.slug || slugify(title)
-
-    return buildBlogPostHtml({ title, date, slug, body: postBody })
+    return { meta, title, date, body: postBody }
   }
 
   /**

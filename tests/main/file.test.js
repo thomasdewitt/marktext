@@ -42,7 +42,7 @@ vi.mock('electron', () => ({
     showMessageBox: showMessageBoxMock
   },
   shell: { openExternal: vi.fn() },
-  ipcMain: { on: ipcOnMock, emit: ipcEmitMock, removeAllListeners: vi.fn() }
+  ipcMain: { on: ipcOnMock, handle: vi.fn(), emit: ipcEmitMock, removeAllListeners: vi.fn() }
 }))
 
 vi.mock('electron-log', () => ({
