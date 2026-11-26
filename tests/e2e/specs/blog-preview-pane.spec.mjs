@@ -249,3 +249,13 @@ test('the reveal command scrolls the page to the caret block', async () => {
     return top > 0 && top < height
   }, 'paragraph 5 in view in the page')
 })
+
+test('the reload command brings in a change to a file the page loads', async () => {
+  // The site's stylesheet changes outside MarkText; no save of the note is involved.
+  fs.appendFileSync(path.join(t.workspace, 'site/post.css'), '\n.article-title { color: rgb(1, 2, 3); }\n')
+  await fromMenu('mt::invalidate-image-cache') // View > Reload Images and Blog Preview
+  await until(
+    async () => (await inPage('getComputedStyle(document.querySelector(".article-title")).color')) === 'rgb(1, 2, 3)',
+    'the page shows the new style'
+  )
+})

@@ -102,17 +102,25 @@ watch([htmlPath, revision], ([path, current], [, previous]) => {
   if (!path) return
   if (path !== shownPath) {
     show(path)
-  } else if (current !== previous && view) {
-    if (isReady) {
-      // A plain reload: Chromium keeps the old page on screen until the new
-      // one paints, and the preload puts the same text back in view.
-      isReady = false
-      view.reload()
-    } else {
-      isStale = true
-    }
+  } else if (current !== previous) {
+    reload()
   }
 })
+
+// Reads the page and everything it loads from disk again. Called after each
+// write of the page, and by View > Reload Images and Preview for changes made
+// outside MarkText: the site's stylesheet, a script, data the page draws from.
+const reload = () => {
+  if (!view) return
+  if (isReady) {
+    // A plain reload: Chromium keeps the old page on screen until the new
+    // one paints, and the preload puts the same text back in view.
+    isReady = false
+    view.reload()
+  } else {
+    isStale = true
+  }
+}
 
 const onReveal = (target) => {
   if (view && isReady) {
@@ -124,11 +132,14 @@ const onReveal = (target) => {
 
 onMounted(() => {
   bus.on('blog-preview:reveal', onReveal)
+  // The same command reloads the editor's images (see LISTEN_FOR_RELOAD_IMAGES).
+  bus.on('invalidate-image-cache', reload)
   if (htmlPath.value) show(htmlPath.value)
 })
 
 onBeforeUnmount(() => {
   bus.off('blog-preview:reveal', onReveal)
+  bus.off('invalidate-image-cache', reload)
 })
 </script>
 
