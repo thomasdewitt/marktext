@@ -561,4 +561,37 @@ describe('editor store', () => {
     // currentFile is remapped too.
     expect(store.currentFile.pathname).toBe('/project/journal/a.md')
   })
+
+  it('gives the find bar a new search result each time, though Muya reuses one object', async () => {
+    const { computed } = await import('vue')
+    const store = useEditorStore()
+    store.NEW_TAB_WITH_CONTENT({
+      markdownDocument: {
+        markdown: 'one cat, two cats\n',
+        filename: 'example.md',
+        pathname: '/tmp/example.md',
+        encoding: { encoding: 'utf8', isBom: false },
+        lineEnding: 'lf',
+        adjustLineEndingOnSave: false,
+        trimTrailingNewline: 1
+      }
+    })
+    const counter = computed(() => {
+      const { index, matches } = store.currentFile.searchMatches
+      return `${index + 1} / ${matches.length}`
+    })
+
+    // Muya keeps one searchMatches object and changes it in place.
+    const muyaMatches = { value: '', matches: [], index: -1 }
+    store.SEARCH(muyaMatches)
+    expect(counter.value).toBe('0 / 0')
+
+    Object.assign(muyaMatches, { value: 'cat', matches: [{ key: 'a' }, { key: 'a' }], index: 0 })
+    store.SEARCH(muyaMatches)
+    expect(counter.value).toBe('1 / 2')
+
+    muyaMatches.index = 1 // "find next"
+    store.SEARCH(muyaMatches)
+    expect(counter.value).toBe('2 / 2')
+  })
 })

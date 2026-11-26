@@ -269,8 +269,12 @@ export const useEditorStore = defineStore('editor', {
       }
     },
 
-    SEARCH(value) {
-      this.currentFile.searchMatches = value
+    SEARCH(searchMatches) {
+      // Muya hands back the one object it keeps and changes in place. Store a
+      // fresh one each time, so the find bar's counter follows every search
+      // and every step to the next match.
+      const { value, matches, index } = searchMatches
+      this.currentFile.searchMatches = { value, matches, index }
     },
 
     SHOW_IMAGE_DELETION_URL(deletionUrl) {

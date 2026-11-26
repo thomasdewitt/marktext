@@ -65,7 +65,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, shallowRef } from 'vue'
 import log from 'electron-log'
 import Muya from 'muya/lib'
 import TablePicker from 'muya/lib/ui/tablePicker'
@@ -179,7 +179,11 @@ const { projectTree } = storeToRefs(projectStore)
 // Component state
 const defaultFontFamily = DEFAULT_EDITOR_FONT_FAMILY
 const selectionChange = ref(null)
-const editor = ref(null)
+// The Muya instance. A shallow ref: a plain `ref` would hand out a deep Vue
+// proxy, and every call made through it (search, find next, export...) would
+// then run the whole editor, block tree and render included, through proxy
+// traps, several times slower on a long document.
+const editor = shallowRef(null)
 const isShowClose = ref(false)
 const dialogTableVisible = ref(false)
 const imageViewerVisible = ref(null)

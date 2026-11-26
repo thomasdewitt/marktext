@@ -13,11 +13,12 @@
             v-model="searchValue"
             type="text"
             :placeholder="t('search.searchPlaceholder')"
-            @keyup="searchFn($event)"
+            @input="searchSoon"
+            @keyup.enter="searchOrNext"
           />
           <div class="controls">
             <span class="search-result" :title="t('search.searchResultCount')">{{
-              searchValue ? `${highlightIndex + 1} / ${highlightCount}` : ''
+              searchValue && !isSearchPending ? `${highlightIndex + 1} / ${highlightCount}` : ''
             }}</span>
             <span
               :title="t('search.caseSensitive')"
@@ -128,6 +129,15 @@ const replaceValue = ref('')
 const searchErrorMsg = ref('')
 const search = ref(null)
 
+// Typing searches after a short pause, not on every key: each search
+// re-renders the whole document, and the first letters of a phrase match
+// thousands of places in a long one.
+const SEARCH_DELAY = 150
+let searchTimer = null
+// True between a change of the search text and the search for it, when the
+// counter would still describe the previous text.
+const isSearchPending = ref(false)
+
 const { currentFile } = storeToRefs(editorStore)
 const searchMatches = computed(() => currentFile.value?.searchMatches)
 
@@ -237,6 +247,7 @@ const blurSearch = () => {
 }
 
 const emptySearch = (selectHighlight = false) => {
+  cancelPendingSearch()
   showSearch.value = false
   searchValue.value = ''
   replaceValue.value = ''
@@ -252,18 +263,39 @@ const toggleSearchType = () => {
  * action: prev or next
  */
 const find = (action) => {
+  // "Next" right after typing means the text just typed.
+  runPendingSearch()
   bus.emit('find-action', action)
 }
 
-const searchFn = (event) => {
-  if (event && event.key === 'Escape') {
-    return
-  }
+const cancelPendingSearch = () => {
+  clearTimeout(searchTimer)
+  searchTimer = null
+  isSearchPending.value = false
+}
 
-  if (event && event.key === 'Enter') {
-    find('next')
-    return
-  }
+/** Search for the text in the field once typing pauses. */
+const searchSoon = () => {
+  clearTimeout(searchTimer)
+  isSearchPending.value = true
+  searchTimer = setTimeout(searchFn, SEARCH_DELAY)
+}
+
+/** Run a search that is still waiting for a pause. Returns whether there was one. */
+const runPendingSearch = () => {
+  if (searchTimer === null) return false
+  searchFn()
+  return true
+}
+
+// Enter: the search for what was just typed lands on its first match; after
+// that, each Enter steps to the next one.
+const searchOrNext = () => {
+  if (!runPendingSearch()) find('next')
+}
+
+const searchFn = () => {
+  cancelPendingSearch()
 
   if (isRegexp.value) {
     // Handle invalid regexp.
@@ -298,6 +330,7 @@ const searchFn = (event) => {
 }
 
 const replace = (isSingle = true) => {
+  runPendingSearch()
   bus.emit('replaceValue', {
     value: replaceValue.value,
     opt: {
@@ -397,10 +430,10 @@ const noop = () => {}
   border-bottom-right-radius: 0;
   border-bottom-left-radius: 0;
 }
+/* Beside the text, not over it: a long search phrase stops at the counter. */
 .input-wrapper .controls {
-  position: absolute;
-  top: 6px;
-  right: 10px;
+  flex-shrink: 0;
+  margin: 6px 10px 0 0;
   font-size: 12px;
   display: flex;
   color: var(--sideBarTitleColor);
@@ -449,6 +482,8 @@ const noop = () => {}
 
 .input-wrapper input {
   flex: 1;
+  /* Lets the field give way to the counter and toggles beside it. */
+  min-width: 0;
   padding: 0 8px;
   height: 26px;
   outline: none;
