@@ -383,7 +383,18 @@ export const LINE_BREAK = '\n'
 const IFRAME_TAGS = ['iframe']
 // DOMPurify allows `src`/`width`/`height` on whitelisted iframes by default
 // but strips iframe-specific attributes — re-add the ones we'd actually use.
-const IFRAME_ATTRS = ['frameborder', 'allow', 'allowfullscreen', 'sandbox', 'referrerpolicy', 'loading']
+// `data-max-height` is the one data attribute let through (ALLOW_DATA_ATTR is
+// off): the site's embed-resize.js reads it as the cap on an iframe that
+// sizes itself to its content. Without it a capped embed grows to full height.
+const IFRAME_ATTRS = [
+  'frameborder',
+  'allow',
+  'allowfullscreen',
+  'sandbox',
+  'referrerpolicy',
+  'loading',
+  'data-max-height'
+]
 
 export const PREVIEW_DOMPURIFY_CONFIG = Object.freeze({
   // do not forbit `class` because `code` element use class to present language

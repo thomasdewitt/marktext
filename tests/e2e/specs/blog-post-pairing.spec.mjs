@@ -188,6 +188,23 @@ test('Create new .html builds the page and pairs the note', async () => {
   assert.match(bodyOf(fs.readFileSync(newPage, 'utf8')), /Brand new text\. Edited\./)
 })
 
+test('an iframe keeps its data-max-height in the page', async () => {
+  // The site's embed-resize.js caps a self-sizing iframe by this attribute.
+  await openNote('blog/paired.md')
+  const note = path.join(t.workspace, 'blog/paired.md')
+  const embed = '<iframe src="report/index.html" width="800" height="700" data-max-height="80vh" frameborder="0" loading="lazy"></iframe>'
+  fs.writeFileSync(note, `${fs.readFileSync(note, 'utf8')}\n${embed}\n`)
+  // The tab reloads from disk; then write the page from the note as it now is.
+  await until(
+    () => t.store('editor', (s) => s.currentFile.markdown.includes('data-max-height')),
+    'note reloaded with the iframe'
+  )
+  const before = (await blogPost()).revision
+  await t.store('editor', (s) => { s.BLOG_POST_SYNC(s.currentFile.id, 'overwrite') })
+  await until(async () => (await blogPost()).revision > before, 'page written')
+  assert.match(bodyOf(readPage()), /<iframe [^>]*data-max-height="80vh"/)
+})
+
 test('no renderer errors', () => {
   assert.deepEqual(t.errors(), [])
 })
