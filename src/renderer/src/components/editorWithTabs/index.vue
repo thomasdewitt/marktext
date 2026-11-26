@@ -102,7 +102,10 @@ const startDrag = () => {
   dragging.value = true
   const { right } = containerRef.value.getBoundingClientRect()
   const onMove = (event) => {
-    setPreviewFraction((right - event.clientX) / containerWidth.value)
+    // Kept inside (0, 1): a drag past either edge of the window stops at the
+    // narrowest editor or page instead of counting as no setting at all.
+    const fraction = (right - event.clientX) / containerWidth.value
+    setPreviewFraction(Math.min(Math.max(fraction, 0.01), 0.99))
   }
   const onUp = () => {
     dragging.value = false

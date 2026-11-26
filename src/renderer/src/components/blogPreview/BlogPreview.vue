@@ -33,6 +33,9 @@ const hostRef = ref(null)
 let view = null
 // Whether the guest page can take messages (between dom-ready and the next navigation).
 let isReady = false
+// Whether the webview has finished attaching (its first dom-ready has come),
+// after which it can be navigated with loadURL.
+let isAttached = false
 let shownPath = null
 // A reveal asked for before the page was ready.
 let pendingReveal = null
@@ -59,6 +62,7 @@ const createView = (url) => {
     if (isMainFrame && !isInPlace) isReady = false
   })
   view.addEventListener('dom-ready', () => {
+    isAttached = true
     if (isStale) {
       isStale = false
       view.reload()
@@ -94,8 +98,24 @@ const show = async (pathname) => {
     createView(url)
   } else {
     isReady = false
-    view.src = url
+    navigate(url)
   }
+}
+
+// Show another page in the existing webview. A load that the next page or a
+// reload replaces ends with ERR_ABORTED, which is expected here; through the
+// `src` attribute Electron reports that as an error, so loadURL is used
+// wherever the webview allows it.
+const navigate = (url) => {
+  if (!isAttached) {
+    view.src = url
+    return
+  }
+  view.loadURL(url).catch((error) => {
+    if (!/ERR_ABORTED|\(-3\)/.test(String(error))) {
+      log.warn(`Blog preview: ${url} did not load: ${error}`)
+    }
+  })
 }
 
 watch([htmlPath, revision], ([path, current], [, previous]) => {
