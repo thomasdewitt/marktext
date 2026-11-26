@@ -97,6 +97,8 @@ export default new Map([
     ['view.toggle-sidebar', 'Command+J'],
     ['view.toggle-toc', 'Command+K'],
     ['view.toggle-tabbar', 'Command+Option+B'],
+    ['view.toggle-blog-preview', 'Command+Option+P'],
+    ['view.reveal-in-blog-preview', 'Command+Option+G'],
     ['view.toggle-dev-tools', 'Command+Option+I'],
     ['view.dev-reload', 'Command+Option+R'],
     ['view.reload-images', 'Command+R'],

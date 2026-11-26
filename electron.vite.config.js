@@ -38,6 +38,16 @@ export default defineConfig({
   preload: {
     // --> Bundled as CommonJS
     plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/preload/index.js'),
+          // The blog preview's preload runs sandboxed, where it can require
+          // nothing but 'electron', so it must stay one self-contained file.
+          blogPreview: resolve(__dirname, 'src/preload/blogPreview.js')
+        }
+      }
+    },
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src/renderer/src'),

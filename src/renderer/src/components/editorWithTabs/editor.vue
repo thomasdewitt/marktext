@@ -82,6 +82,7 @@ import FootnoteTool from 'muya/lib/ui/footnoteTool'
 import TableBarTools from 'muya/lib/ui/tableTools'
 import FrontMenu from 'muya/lib/ui/frontMenu'
 import EditorSearch from '../search'
+import { connectEditor as connectBlogPreview } from '../blogPreview/editorBridge'
 import bus from '@/bus'
 import { DEFAULT_EDITOR_FONT_FAMILY } from '@/config'
 import notice from '@/services/notification'
@@ -1213,9 +1214,20 @@ onMounted(() => {
 
   setWrapCodeBlocks(wrapCodeBlocks.value)
   setEditorWidth(editorLineWidth.value)
+
+  disconnectBlogPreview = connectBlogPreview({
+    muya: () => editor.value,
+    file: () => currentFile.value,
+    isSourceCode: () => sourceCode.value,
+    t
+  })
 })
 
+// Click-to-source and back between the editor and the blog preview pane.
+let disconnectBlogPreview = () => {}
+
 onBeforeUnmount(() => {
+  disconnectBlogPreview()
   bus.off('invalidate-image-cache', handleInvalidateImageCache)
   bus.off('undo', handleUndo)
   bus.off('redo', handleRedo)

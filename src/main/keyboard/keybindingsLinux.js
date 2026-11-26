@@ -101,6 +101,8 @@ export default new Map([
     ['view.toggle-sidebar', 'Ctrl+J'],
     ['view.toggle-toc', 'Ctrl+K'],
     ['view.toggle-tabbar', 'Ctrl+Shift+B'],
+    ['view.toggle-blog-preview', 'Ctrl+Alt+P'],
+    ['view.reveal-in-blog-preview', 'Ctrl+Alt+G'],
     ['view.toggle-dev-tools', 'Ctrl+Alt+I'],
     ['view.dev-reload', 'Ctrl+F5'],
     ['view.reload-images', 'F5'],

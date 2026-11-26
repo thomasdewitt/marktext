@@ -132,6 +132,8 @@
       "toc": "Índice",
       "toggleTableOfContents": "Alternar Índice",
       "reloadImages": "Recarregar Imagens",
+      "toggleBlogPreview": "Alternar pré-visualização do blog",
+      "revealInBlogPreview": "Mostrar cursor na pré-visualização do blog",
       "showDeveloperTools": "Mostrar Ferramentas de Desenvolvedor",
       "reloadWindow": "Recarregar Janela"
     },
@@ -1387,5 +1389,12 @@
     "copy": "Copiar",
     "paste": "Colar",
     "selectAll": "Selecionar tudo"
+  },
+  "blogPreview": {
+    "pageNotUpdated": "Página não atualizada",
+    "noMatchInEditor": "Este texto não foi encontrado no editor",
+    "notOnPage": "Este bloco não foi encontrado na página",
+    "notPaired": "Este arquivo não tem página associada",
+    "leaveSourceCode": "Saia do modo de código-fonte para alternar entre a página e o texto"
   }
 }

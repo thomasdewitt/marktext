@@ -14,6 +14,9 @@ export const editorWinOptions = Object.freeze({
     spellcheck: true,
     nodeIntegration: true,
     webSecurity: false,
+    // For the blog preview only; src/main/app refuses every other webview and
+    // src/main/blogPreview sets the preview's own, locked-down preferences.
+    webviewTag: true,
     preload: path.join(__dirname, '../preload/index.js')
   },
   useContentSize: true,
