@@ -155,6 +155,10 @@ test('Create new .html builds the page and pairs the note', async () => {
   await openNote('blog/fresh.md')
   const newPage = path.join(t.workspace, 'site/thought-cloud/fresh-post/index.html')
   fs.mkdirSync(path.dirname(newPage), { recursive: true })
+  // The asset lines come from the most recently changed sibling post; the
+  // saves above made that paired-post, so touch the one this test looks for.
+  const sibling = path.join(t.workspace, 'site/thought-cloud/older-post/index.html')
+  fs.utimesSync(sibling, new Date(), new Date())
   await t.app.evaluate(({ dialog, BrowserWindow }, file) => {
     dialog.showSaveDialog = async () => ({ filePath: file, canceled: false })
     BrowserWindow.getAllWindows()[0].webContents.send('mt::show-blog-post-dialog')

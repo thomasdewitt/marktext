@@ -152,3 +152,37 @@ export const findRevealTarget = (elements, { index, item, words }) => {
   if (best && best.score[0] >= 0.5) return best.node
   return guess && guess.node
 }
+
+// --- The place kept across reloads -----------------------------------------
+
+const ANCHOR_TEXT_LENGTH = 120
+
+// A node's text, from DOM basics only (see the note at the top of the file).
+const plainText = (node) => {
+  if (node.nodeType === TEXT) return node.nodeValue
+  if (node.nodeType !== ELEMENT) return ''
+  return [...node.childNodes].map(plainText).join('')
+}
+
+/** How an element is recognized again after a reload: the start of its text. */
+export const anchorText = (element) => plainText(element).trim().slice(0, ANCHOR_TEXT_LENGTH)
+
+/**
+ * The element the reader was at before a reload. `place` is what was saved:
+ * `{ index, text }`, the element's position and `anchorText`. A save that
+ * adds or removes a paragraph above shifts every position below it, so the
+ * element is looked for by its text first (the nearest one to the old
+ * position, if several share it) and by position only when the text is gone,
+ * as when the edit was in that very element.
+ */
+export const findScrollAnchor = (elements, place) => {
+  if (!place || place.index < 0) return null
+  let best = null
+  if (place.text) {
+    elements.forEach((element, index) => {
+      if (anchorText(element) !== place.text) return
+      if (best === null || Math.abs(index - place.index) < Math.abs(best - place.index)) best = index
+    })
+  }
+  return elements[best === null ? place.index : best] || null
+}

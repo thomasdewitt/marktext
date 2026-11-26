@@ -10,9 +10,11 @@
 
 import { ipcRenderer } from 'electron'
 import {
+  anchorText,
   bodyElements,
   elementText,
   findRevealTarget,
+  findScrollAnchor,
   footnoteIndex,
   footnoteItems,
   topLevelIndex
@@ -65,6 +67,9 @@ const flash = (element) => {
 }
 
 ipcRenderer.on('reveal', (_event, target) => {
+  // A scroll asked for on purpose: the place kept from before a reload must
+  // not pull the page back (see "Keeping the scroll position" below).
+  userScrolled = true
   if (target.top) {
     window.scrollTo({ top: 0, behavior: 'smooth' })
     const title = document.querySelector('.article-title')
@@ -84,14 +89,17 @@ ipcRenderer.on('reveal', (_event, target) => {
 
 // The preview reloads after every save. Chromium restores the scroll offset
 // of a reload by itself; this keeps the same text in view instead, which
-// differs when the edit changed the height of something above it. The place
-// is kept as "this far into top-level element N", per page, in
+// differs when the edit added, removed or resized something above it. The
+// place is kept as "this far into this top-level element", per page, in
 // sessionStorage (which lives as long as the webview), so returning to a page
 // after looking at another one also lands where it was.
 const scrollKey = () => `mt-blog-preview-scroll:${location.pathname}`
 
-// Until the page has loaded, the scroll offset is Chromium's restoration or
-// ours, not the reader's, and the saved place must survive it.
+// For a moment after a reload the scroll offset is Chromium's restoration or
+// ours, not the reader's, and the saved place must survive it. Chromium may
+// put its own remembered offset back even after `load`, so the place is put
+// right again on every scroll that happens in that time.
+const RESTORE_TIME = 400
 let restoring = true
 let userScrolled = false
 
@@ -101,7 +109,12 @@ const saveScroll = () => {
   const index = elements.findIndex((element) => element.getBoundingClientRect().bottom > 0)
   const place = index === -1
     ? { index: -1, into: 0, y: window.scrollY }
-    : { index, into: -elements[index].getBoundingClientRect().top, y: window.scrollY }
+    : {
+        index,
+        text: anchorText(elements[index]),
+        into: -elements[index].getBoundingClientRect().top,
+        y: window.scrollY
+      }
   sessionStorage.setItem(scrollKey(), JSON.stringify(place))
 }
 
@@ -114,17 +127,21 @@ const restoreScroll = () => {
     return
   }
   if (!place) return
-  const element = articleElements()[place.index]
+  const element = findScrollAnchor(articleElements(), place)
   const y = element ? element.getBoundingClientRect().top + window.scrollY + place.into : place.y
   if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y)
 }
 
-// Stop restoring once the reader scrolls by hand.
+// Stop restoring once the reader scrolls by hand (or asks for a block to be shown).
 for (const type of ['wheel', 'keydown', 'mousedown', 'touchstart']) {
   window.addEventListener(type, () => { userScrolled = true }, { capture: true, passive: true })
 }
 window.addEventListener('pagehide', saveScroll)
 window.addEventListener('scroll', () => {
+  if (restoring && !userScrolled) {
+    restoreScroll()
+    return
+  }
   // Debounced, so a page that is closed rather than reloaded keeps its place too.
   clearTimeout(saveScroll.timer)
   saveScroll.timer = setTimeout(saveScroll, 200)
@@ -132,5 +149,8 @@ window.addEventListener('scroll', () => {
 document.addEventListener('DOMContentLoaded', restoreScroll)
 window.addEventListener('load', () => {
   restoreScroll()
-  restoring = false
+  setTimeout(() => {
+    restoreScroll()
+    restoring = false
+  }, RESTORE_TIME)
 })

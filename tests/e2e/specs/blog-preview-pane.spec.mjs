@@ -154,6 +154,9 @@ test('the page reloads when its revision changes and keeps the same text in view
   const after = await paragraphTop(26)
   assert.ok(Math.abs(after - before) < 4, `paragraph stayed in place (was ${before}, now ${after})`)
   assert.ok((await inPage('window.scrollY')) > 0, 'not back at the top')
+  // For a moment after a reload the page holds its place against scrolls that
+  // are not the reader's; let that pass before the next test scrolls by script.
+  await win.waitForTimeout(600)
 })
 
 test('a held page shows that it is not being updated', async () => {
