@@ -118,6 +118,12 @@ const retitleLeading = (html, oldTitle, newTitle) =>
     return `${open}${escapeText(newTitle)}${escapeText(rest)}${close}`
   })
 
+/** The text of the page's article heading, or '' if it has none. */
+export const articleTitleOf = (html) => {
+  const match = html.match(ARTICLE_TITLE)
+  return match ? decodeEntities(match[2]).trim() : ''
+}
+
 /**
  * The page's title spots changed from `oldTitle` to `newTitle`: the article
  * heading, the breadcrumb and the start of `<title>`, each only where it

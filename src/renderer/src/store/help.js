@@ -12,6 +12,9 @@ export const defaultFileState = {
   isSaved: true,
   // Full path to the file or empty. If the value is empty the file doesn't exist on disk.
   pathname: '',
+  // The blog page this note is paired with: null, or { htmlPath, held, revision }
+  // (see the BLOG_POST_* actions in editor.js).
+  blogPost: null,
   filename: 'Untitled-1',
   markdown: '',
   encoding: {

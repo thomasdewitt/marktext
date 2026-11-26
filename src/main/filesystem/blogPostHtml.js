@@ -20,7 +20,7 @@ const TAG = /<(\/?)([A-Za-z][A-Za-z0-9:-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*?(\/?)>/
  * own text. A raw-text element yields its open tag and its close tag, and
  * nothing for its contents.
  */
-export function * scanTags (html, from = 0) {
+export function * scanTags(html, from = 0) {
   let lower = null // lower-cased copy, made only if a raw-text element turns up
   let i = from
   while (i < html.length) {
