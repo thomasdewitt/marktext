@@ -173,7 +173,7 @@ test('Create new .html builds the page and pairs the note', async () => {
     () => /blog_html: \.\.\/site\/thought-cloud\/fresh-post\/index\.html/.test(t.readFile('blog/fresh.md')),
     'pairing written into the note'
   )
-  assert.ok(t.readFile('blog/fresh.md').endsWith('---\n# Fresh post\n\nBrand new text.\n'), 'note text untouched')
+  assert.ok(t.readFile('blog/fresh.md').endsWith('---\n\n# Fresh post\n\nBrand new text.\n'), 'note text untouched')
   const state = await until(blogPost, 'fresh note paired after reload')
   assert.equal(state.htmlPath, newPage)
   assert.equal(state.held, false)

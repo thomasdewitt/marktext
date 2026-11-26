@@ -5,6 +5,10 @@ import {
   writeBlogHtml
 } from '../../src/main/filesystem/blogPostFrontMatter'
 import { extractFrontmatter, resolveBlogPost } from '../../src/muya/lib/utils/blogPostTemplate'
+import { Lexer } from '../../src/muya/lib/parser/marked'
+
+// The first block the editor itself sees (front matter is on by default).
+const firstToken = (markdown) => new Lexer().lex(markdown)[0]
 
 describe('readBlogHtml', () => {
   it('reads a bare value', () => {
@@ -53,10 +57,32 @@ describe('formatScalar', () => {
 })
 
 describe('writeBlogHtml', () => {
-  it('creates a front matter block when there is none', () => {
+  it('creates a front matter block, followed by a blank line, when there is none', () => {
     expect(writeBlogHtml('# Title\n\nBody\n', 'p.html')).toBe(
-      '---\nblog_html: p.html\n---\n# Title\n\nBody\n'
+      '---\nblog_html: p.html\n---\n\n# Title\n\nBody\n'
     )
+  })
+
+  it('does not add a second blank line when the text already starts with one', () => {
+    expect(writeBlogHtml('\n# Title\n', 'p.html')).toBe('---\nblog_html: p.html\n---\n\n# Title\n')
+    expect(writeBlogHtml('', 'p.html')).toBe('---\nblog_html: p.html\n---\n')
+  })
+
+  it('writes a new block the editor reads as front matter', () => {
+    for (const note of ['# Title\n\nBody\n', 'Just a paragraph.\n', '\n# Title\n', '']) {
+      const token = firstToken(writeBlogHtml(note, 'p.html'))
+      expect(token.type).toBe('frontmatter')
+      expect(token.text).toContain('blog_html: p.html')
+    }
+  })
+
+  it('keeps an existing block front matter to the editor when the key is added', () => {
+    const md = '---\ntitle: Hi\n---\n\n# Heading\n\nBody\n'
+    expect(firstToken(md).type).toBe('frontmatter')
+    const token = firstToken(writeBlogHtml(md, 'my post/index.html'))
+    expect(token.type).toBe('frontmatter')
+    expect(token.text).toContain('title: Hi')
+    expect(token.text).toContain('blog_html: "my post/index.html"')
   })
 
   it('adds the key as the last line of an existing block, leaving the rest alone', () => {
@@ -79,7 +105,7 @@ describe('writeBlogHtml', () => {
 
   it('does not treat a later horizontal rule as front matter', () => {
     const md = 'Intro\n\n---\n\nMore\n'
-    expect(writeBlogHtml(md, 'p.html')).toBe(`---\nblog_html: p.html\n---\n${md}`)
+    expect(writeBlogHtml(md, 'p.html')).toBe(`---\nblog_html: p.html\n---\n\n${md}`)
   })
 
   it('refuses a note whose front matter is not YAML', () => {

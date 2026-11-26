@@ -83,7 +83,11 @@ export const writeBlogHtml = (markdown, relativePath) => {
         'The note starts with front matter that is not YAML (---), so the blog page cannot be recorded in it.'
       )
     }
-    return `---\n${line}\n---\n${text}`
+    // The editor reads a leading block as front matter only when a blank
+    // line (or the end of the text) follows the closing `---`; with a single
+    // newline it would show `---` as a rule and the key as a setext heading.
+    const gap = text === '' || text.startsWith('\n') ? '' : '\n'
+    return `---\n${line}\n---\n${gap}${text}`
   }
 
   const inner = block[1]

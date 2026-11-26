@@ -149,7 +149,7 @@ describe('pairing a note', () => {
     const mdPath = path.join(dir, 'post.md')
     fs.writeFileSync(mdPath, '# T\r\n\r\nBody\r\n')
     await pairNote({ mdPath, htmlPath: path.join(dir, 'p.html') })
-    expect(fs.readFileSync(mdPath, 'utf8')).toBe('---\r\nblog_html: p.html\r\n---\r\n# T\r\n\r\nBody\r\n')
+    expect(fs.readFileSync(mdPath, 'utf8')).toBe('---\r\nblog_html: p.html\r\n---\r\n\r\n# T\r\n\r\nBody\r\n')
   })
 
   it('resolves nothing for a note without the key', () => {
