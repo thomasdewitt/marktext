@@ -18,6 +18,7 @@
       "export": "Export",
       "exportHtml": "Export as HTML",
       "exportBlogPost": "Export as Blog Post",
+      "openBlogPost": "Open Blog Post...",
       "exportPdf": "Export as PDF",
       "import": "Import",
       "print": "Print",
@@ -351,6 +352,47 @@
         "liber": "Liber"
       }
     }
+  },
+  "blogPost": {
+    "dialog": {
+      "title": "Open Blog Post",
+      "note": "Note (.md)",
+      "page": "Blog page (.html)",
+      "noneChosen": "None chosen",
+      "choose": "Choose...",
+      "createPage": "Create new .html...",
+      "pairedStatus": "Each save of this note rewrites the article body of this page.",
+      "heldStatus": "Saves of this note leave this page alone until you decide.",
+      "hold": "Hold saves",
+      "resume": "Resume saving to page",
+      "overwriteNow": "Overwrite page from note",
+      "unsavedNote": "Save \"{name}\" before pairing it with a page.",
+      "cancel": "Cancel",
+      "open": "Open"
+    },
+    "ask": {
+      "driftTitle": "The page was edited by hand",
+      "driftMessage": "The article body of {page} is no longer what MarkText last wrote there. Nothing was written. This is what saving the note would change:",
+      "unmarkedTitle": "First save to this page",
+      "unmarkedMessage": "MarkText has not written to {page} before. Nothing was written yet. This is what saving the note would change in its article body:",
+      "missingTitle": "Blog page not found",
+      "missingMessage": "{note} is paired with {page}, which does not exist. Saves leave it alone until you pick a page.",
+      "refusedTitle": "Cannot write to this page",
+      "refusedMessage": "MarkText will not write to {page}: {reason}.",
+      "errorTitle": "Could not update the blog page",
+      "errorMessage": "Updating {page} failed: {reason}",
+      "summary": "{same} blocks the same, {differ} different",
+      "noBlockChanges": "No block differs; only the whitespace between blocks does.",
+      "changed": "Changed",
+      "added": "Only in the note (saving adds it)",
+      "removed": "Only on the page (saving removes it)",
+      "markupOnly": "markup only",
+      "hold": "Hold",
+      "overwrite": "Overwrite page from note",
+      "pickAgain": "Pick page...",
+      "close": "Close"
+    },
+    "heldNotice": "Saves leave the blog page {page} alone. Use File > Open Blog Post... to overwrite it or resume."
   },
   "table": {
     "resizeTable": "Resize Table",

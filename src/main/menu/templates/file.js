@@ -161,6 +161,12 @@ export default function (keybindings, userPreference, recentlyUsedFiles) {
       ]
     },
     {
+      label: t('menu.file.openBlogPost'),
+      click(menuItem, browserWindow) {
+        actions.openBlogPost(browserWindow)
+      }
+    },
+    {
       label: t('menu.file.print'),
       accelerator: keybindings.getAccelerator('file.print'),
       click(menuItem, browserWindow) {
